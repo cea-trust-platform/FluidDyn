@@ -9,6 +9,17 @@ import itertools
 import fileinput
 
 
+class Schema_espace:
+    def __init__(self, dS=1., schema='weno', cl=1):
+        self.dS = dS
+        self.schema = schema
+        self.cl = cl
+
+    def apply(self, center_value, face_value):
+        if self.schema is 'weno':
+            return
+
+
 def integrale_volume_div(center_value, face_value, cl=1, dS=1., schema='center'):
     """
     Calcule le delta de convection aux bords des cellules
@@ -158,7 +169,8 @@ def indicatrice_liquide(x, markers=None):
 
 
 class Problem:
-    def __init__(self, Delta, dx, lda1, lda2, rho_cp1, rho_cp2, markers, T0, v, dt, cfl=1., fo=1., schema='center'):
+    def __init__(self, Delta, dx, lda1, lda2, rho_cp1, rho_cp2, markers, T0, v, dt, cfl=1., fo=1., schema='center',
+                 diff=1., time_scheme='euler'):
         self.lda1 = lda1
         self.lda2 = lda2
         self.rho_cp1 = rho_cp1
@@ -175,7 +187,15 @@ class Problem:
         self.cfl = cfl
         self.dt = get_time(cfl, fo, dt, v, dx, rho_cp1, rho_cp2, lda1, lda2)
         self.schema = schema
+        self.diff = diff
         self.time = 0.
+        self.time_scheme = time_scheme
+        if self.v == 0.:
+            self.cas = 'diffusion'
+        elif self.diff == 0.:
+            self.cas = 'convection'
+        else:
+            self.cas = 'mixte'
 
     @property
     def Lda_h(self):
@@ -203,7 +223,7 @@ class Problem:
     def compute_energy(self):
         return np.sum(self.rho_cp_a*self.T) / np.size(self.T)
 
-    def timestep(self, n=None, t_fin=None, plot_for_each=1, number_of_plots=None, diff=1., time_scheme='euler', plot=True, debug=False):
+    def timestep(self, n=None, t_fin=None, plot_for_each=1, number_of_plots=None, plotter=None, debug=False):
         if (n is None) and (t_fin is None):
             raise NotImplementedError
         if t_fin is not None:
@@ -214,20 +234,15 @@ class Problem:
         energy = np.zeros((n+1,))
         t = np.linspace(0, n*self.dt, n+1)
         energy[0] = self.compute_energy()
-        plt.figure('T, dx = %f, cfl = %f' % (self.dx, self.cfl))
-        self.plt_T_I()
-        plt.xticks(self.x_f)
-        plt.grid(which='major')
         for i in range(n):
-            if time_scheme is 'euler':
-                self.euler_timestep(dS=dS, diff=diff, debug=(debug & (i % plot_for_each == 0)))
-            elif time_scheme is 'rk4':
-                self.rk4_timestep(dS=1., diff=diff, debug=(debug & (i % plot_for_each == 0)))
+            if self.time_scheme is 'euler':
+                self.euler_timestep(dS=dS, diff=self.diff, debug=(debug & (i % plot_for_each == 0)))
+            elif self.time_scheme is 'rk4':
+                self.rk4_timestep(dS=1., diff=self.diff, debug=(debug & (i % plot_for_each == 0)))
             self.time += self.dt
             energy[i+1] = self.compute_energy()
-            if (i % plot_for_each == 0) and plot:
-                plt.figure('T, dx = %f, cfl = %f' % (self.dx, self.cfl))
-                self.plt_T_I()
+            if (i % plot_for_each == 0) and (plotter is not None):
+                plotter.plot(self)
         return t, energy
 
     def euler_timestep(self, dS=1., diff=1., debug=False):
@@ -265,15 +280,9 @@ class Problem:
             K.append(int_div_T_u + rho_cp_inv_int_div_lda_grad_T)
             if debug:
                 plt.figure('sous-pas de temps %f' % (len(K)-2))
-                # plt.plot(self.x, T, label='T')
-                # plt.plot(self.x, Lda_h, label='lda_h')
-                # plt.plot(self.x_f, grad(T, dx=self.dx), label='grad T')
                 plt.plot(self.x_f, interpolate_form_center_to_face_weno(Lda_h)*grad(T, dx=self.dx), label='lda_h grad T, time = %f' % self.time)
-                # Lda_a = temp_I*self.lda1 + (1.-temp_I)*self.lda2
-                # plt.plot(self.x_f, interpolate_form_center_to_face_weno(Lda_a)*grad(T, dx=self.dx), label='lda_a grad T')
                 plt.plot(self.x, rho_cp_inv_h, label='rho_cp_inv_h, time = %f' % self.time)
                 plt.plot(self.x, div_lda_grad_T, label='div_lda_grad_T, time = %f' % self.time)
-                # plt.plot(self.x, rho_cp_inv_int_div_lda_grad_T, label='rho_cp_inv_div_lda_grad_T, time = %f' % self.time)
                 maxi = max(np.max(div_lda_grad_T), np.max(rho_cp_inv_int_div_lda_grad_T), np.max(rho_cp_inv_h))
                 mini = min(np.min(div_lda_grad_T), np.min(rho_cp_inv_int_div_lda_grad_T), np.min(rho_cp_inv_h))
                 plt.plot([self.markers[0]+self.v*h] * 2, [mini, maxi], '--')
@@ -284,19 +293,6 @@ class Problem:
         coeff = np.array([1./6, 1/3., 1/3., 1./6])
         self.T += np.sum(self.dt*coeff*np.array(K[1:]).T, axis=-1)
         self.update_markers()
-
-    def plt_T_I(self):
-        c = plt.plot(self.x, self.I, '+')
-        col = c[-1].get_color()
-        plt.plot(self.x, decale_perio(self.x, self.T, self.time*v), c=col, label='time %f' % self.time)
-        # x, T = get_T(self.dx, self.Delta, self.lda1, self.lda2, self.markers)
-        # plt.plot(x, T, '--', c=col, label='solution ana, time %f' % self.time)
-        # maxi = max(np.max(self.T), np.max(self.I))
-        # mini = min(np.min(self.T), np.min(self.I))
-        # plt.plot([self.markers[0]]*2, [mini, maxi], '--', c=col)
-        # plt.plot([self.markers[1]]*2, [mini, maxi], '--', c=col)
-        plt.legend()
-        # plt.show(block=False)
 
 
 def get_time(cfl, fo, dt, v, dx, rho_cp1, rho_cp2, lda1, lda2):
@@ -314,25 +310,7 @@ def get_time(cfl, fo, dt, v, dx, rho_cp1, rho_cp2, lda1, lda2):
     return dt
 
 
-def decale_perio(x, T, x0=0.):
-    """
-    décale de x0 vers la gauche la courbe T en interpolant entre les décalages direct de n*dx < x0 < (n+1)*dx
-    avec la formule suivante : T_interp = T_n * a + T_np1 * (1 - a) avec a = (x0 - n*dx)/dx
-    :param x:
-    :param T:
-    :param x0:
-    :return: T decalé
-    """
-    dx = x[1] - x[0]
-    Delta = x[-1] + dx/2.
-    while x0 > Delta:
-        x0 -= Delta
-    n = int(x0/dx)
-    a = (x0 - n*dx)/dx
-    T_n = np.r_[T[n:], T[:n]]
-    T_np1 = np.r_[T[n+1:], T[:n+1]]
-    T_decale = a*T_n + (1.-a)*T_np1
-    return T_decale
+
 
 def get_T(dx=0.1, Delta=10., lda_1=1., lda_2=1., markers=None):
     if markers is None:
@@ -348,6 +326,8 @@ def get_T(dx=0.1, Delta=10., lda_1=1., lda_2=1., markers=None):
         T[(x > markers[0]) & (x < markers[1])] = T2[(x > markers[0]) & (x < markers[1])]
     else:
         T[(x < markers[1]) | (x > markers[0])] = T2[(x > markers[0]) | (x < markers[1])]
+    T += np.min(T)
+    T /= np.max(T)
     return x, T
 
 
@@ -357,6 +337,7 @@ def get_T_creneau(dx=0.1, Delta=10., markers=None):
     x = np.linspace(dx / 2., Delta - dx / 2., int(Delta / dx))
     T = 1. - indicatrice_liquide(x, markers)
     return x, T
+
 
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
@@ -383,8 +364,9 @@ if __name__ == '__main__':
         #x, T = get_T(dx=dx, Delta=Delta, lda_1=lda_1, lda_2=lda_2, markers=markers)
         x, T = get_T_creneau(dx=dx, Delta=Delta, markers=markers)
 
-        prob = Problem(Delta, dx, lda_1, lda_2, rho_cp_1, rho_cp_2, markers, T, v, dt, cfl, fo, schema='weno')
-        t, e = prob.timestep(n=10000, number_of_plots=3, diff=0., time_scheme='rk4', debug=True)
+        prob = Problem(Delta, dx, lda_1, lda_2, rho_cp_1, rho_cp_2, markers, T, v, dt, cfl, fo,
+                       diff=0., schema='upwind', time_scheme='rk4')
+        t, e = prob.timestep(n=10000, number_of_plots=3, debug=False)
         tl.append(t)
         el.append(e)
     i = 0

@@ -1,4 +1,5 @@
-from main import *
+import numpy as np
+import matplotlib.pyplot as plt
 
 
 class Plotter:
@@ -48,13 +49,16 @@ def plot_classic(problem):
 
 
 def get_name(problem):
-    return 'Cas : %s, %s, %s, dx = %.3f, cfl = %.3f' % (problem.cas, problem.time_scheme, problem.schema, problem.dx, problem.cfl)
+    return 'Cas : %s, %s, %s, dx = %.3f, cfl = %.3f' % (problem.cas, problem.time_scheme, problem.schema, problem.dx,
+                                                        problem.cfl)
 
 
 def decale_perio(x, T, x0=0., markers=None, plot=False):
     """
     décale de x0 vers la gauche la courbe T en interpolant entre les décalages direct de n*dx < x0 < (n+1)*dx
     avec la formule suivante : x_interp += (x0-n*dx)
+    :param markers:
+    :param plot:
     :param x:
     :param T:
     :param x0:

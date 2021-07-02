@@ -7,7 +7,7 @@ if __name__ == '__main__':
     lda_1 = 1.
     lda_2 = 10.
     rho_cp_1 = 1.
-    rho_cp_2 = 100.
+    rho_cp_2 = 10.
     markers = np.array([0.4 * Delta, 0.55 * Delta])
     v = 1.
     dt = 1.
@@ -15,7 +15,7 @@ if __name__ == '__main__':
 
     t_fin = 1.
     Dx = 10. ** np.linspace(-1, -1, 1)
-    Cfl = 10. ** np.linspace(-1, -0.5, 1)
+    Cfl = 10. ** np.linspace(-1., -0.5, 1)
     Schema = ['upwind', 'center', 'weno']
 
     Cas_test = itertools.product(Dx, Cfl, Schema)
@@ -27,11 +27,11 @@ if __name__ == '__main__':
         for decal in np.linspace(0., dx, n_moy+2)[1:-1]:
             # x, T = get_T(dx=dx, Delta=Delta, lda_1=lda_1, lda_2=lda_2, markers=markers)
             markers_decal = np.array([markers[0] + decal, markers[1]])
-            x, T = get_T_creneau(dx=dx, Delta=Delta, markers=markers_decal)
-            T = 9.*T + 1
+            x, T = get_T(dx=dx, Delta=Delta, markers=markers_decal, lda_1=lda_1, lda_2=lda_2)
+            T = T + 1.
 
-            prob = Problem(Delta, dx, lda_1, lda_2, rho_cp_1, rho_cp_2, markers_decal, T, v, dt, cfl, fo,
-                           diff=0., schema=schema, time_scheme='rk4')
+            prob = ProblemConserv(Delta, dx, lda_1, lda_2, rho_cp_1, rho_cp_2, markers_decal, T, v, dt, cfl, fo,
+                                  diff=0., schema=schema, time_scheme='rk4')
             t, e = prob.timestep(n=5000, number_of_plots=5, debug=False, plotter=Plotter('decale'))
             plt.figure('energie')
             plt.plot(t, e, label='dx = %.3f, cfl = %.3f, schema : %s, sous_pas : %.3f' % (dx, cfl, schema, decal))

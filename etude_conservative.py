@@ -1,5 +1,5 @@
-from main import *
-from plot_fields import *
+from src.main import *
+from src.plot_fields import *
 
 
 if __name__ == '__main__':
@@ -16,11 +16,12 @@ if __name__ == '__main__':
     t_fin = 1.
     Dx = 10. ** np.linspace(-1, -1, 1)
     Cfl = 10. ** np.linspace(-1., -0.5, 1)
-    Schema = ['upwind', 'center', 'weno']
+    Schema = ['weno']
+    Formulation = [Problem, ProblemConserv, ProblemConserv2]
 
-    Cas_test = itertools.product(Dx, Cfl, Schema)
+    Cas_test = itertools.product(Dx, Cfl, Schema, Formulation)
 
-    for dx, cfl, schema in Cas_test:
+    for dx, cfl, schema, form in Cas_test:
         e_m = None
         t_m = None
         n_moy = 1
@@ -30,8 +31,8 @@ if __name__ == '__main__':
             x, T = get_T(dx=dx, Delta=Delta, markers=markers_decal, lda_1=lda_1, lda_2=lda_2)
             T = T + 1.
 
-            prob = ProblemConserv(Delta, dx, lda_1, lda_2, rho_cp_1, rho_cp_2, markers_decal, T, v, dt, cfl, fo,
-                                  diff=0., schema=schema, time_scheme='rk4')
+            prob = form(Delta, dx, lda_1, lda_2, rho_cp_1, rho_cp_2, markers_decal, T, v, dt, cfl, fo,
+                        diff=0., schema=schema, time_scheme='euler')
             t, e = prob.timestep(n=5000, number_of_plots=5, debug=False, plotter=Plotter('decale'))
             plt.figure('energie')
             plt.plot(t, e, label='dx = %.3f, cfl = %.3f, schema : %s, sous_pas : %.3f' % (dx, cfl, schema, decal))
@@ -49,5 +50,5 @@ if __name__ == '__main__':
         i0 = int(n/5)
         dedt_adim = (e_m[-1] - e_m[i0]) / (t_m[-1] - t_m[i0]) * prob.dt / (rho_cp_1*Delta*1.)  # on a mult
         # par Dt / rho_cp_l T_l V
-        print('dx = %f, cfl = %f, schema : %s, dE*/dt* = %f' % (dx, cfl, schema, dedt_adim))
+        print(prob.name, 'dE*/dt* = %f' % dedt_adim)
     plt.show()

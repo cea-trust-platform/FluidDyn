@@ -1,5 +1,5 @@
-from main import *
-from plot_fields import *
+from src.main import *
+from src.plot_fields import *
 
 
 if __name__ == '__main__':
@@ -9,14 +9,14 @@ if __name__ == '__main__':
     rho_cp_1 = 1.
     rho_cp_2 = 100.
     markers = np.array([0.4 * Delta, 0.55 * Delta])
-    v = 1.
+    v = 0.
     dt = 1.
     fo = 0.5
 
-    t_fin = 1.
+    t_fin = 20.
     Dx = 10. ** np.linspace(-1, -1, 1)
-    Cfl = 10. ** np.linspace(-1, -0.5, 1)
-    Schema = ['upwind', 'center', 'weno']
+    Cfl = 10. ** np.linspace(-3, -2, 2)
+    Schema = ['weno']
 
     Cas_test = itertools.product(Dx, Cfl, Schema)
 
@@ -31,11 +31,11 @@ if __name__ == '__main__':
             T = 9.*T + 1
 
             prob = Problem(Delta, dx, lda_1, lda_2, rho_cp_1, rho_cp_2, markers_decal, T, v, dt, cfl, fo,
-                           diff=0., schema=schema, time_scheme='rk4')
-            t, e = prob.timestep(n=5000, number_of_plots=5, debug=False, plotter=Plotter('decale'))
-            plt.figure('energie')
-            plt.plot(t, e, label='dx = %.3f, cfl = %.3f, schema : %s, sous_pas : %.3f' % (dx, cfl, schema, decal))
-            plt.legend()
+                           diff=1., schema=schema, time_scheme='euler')
+            t, e = prob.timestep(t_fin=t_fin, number_of_plots=5, debug=False, plotter=Plotter('classic'))
+            # plt.figure('energie')
+            # plt.plot(t, e, label='dx = %.3f, cfl = %.3f, schema : %s, sous_pas : %.3f' % (dx, cfl, schema, decal))
+            # plt.legend()
             t_m = t
             if e_m is None:
                 e_m = e
@@ -49,5 +49,5 @@ if __name__ == '__main__':
         i0 = int(n/5)
         dedt_adim = (e_m[-1] - e_m[i0]) / (t_m[-1] - t_m[i0]) * prob.dt / (rho_cp_1*Delta*1.)  # on a mult
         # par Dt / rho_cp_l T_l V
-        print('dx = %f, cfl = %f, schema : %s, dE*/dt* = %f' % (dx, cfl, schema, dedt_adim))
+        print('dx = %f, cfl = %f, schema : %s, dE*/dt* = %f' % (dx, prob.cfl, schema, dedt_adim))
     plt.show()

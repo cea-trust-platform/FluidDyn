@@ -16,7 +16,7 @@ class Plotter:
 
 
 def plot_decale(problem):
-    plt.figure(get_name(problem))
+    plt.figure(problem.name)
     x0 = problem.time*problem.v
     x_dec, T_dec = decale_perio(problem.x, problem.T, x0, problem.markers)
     c = plt.plot(x_dec, T_dec, label='time %f' % problem.time)
@@ -33,7 +33,7 @@ def plot_decale(problem):
 
 
 def plot_classic(problem):
-    plt.figure(get_name(problem))
+    plt.figure(problem.name)
     c = plt.plot(problem.x, problem.I, '+')
     col = c[-1].get_color()
     plt.plot(problem.x, problem.T, c=col, label='time %f' % problem.time)
@@ -46,11 +46,6 @@ def plot_classic(problem):
     plt.xticks(problem.x_f)
     plt.grid(which='major')
     plt.legend()
-
-
-def get_name(problem):
-    return 'Cas : %s, %s, %s, dx = %.3f, cfl = %.3f' % (problem.cas, problem.time_scheme, problem.schema, problem.dx,
-                                                        problem.cfl)
 
 
 def decale_perio(x, T, x0=0., markers=None, plot=False):

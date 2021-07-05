@@ -1,51 +1,69 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
+from matplotlib import rc
+rc('text', usetex=True)
+rc('font', size=14)
+rc('font', family='serif')
+rc('legend', fontsize=13)
+rc('figure', max_open_warning=50)
+# rc('figure', figsize=(5, 3.33))
+rc('figure', dpi=200)
+rc('savefig', dpi=300)
+
 
 class Plotter:
     def __init__(self, cas='classic'):
         self.cas = cas
+        self.fig = None
+        self.ax = None
 
     def plot(self, problem):
         if self.cas is 'classic':
-            plot_classic(problem)
+            self.fig, self.ax = plot_classic(problem, self.fig, self.ax)
         elif self.cas is 'decale':
-            plot_decale(problem)
+            self.fig, self.ax = plot_decale(problem, self.fig, self.ax)
         else:
             raise NotImplementedError
 
 
-def plot_decale(problem):
-    plt.figure(problem.name)
+def plot_decale(problem, fig=None, ax=None):
+    if (fig is None) or (ax is None):
+        fig, ax = plt.subplots(1)
+    fig.suptitle(problem.name)
     x0 = problem.time*problem.v
     x_dec, T_dec = decale_perio(problem.x, problem.T, x0, problem.markers)
-    c = plt.plot(x_dec, T_dec, label='time %f' % problem.time)
+    c = ax.plot(x_dec, T_dec, label='time %f' % problem.time)
     col = c[-1].get_color()
     maxi = max(np.max(problem.T), np.max(problem.I))
     mini = min(np.min(problem.T), np.min(problem.I))
     while x0 > problem.Delta:
         x0 -= problem.Delta
-    plt.plot([decale_positif(problem.markers[0] - x0, problem.Delta)]*2, [mini, maxi], '--', c=col)
-    plt.plot([decale_positif(problem.markers[1] - x0, problem.Delta)]*2, [mini, maxi], '--', c=col)
-    plt.xticks(problem.x_f)
-    plt.grid(b=True, which='major')
-    plt.legend()
+    ax.plot([decale_positif(problem.markers[0] - x0, problem.Delta)]*2, [mini, maxi], '--', c=col)
+    ax.plot([decale_positif(problem.markers[1] - x0, problem.Delta)]*2, [mini, maxi], '--', c=col)
+    ax.set_xticks(problem.x_f)
+    ax.set_xticklabels([])
+    ax.grid(b=True, which='major')
+    ax.legend()
+    return fig, ax
 
 
-def plot_classic(problem):
-    plt.figure(problem.name)
-    c = plt.plot(problem.x, problem.I, '+')
+def plot_classic(problem, fig=None, ax=None):
+    if (fig is None) or (ax is None):
+        fig, ax = plt.subplots(1)
+    fig.suptitle(problem.name)
+    c = ax.plot(problem.x, problem.I, '+')
     col = c[-1].get_color()
-    plt.plot(problem.x, problem.T, c=col, label='time %f' % problem.time)
-    # x, T = get_T(problem.dx, problem.Delta, problem.lda1, problem.lda2, problem.markers)
-    # plt.plot(x, T, '--', c=col, label='solution ana, time %f' % problem.time)
+    ax.plot(problem.x, problem.T, c=col, label='time %f' % problem.time)
     maxi = max(np.max(problem.T), np.max(problem.I))
     mini = min(np.min(problem.T), np.min(problem.I))
-    plt.plot([problem.markers[0]]*2, [mini, maxi], '--', c=col)
-    plt.plot([problem.markers[1]]*2, [mini, maxi], '--', c=col)
-    plt.xticks(problem.x_f)
-    plt.grid(which='major')
-    plt.legend()
+    ax.plot([problem.markers[0]]*2, [mini, maxi], '--', c=col)
+    ax.plot([problem.markers[1]]*2, [mini, maxi], '--', c=col)
+    ax.set_xticks(problem.x_f)
+    ax.set_xticklabels([])
+    ax.grid(which='major')
+    ax.legend()
+    return fig, ax
 
 
 def decale_perio(x, T, x0=0., markers=None, plot=False):

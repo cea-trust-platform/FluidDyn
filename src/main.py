@@ -7,7 +7,7 @@ import itertools
 # Press Double Shift to search everywhere for classes, files, tool windows, actions, and settings.
 
 
-def integrale_volume_div(center_value, face_value, cl=1, dS=1., schema='center'):
+def integrale_volume_div(center_value, face_value, I=None, cl=1, dS=1., schema='center'):
     """
     Calcule le delta de convection aux bords des cellules
     :param dS:
@@ -29,6 +29,10 @@ def integrale_volume_div(center_value, face_value, cl=1, dS=1., schema='center')
         interpolated_value = interpolate_from_center_to_face_center(center_value, cl)
     elif schema is 'weno':
         interpolated_value = interpolate_form_center_to_face_weno(center_value, cl=1)
+    elif schema == 'weno upwind':
+        if I is None:
+            raise NotImplementedError
+        interpolated_value = interpolate_center_value_weno_to_face_upwind_interface(center_value, I, cl=1)
     else:
         raise NotImplementedError
     flux = interpolated_value * face_value * dS
@@ -100,6 +104,38 @@ def interpolate_form_center_to_face_weno(a, cl=1):
     return interpolated_value
 
 
+def interpolate_center_value_weno_to_face_upwind_interface(a, I, cl=1):
+    """
+    interpolate the center value a[i] at the face res[i+1] (corresponding to the upwind scheme) on diphasic cells
+    :param cl: the limit condition, 1 is periodic
+    :param a: the center values
+    :param I: the phase indicator
+    :return: res
+    """
+    res = interpolate_form_center_to_face_weno(a, cl)
+    # print('a : ', a.shape)
+    # print('res : ', res.shape)
+    if cl == 1:
+        center_values = np.r_[a[-3:], a, a[:2]]
+        phase_indicator = np.r_[I[-3:], I, I[:2]]
+        center_diph = (phase_indicator*(1. - phase_indicator) != 0.)
+    else:
+        raise NotImplementedError
+    diph_jm2 = center_diph[:-4]
+    diph_jm1 = center_diph[1:-3]
+    diph_j = center_diph[2:-2]
+    diph_jp1 = center_diph[3:-1]
+    diph_jp2 = center_diph[4:]
+    # f diphasic correspond aux faces dont le stencil utilisé par le WENO traverse l'interface
+    f_diph = diph_jm2 | diph_jm1 | diph_j | diph_jp1 | diph_jp2
+    # print('f_diph : ', f_diph.shape)
+    # print(f_diph)
+
+    # interpolation upwind
+    res[f_diph] = center_values[2:-2][f_diph]
+    return res
+
+
 def grad(center_value, dx=1, cl=1):
     """
     Calcule le gradient aux faces
@@ -139,25 +175,107 @@ def grad_center(center_value, dx=1., cl=1):
     return gradient
 
 
-def indicatrice_liquide(x, markers=None):
-    i = np.ones_like(x)
-    if markers is None:
+# def indicatrice_liquide(x, markers=None):
+#     i = np.ones_like(x)
+#     if markers is None:
+#         return i
+#     dx = x[1] - x[0]
+#     if markers[0] < markers[1]:
+#         i[(x > markers[0]) & (x < markers[1])] = 0.
+#     else:
+#         i[(x > markers[0]) | (x < markers[1])] = 0.
+#     diph0 = (np.abs(x - markers[0]) < dx / 2.)
+#     i[diph0] = (markers[0] - x[diph0]) / dx + 1. / 2.
+#     diph1 = (np.abs(x - markers[1]) < dx / 2.)
+#     i[diph1] = -(markers[1] - x[diph1]) / dx + 1 / 2.
+#     return i
+
+
+class Bulles:
+    def __init__(self, markers=None, a_i=None, Delta=1., alpha=None):
+        if markers is None:
+            self.markers = []
+            if (a_i is None) or (alpha is None):
+                raise NotImplementedError
+            # On détermine le nombre de bulle pour avoir une aire interfaciale donnée.
+            n_bulle = int(a_i/2.*Delta) + 1
+            # Avec le taux de vide on en déduit le diamètre d'une bulle. On va considérer que le taux de vide s'exprime
+            # en 1D, cad : alpha = n*d*dS/(Dx*dS)
+            diam = alpha*Delta/n_bulle
+            centers = np.linspace(diam, Delta+diam, n_bulle+1)[:-1]
+            for center in centers:
+                self.markers.append((center - diam/2., center + diam/2.))
+            self.markers = np.array(self.markers)
+        else:
+            self.markers = markers
+        self.Delta = Delta
+        depasse = (self.markers > Delta) | (self.markers < 0.)
+        if np.any(depasse):
+            print('Delta : ', Delta)
+            print('markers : ', self.markers)
+            print('depasse : ', depasse)
+            raise Exception('Les marqueurs dépassent du domaine')
+
+    def __call__(self, *args, **kwargs):
+        return self.markers
+
+    def copy(self):
+        cls = self.__class__
+        return cls(markers=self.markers.copy())
+
+    def indicatrice_liquide(self, x):
+        i = np.ones_like(x)
+        dx = x[1] - x[0]
+        for markers in self.markers:
+            if markers[0] < markers[1]:
+                i[(x > markers[0]) & (x < markers[1])] = 0.
+            else:
+                i[(x > markers[0]) | (x < markers[1])] = 0.
+            diph0 = (np.abs(x - markers[0]) < dx / 2.)
+            i[diph0] = (markers[0] - x[diph0]) / dx + 1. / 2.
+            diph1 = (np.abs(x - markers[1]) < dx / 2.)
+            i[diph1] = -(markers[1] - x[diph1]) / dx + 1 / 2.
         return i
-    dx = x[1] - x[0]
-    if markers[0] < markers[1]:
-        i[(x > markers[0]) & (x < markers[1])] = 0.
-    else:
-        i[(x > markers[0]) | (x < markers[1])] = 0.
-    diph0 = (np.abs(x - markers[0]) < dx / 2.)
-    i[diph0] = (markers[0] - x[diph0]) / dx + 1. / 2.
-    diph1 = (np.abs(x - markers[1]) < dx / 2.)
-    i[diph1] = -(markers[1] - x[diph1]) / dx + 1 / 2.
-    return i
+
+    def shift(self, dx):
+        self.markers += dx
+        depasse = self.markers > self.Delta
+        self.markers[depasse] -= self.Delta
+
+
+class PhysicalProperties:
+    def __init__(self, lda1=1., lda2=0., rho_cp1=1., rho_cp2=1., v=1., diff=1., a_i=358., alpha=0.06):
+        self.lda1 = lda1
+        self.lda2 = lda2
+        self.rho_cp1 = rho_cp1
+        self.rho_cp2 = rho_cp2
+        self.v = v
+        self.diff = diff
+        self.a_i = a_i
+        self.alpha = alpha
+        if self.v == 0.:
+            self.cas = 'diffusion'
+        elif self.diff == 0.:
+            self.cas = 'convection'
+        else:
+            self.cas = 'mixte'
+
+
+class NumericalProperties:
+    def __init__(self, Delta=1., dx=0.1, dt=1., cfl=1., fo=1., schema='weno', time_scheme='euler'):
+        self.cfl = cfl
+        self.fo = fo
+        self.schema = schema
+        self.time_scheme = time_scheme
+        self.x = np.linspace(dx / 2., Delta - dx / 2., int(Delta / dx))
+        self.x_f = np.linspace(0, Delta, int(Delta / dx) + 1)
+        dx = self.x[1] - self.x[0]
+        self.dx = dx
 
 
 class Problem:
     def __init__(self, Delta, dx, lda1, lda2, rho_cp1, rho_cp2, markers, T0, v, dt, cfl=1., fo=1., schema='center',
-                 diff=1., time_scheme='euler'):
+                 diff=1., time_scheme='euler', a_i=358., alpha=0.06, dS=1.):
         self.lda1 = lda1
         self.lda2 = lda2
         self.rho_cp1 = rho_cp1
@@ -165,11 +283,11 @@ class Problem:
         self.Delta = Delta
         # self.x = np.linspace(0, Delta, int(Delta/dx)+1)
         self.x = np.linspace(dx / 2., Delta - dx / 2., int(Delta / dx))
-        self.x_f = np.linspace(0, Delta, int(Delta / dx) + 1)
         dx = self.x[1] - self.x[0]
         self.dx = dx
-        self.markers = np.array(markers)
-        self.T = np.array(T0)
+        self.x_f = np.linspace(0, Delta, int(Delta / dx) + 1)
+        self.markers = Bulles(markers=markers, Delta=Delta, a_i=a_i, alpha=alpha)
+        self.T = T0(self.x, markers=self.markers, lda_1=lda1, lda_2=lda2)
         self.v = v
         self.cfl_lim = cfl
         self.dt = get_time(cfl, fo, dt, v, dx, rho_cp1, rho_cp2, lda1, lda2)
@@ -177,6 +295,7 @@ class Problem:
         self.diff = diff
         self.time = 0.
         self.time_scheme = time_scheme
+        self.dS = dS
         if self.v == 0.:
             self.cas = 'diffusion'
         elif self.diff == 0.:
@@ -216,15 +335,14 @@ class Problem:
 
     @property
     def I(self):
-        i = indicatrice_liquide(self.x, self.markers)
+        i = self.markers.indicatrice_liquide(self.x)
         return i
 
     def update_markers(self):
-        self.markers = self.markers + self.v * self.dt
-        self.markers[self.markers > self.Delta] -= self.Delta
+        self.markers.shift(self.v * self.dt)
 
-    def compute_energy(self, dS=1.):
-        return np.sum(self.rho_cp_a * self.T * dS * self.dx)
+    def compute_energy(self):
+        return np.sum(self.rho_cp_a * self.T * self.dS * self.dx)
 
     def timestep(self, n=None, t_fin=None, plot_for_each=1, number_of_plots=None, plotter=None, debug=False):
         if (n is None) and (t_fin is None):
@@ -249,9 +367,9 @@ class Problem:
         return t, energy
 
     def euler_timestep(self, dS=1., diff=1., debug=False):
-        int_div_T_u = 1 / (dS * self.dx) * integrale_volume_div(self.T, self.v * np.ones((self.T.shape[0] + 1,)), dS=dS,
+        int_div_T_u = 1 / (dS * self.dx) * integrale_volume_div(self.T, self.v * np.ones((self.T.shape[0] + 1,)), I=self.I, dS=dS,
                                                                 schema=self.schema)
-        int_div_lda_grad_T = 1. / (dS * self.dx) * integrale_volume_div(self.Lda_h, grad(self.T, dx=self.dx), dS=dS)
+        int_div_lda_grad_T = 1. / (dS * self.dx) * integrale_volume_div(self.Lda_h, grad(self.T, dx=self.dx), I=self.I, dS=dS)
         if debug:
             plt.figure()
             plt.plot(self.x, 1. / self.rho_cp_h, label='rho_cp_inv_h, time = %f' % self.time)
@@ -260,8 +378,9 @@ class Problem:
             plt.grid(which='major')
             maxi = max(np.max(int_div_lda_grad_T), np.max(1. / self.rho_cp_h))
             mini = min(np.min(int_div_lda_grad_T), np.min(1. / self.rho_cp_h))
-            plt.plot([self.markers[0]] * 2, [mini, maxi], '--')
-            plt.plot([self.markers[1]] * 2, [mini, maxi], '--')
+            for markers in self.markers():
+                plt.plot([markers[0]] * 2, [mini, maxi], '--')
+                plt.plot([markers[1]] * 2, [mini, maxi], '--')
             plt.legend()
         self.T += self.dt * (-int_div_T_u + diff * 1. / self.rho_cp_h * int_div_lda_grad_T)
         self.update_markers()
@@ -274,9 +393,9 @@ class Problem:
             T = T_int + h * self.dt * K[-1]
             int_div_T_u = -1 / (dS * self.dx) * integrale_volume_div(T, self.v * np.ones((T.shape[0] + 1,)), dS=dS,
                                                                      schema=self.schema)
-            markers_int = self.markers + self.v * h * self.dt
-            markers_int[markers_int > self.Delta] -= self.Delta
-            temp_I = indicatrice_liquide(self.x, markers_int)
+            markers_int = self.markers.copy()
+            markers_int.shift(self.v * h * self.dt)
+            temp_I = markers_int.indicatrice_liquide(self.x)
             Lda_h = 1. / (temp_I / self.lda1 + (1. - temp_I) / self.lda2)
             rho_cp_inv_h = temp_I / self.rho_cp1 + (1. - temp_I) / self.rho_cp2
             div_lda_grad_T = 1 / (dS * self.dx) * integrale_volume_div(Lda_h, grad(T, dx=self.dx), dS=dS,
@@ -291,11 +410,12 @@ class Problem:
                 plt.plot(self.x, div_lda_grad_T, label='div_lda_grad_T, time = %f' % self.time)
                 maxi = max(np.max(div_lda_grad_T), np.max(rho_cp_inv_int_div_lda_grad_T), np.max(rho_cp_inv_h))
                 mini = min(np.min(div_lda_grad_T), np.min(rho_cp_inv_int_div_lda_grad_T), np.min(rho_cp_inv_h))
-                plt.plot([self.markers[0] + self.v * h] * 2, [mini, maxi], '--')
-                plt.plot([self.markers[1] + self.v * h] * 2, [mini, maxi], '--')
-                plt.xticks(self.x_f)
-                plt.grid(b=True, which='major')
-                plt.legend()
+                for markers in self.markers():
+                    plt.plot([markers[0] + self.v * h * self.dt] * 2, [mini, maxi], '--')
+                    plt.plot([markers[1] + self.v * h * self.dt] * 2, [mini, maxi], '--')
+                    plt.xticks(self.x_f)
+                    plt.grid(b=True, which='major')
+                    plt.legend()
         coeff = np.array([1. / 6, 1 / 3., 1 / 3., 1. / 6])
         self.T += np.sum(self.dt * coeff * np.array(K[1:]).T, axis=-1)
         self.update_markers()
@@ -303,22 +423,22 @@ class Problem:
 
 class ProblemConserv(Problem):
     def __init__(self, Delta, dx, lda1, lda2, rho_cp1, rho_cp2, markers, T0, v, dt, cfl=1., fo=1., schema='center',
-                 diff=1., time_scheme='euler'):
+                 diff=1., time_scheme='euler', dS=1.):
         super().__init__(Delta, dx, lda1, lda2, rho_cp1, rho_cp2, markers, T0, v, dt, cfl, fo, schema, diff,
-                         time_scheme)
+                         time_scheme, dS=dS)
 
     @property
     def name(self):
         return 'Forme conservative 1, ' + super().name
 
     def euler_timestep(self, dS=1., diff=1., debug=False):
-        markers_np1 = self.markers + self.v * self.dt
-        markers_np1[markers_np1 > self.Delta] -= self.Delta
-        Inp1 = indicatrice_liquide(self.x, markers_np1)
+        markers_int = self.markers.copy()
+        markers_int.shift(self.v * self.dt)
+        Inp1 = markers_int.indicatrice_liquide(self.x)
         rho_cp_np1 = self.rho_cp1*Inp1 + self.rho_cp2*(1.-Inp1)
-        int_div_rho_cp_T_u = 1 / (dS * self.dx) * integrale_volume_div(self.rho_cp_a*self.T, self.v * np.ones((self.T.shape[0] + 1,)), dS=dS,
+        int_div_rho_cp_T_u = 1 / (dS * self.dx) * integrale_volume_div(self.rho_cp_a*self.T, self.v * np.ones((self.T.shape[0] + 1,)), I=self.I, dS=dS,
                                                                        schema=self.schema)
-        int_div_lda_grad_T = 1. / (dS * self.dx) * integrale_volume_div(self.Lda_h, grad(self.T, dx=self.dx), dS=dS)
+        int_div_lda_grad_T = 1. / (dS * self.dx) * integrale_volume_div(self.Lda_h, grad(self.T, dx=self.dx), I=self.I, dS=dS)
         if debug:
             plt.figure()
             plt.plot(self.x, 1. / self.rho_cp_h, label='rho_cp_inv_h, time = %f' % self.time)
@@ -327,9 +447,10 @@ class ProblemConserv(Problem):
             plt.grid(which='major')
             maxi = max(np.max(int_div_lda_grad_T), np.max(1. / self.rho_cp_h))
             mini = min(np.min(int_div_lda_grad_T), np.min(1. / self.rho_cp_h))
-            plt.plot([self.markers[0]] * 2, [mini, maxi], '--')
-            plt.plot([self.markers[1]] * 2, [mini, maxi], '--')
-            plt.legend()
+            for markers in self.markers():
+                plt.plot([markers[0]] * 2, [mini, maxi], '--')
+                plt.plot([markers[1]] * 2, [mini, maxi], '--')
+                plt.legend()
         self.T = self.rho_cp_a * self.T / rho_cp_np1 + self.dt / rho_cp_np1 * (-int_div_rho_cp_T_u + diff * int_div_lda_grad_T)
         self.update_markers()
 
@@ -338,9 +459,9 @@ class ProblemConserv(Problem):
         K = [0.]
         pas_de_temps = np.array([0, 0.5, 0.5, 1.])
         for h in pas_de_temps:
-            markers_int = self.markers + self.v * self.dt * h
-            markers_int[markers_int > self.Delta] -= self.Delta
-            temp_I = indicatrice_liquide(self.x, markers_int)
+            markers_int = self.markers.copy()
+            markers_int.shift(self.v * self.dt * h)
+            temp_I = markers_int.indicatrice_liquide(self.x)
             rho_cp_int = self.rho_cp1 * temp_I + self.rho_cp2 * (1. - temp_I)
             T = T_int + h * self.dt * K[-1]
             int_div_rho_cp_T_u = 1 / (dS * self.dx) * integrale_volume_div(rho_cp_int*T,
@@ -359,14 +480,15 @@ class ProblemConserv(Problem):
                 plt.plot(self.x, div_lda_grad_T, label='div_lda_grad_T, time = %f' % self.time)
                 maxi = max(np.max(div_lda_grad_T), np.max(int_div_lda_grad_T))
                 mini = min(np.min(div_lda_grad_T), np.min(int_div_lda_grad_T))
-                plt.plot([self.markers[0] + self.v * h] * 2, [mini, maxi], '--')
-                plt.plot([self.markers[1] + self.v * h] * 2, [mini, maxi], '--')
-                plt.xticks(self.x_f)
-                plt.grid(b=True, which='major')
-                plt.legend()
-        markers_np1 = self.markers + self.v * self.dt
-        markers_np1[markers_np1 > self.Delta] -= self.Delta
-        temp_I = indicatrice_liquide(self.x, markers_np1)
+                for markers in self.markers():
+                    plt.plot([markers[0] + self.v * h * self.dt] * 2, [mini, maxi], '--')
+                    plt.plot([markers[1] + self.v * h * self.dt] * 2, [mini, maxi], '--')
+                    plt.xticks(self.x_f)
+                    plt.grid(b=True, which='major')
+                    plt.legend()
+        markers_np1 = self.markers.copy()
+        markers_np1.shift(self.v * self.dt)
+        temp_I = markers_np1.indicatrice_liquide(self.x)
         rho_cp_np1 = self.rho_cp1 * temp_I + self.rho_cp2 * (1. - temp_I)
         coeff = np.array([1. / 6, 1 / 3., 1 / 3., 1. / 6])
         self.T = self.rho_cp_a*self.T/rho_cp_np1 + 1./rho_cp_np1 * np.sum(self.dt * coeff * np.array(K[1:]).T, axis=-1)
@@ -375,25 +497,25 @@ class ProblemConserv(Problem):
 
 class ProblemConserv2(Problem):
     def __init__(self, Delta, dx, lda1, lda2, rho_cp1, rho_cp2, markers, T0, v, dt, cfl=1., fo=1., schema='center',
-                 diff=1., time_scheme='euler'):
+                 diff=1., time_scheme='euler', dS=1.):
         super().__init__(Delta, dx, lda1, lda2, rho_cp1, rho_cp2, markers, T0, v, dt, cfl, fo, schema, diff,
-                         time_scheme)
+                         time_scheme, dS=dS)
 
     @property
     def name(self):
         return 'Forme conservative boniou, ' + super().name
 
     def euler_timestep(self, dS=1., diff=1., debug=False):
-        markers_np1 = self.markers + self.v * self.dt
-        markers_np1[markers_np1 > self.Delta] -= self.Delta
-        Inp1 = indicatrice_liquide(self.x, markers_np1)
+        markers_np1 = self.markers.copy()
+        markers_np1.shift(self.v * self.dt)
+        Inp1 = markers_np1.indicatrice_liquide(self.x)
         rho_cp_np1 = self.rho_cp1*Inp1 + self.rho_cp2*(1.-Inp1)
-        int_div_rho_cp_u = 1 / (dS * self.dx) * integrale_volume_div(self.rho_cp_a, self.v * np.ones((self.T.shape[0] + 1,)), dS=dS,
+        int_div_rho_cp_u = 1 / (dS * self.dx) * integrale_volume_div(self.rho_cp_a, self.v * np.ones((self.T.shape[0] + 1,)), I=self.I, dS=dS,
                                                                      schema=self.schema)
         rho_cp_etoile = self.rho_cp_a + self.dt * int_div_rho_cp_u
-        int_div_rho_cp_T_u = 1 / (dS * self.dx) * integrale_volume_div(self.rho_cp_a*self.T, self.v * np.ones((self.T.shape[0] + 1,)), dS=dS,
+        int_div_rho_cp_T_u = 1 / (dS * self.dx) * integrale_volume_div(self.rho_cp_a*self.T, self.v * np.ones((self.T.shape[0] + 1,)), I=self.I, dS=dS,
                                                                        schema=self.schema)
-        int_div_lda_grad_T = 1. / (dS * self.dx) * integrale_volume_div(self.Lda_h, grad(self.T, dx=self.dx), dS=dS)
+        int_div_lda_grad_T = 1. / (dS * self.dx) * integrale_volume_div(self.Lda_h, grad(self.T, dx=self.dx), I=self.I, dS=dS)
         if debug:
             plt.figure()
             plt.plot(self.x, 1. / self.rho_cp_h, label='rho_cp_inv_h, time = %f' % self.time)
@@ -402,9 +524,10 @@ class ProblemConserv2(Problem):
             plt.grid(which='major')
             maxi = max(np.max(int_div_lda_grad_T), np.max(1. / self.rho_cp_h))
             mini = min(np.min(int_div_lda_grad_T), np.min(1. / self.rho_cp_h))
-            plt.plot([self.markers[0]] * 2, [mini, maxi], '--')
-            plt.plot([self.markers[1]] * 2, [mini, maxi], '--')
-            plt.legend()
+            for markers in self.markers():
+                plt.plot([markers[0]] * 2, [mini, maxi], '--')
+                plt.plot([markers[1]] * 2, [mini, maxi], '--')
+                plt.legend()
         self.T += self.dt / rho_cp_etoile * (int_div_rho_cp_u * self.T +
                                              (- int_div_rho_cp_T_u + diff * int_div_lda_grad_T))
         self.update_markers()
@@ -414,9 +537,9 @@ class ProblemConserv2(Problem):
         K_rhocp = [0.]
         pas_de_temps = np.array([0, 0.5, 0.5, 1.])
         for h in pas_de_temps:
-            markers_int = self.markers + self.v * self.dt * h
-            markers_int[markers_int > self.Delta] -= self.Delta
-            temp_I = indicatrice_liquide(self.x, markers_int)
+            markers_int = self.markers.copy()
+            markers_int.shift(self.v * self.dt)
+            temp_I = markers_int.indicatrice_liquide(self.x)
 
             # On s'occupe de calculer d_rho_cp
 
@@ -464,16 +587,20 @@ def get_time(cfl, fo, dt, v, dx, rho_cp1, rho_cp2, lda1, lda2):
     return dt
 
 
-def get_T(dx=0.1, Delta=10., lda_1=1., lda_2=1., markers=None):
+def get_T(x, lda_1=1., lda_2=1., markers=None):
+    dx = x[1] - x[0]
+    Delta = x[-1] + dx/2.
     if markers is None:
-        markers = np.array([0.25 * Delta, 0.75 * Delta])
+        markers = np.array([[0.25 * Delta, 0.75 * Delta]])
+    if len(markers) > 1:
+        raise Exception('Le cas pour plus d une bulle n est pas enore implémenté')
+    markers = markers[0]
     if markers[0] < markers[1]:
         m = np.mean(markers)
     else:
         m = np.mean([markers[0], markers[1] + Delta])
         if m > Delta:
             m -= Delta
-    x = np.linspace(dx / 2., Delta - dx / 2., int(Delta / dx))
     T1 = lda_2 * np.cos(2 * np.pi * (x - m) / Delta)
     w = opt.fsolve(
         lambda y: y * np.sin(2 * np.pi * y * (markers[0] - m) / Delta) - np.sin(2 * np.pi * (markers[0] - m) / Delta),
@@ -488,15 +615,14 @@ def get_T(dx=0.1, Delta=10., lda_1=1., lda_2=1., markers=None):
     T[bulle] = T2[bulle]
     T -= np.min(T)
     T /= np.max(T)
-    return x, T
+    return T
 
 
-def get_T_creneau(dx=0.1, Delta=10., markers=None):
+def get_T_creneau(x, markers=None, lda_1=None, lda_2=None):
     if markers is None:
-        markers = np.array([0.25 * Delta, 0.75 * Delta])
-    x = np.linspace(dx / 2., Delta - dx / 2., int(Delta / dx))
-    T = 1. - indicatrice_liquide(x, markers)
-    return x, T
+        markers = Bulles(markers=np.array([[0.25 * Delta, 0.75 * Delta]]))
+    T = 1. - markers.indicatrice_liquide(x)
+    return T
 
 
 # Press the green button in the gutter to run the script.
@@ -522,9 +648,9 @@ if __name__ == '__main__':
 
     for dx, cfl in Cas_test:
         # x, T = get_T(dx=dx, Delta=Delta, lda_1=lda_1, lda_2=lda_2, markers=markers)
-        x, T = get_T_creneau(dx=dx, Delta=Delta, markers=markers)
+        # x, T = get_T_creneau(dx=dx, Delta=Delta, markers=markers)
 
-        prob = Problem(Delta, dx, lda_1, lda_2, rho_cp_1, rho_cp_2, markers, T, v, dt, cfl, fo,
+        prob = Problem(Delta, dx, lda_1, lda_2, rho_cp_1, rho_cp_2, markers, get_T_creneau, v, dt, cfl, fo,
                        diff=0., schema='upwind', time_scheme='rk4')
         t, e = prob.timestep(n=10000, number_of_plots=3, debug=False)
         t_m.append(t)

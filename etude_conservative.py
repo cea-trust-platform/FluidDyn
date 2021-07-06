@@ -28,10 +28,10 @@ if __name__ == '__main__':
         for decal in np.linspace(0., dx, n_moy+2)[1:-1]:
             # x, T = get_T(dx=dx, Delta=Delta, lda_1=lda_1, lda_2=lda_2, markers=markers)
             markers_decal = np.array([markers[0] + decal, markers[1]])
-            x, T = get_T(dx=dx, Delta=Delta, markers=markers_decal, lda_1=lda_1, lda_2=lda_2)
-            T = T + 1.
+            # x, T = get_T(dx=dx, Delta=Delta, markers=markers_decal, lda_1=lda_1, lda_2=lda_2)
+            # T = T + 1.
 
-            prob = form(Delta, dx, lda_1, lda_2, rho_cp_1, rho_cp_2, markers_decal, T, v, dt, cfl, fo,
+            prob = form(Delta, dx, lda_1, lda_2, rho_cp_1, rho_cp_2, markers_decal, get_T, v, dt, cfl, fo,
                         diff=0., schema=schema, time_scheme='euler')
             t, e = prob.timestep(n=5000, number_of_plots=5, debug=False, plotter=Plotter('decale'))
             plt.figure('energie')

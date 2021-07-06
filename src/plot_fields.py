@@ -39,12 +39,13 @@ def plot_decale(problem, fig=None, ax=None):
     mini = min(np.min(problem.T), np.min(problem.I))
     while x0 > problem.Delta:
         x0 -= problem.Delta
-    ax.plot([decale_positif(problem.markers[0] - x0, problem.Delta)]*2, [mini, maxi], '--', c=col)
-    ax.plot([decale_positif(problem.markers[1] - x0, problem.Delta)]*2, [mini, maxi], '--', c=col)
-    ax.set_xticks(problem.x_f)
-    ax.set_xticklabels([])
-    ax.grid(b=True, which='major')
-    ax.legend()
+    for markers in problem.markers():
+        ax.plot([decale_positif(markers[0] - x0, problem.Delta)]*2, [mini, maxi], '--', c=col)
+        ax.plot([decale_positif(markers[1] - x0, problem.Delta)]*2, [mini, maxi], '--', c=col)
+        ax.set_xticks(problem.x_f)
+        ax.set_xticklabels([])
+        ax.grid(b=True, which='major')
+        ax.legend()
     return fig, ax
 
 
@@ -57,12 +58,13 @@ def plot_classic(problem, fig=None, ax=None):
     ax.plot(problem.x, problem.T, c=col, label='time %f' % problem.time)
     maxi = max(np.max(problem.T), np.max(problem.I))
     mini = min(np.min(problem.T), np.min(problem.I))
-    ax.plot([problem.markers[0]]*2, [mini, maxi], '--', c=col)
-    ax.plot([problem.markers[1]]*2, [mini, maxi], '--', c=col)
-    ax.set_xticks(problem.x_f)
-    ax.set_xticklabels([])
-    ax.grid(which='major')
-    ax.legend()
+    for markers in problem.markers():
+        ax.plot([markers[0]]*2, [mini, maxi], '--', c=col)
+        ax.plot([markers[1]]*2, [mini, maxi], '--', c=col)
+        ax.set_xticks(problem.x_f)
+        ax.set_xticklabels([])
+        ax.grid(which='major')
+        ax.legend()
     return fig, ax
 
 
@@ -94,12 +96,13 @@ def decale_perio(x, T, x0=0., markers=None, plot=False):
         if markers is not None:
             mini = np.min(T_decale)
             maxi = np.max(T_decale)
-            plt.plot([decale_positif(markers[0] - n*dx, Delta)] * 2, [mini, maxi], '--')
-            plt.plot([decale_positif(markers[1] - n*dx, Delta)] * 2, [mini, maxi], '--')
-            plt.plot([decale_positif(markers[0] - (n+1)*dx, Delta)] * 2, [mini, maxi], '--')
-            plt.plot([decale_positif(markers[1] - (n+1)*dx, Delta)] * 2, [mini, maxi], '--')
-            plt.plot([decale_positif(markers[0] - x0, Delta)]*2, [mini, maxi], '--')
-            plt.plot([decale_positif(markers[1] - x0, Delta)] * 2, [mini, maxi], '--')
+            for couple_marker in markers:
+                plt.plot([decale_positif(couple_marker[0] - n*dx, Delta)] * 2, [mini, maxi], '--')
+                plt.plot([decale_positif(couple_marker[1] - n*dx, Delta)] * 2, [mini, maxi], '--')
+                plt.plot([decale_positif(couple_marker[0] - (n+1)*dx, Delta)] * 2, [mini, maxi], '--')
+                plt.plot([decale_positif(couple_marker[1] - (n+1)*dx, Delta)] * 2, [mini, maxi], '--')
+                plt.plot([decale_positif(couple_marker[0] - x0, Delta)]*2, [mini, maxi], '--')
+                plt.plot([decale_positif(couple_marker[1] - x0, Delta)] * 2, [mini, maxi], '--')
     return x_decale, T_decale
 
 

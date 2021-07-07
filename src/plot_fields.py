@@ -1,5 +1,4 @@
 import numpy as np
-import matplotlib.pyplot as plt
 
 from matplotlib import rc
 rc('text', usetex=True)
@@ -7,9 +6,12 @@ rc('font', size=14)
 rc('font', family='serif')
 rc('legend', fontsize=13)
 rc('figure', max_open_warning=50)
-# rc('figure', figsize=(5, 3.33))
+rc('figure', figsize=(19,8))
 rc('figure', dpi=200)
 rc('savefig', dpi=300)
+
+
+import matplotlib.pyplot as plt
 
 
 class Plotter:
@@ -42,10 +44,10 @@ def plot_decale(problem, fig=None, ax=None):
     for markers in problem.markers():
         ax.plot([decale_positif(markers[0] - x0, problem.phy_prop.Delta)]*2, [mini, maxi], '--', c=col)
         ax.plot([decale_positif(markers[1] - x0, problem.phy_prop.Delta)]*2, [mini, maxi], '--', c=col)
-        ax.set_xticks(problem.num_prop.x_f)
-        ax.set_xticklabels([])
-        ax.grid(b=True, which='major')
-        ax.legend()
+    ax.set_xticks(problem.num_prop.x_f)
+    ax.set_xticklabels([])
+    ax.grid(b=True, which='major')
+    ax.legend()
     return fig, ax
 
 
@@ -61,10 +63,10 @@ def plot_classic(problem, fig=None, ax=None):
     for markers in problem.markers():
         ax.plot([markers[0]]*2, [mini, maxi], '--', c=col)
         ax.plot([markers[1]]*2, [mini, maxi], '--', c=col)
-        ax.set_xticks(problem.num_prop.x_f)
-        ax.set_xticklabels([])
-        ax.grid(which='major')
-        ax.legend()
+    ax.set_xticks(problem.num_prop.x_f)
+    ax.set_xticklabels([])
+    ax.grid(which='major')
+    ax.legend()
     return fig, ax
 
 

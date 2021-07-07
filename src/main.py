@@ -36,7 +36,7 @@ def integrale_volume_div(center_value, face_value, I=None, cl=1, dS=1., schema='
         interpolated_value = interpolate_center_value_weno_to_face_upwind_interface(center_value, I, cl=1)
     else:
         raise NotImplementedError
-    flux = interpolated_value * face_value * dS
+    flux = interpolated_value * face_value
     # plt.figure(1)
     # plt.plot(flux)
     # plt.show(block=False)
@@ -137,7 +137,7 @@ def interpolate_center_value_weno_to_face_upwind_interface(a, I, cl=1):
     return res
 
 
-def grad(center_value, dx=1, cl=1):
+def grad(center_value, dx=1., cl=1):
     """
     Calcule le gradient aux faces
     :param center_value: globalement lambda
@@ -193,7 +193,7 @@ def grad_center(center_value, dx=1., cl=1):
 
 
 class Bulles:
-    def __init__(self, markers=None, phy_prop=None, n_bulle=None):
+    def __init__(self, markers=None, phy_prop=None, n_bulle=None, Delta=1.):
         if markers is None:
             self.markers = []
             if n_bulle is None:
@@ -215,10 +215,15 @@ class Bulles:
                 self.markers = np.array(self.markers)
         else:
             self.markers = np.array(markers)
-        self.Delta = phy_prop.Delta
-        depasse = (self.markers > phy_prop.Delta) | (self.markers < 0.)
+
+        if phy_prop is not None:
+            self.Delta = phy_prop.Delta
+        else:
+            self.Delta = Delta
+
+        depasse = (self.markers > self.Delta) | (self.markers < 0.)
         if np.any(depasse):
-            print('Delta : ', phy_prop.Delta)
+            print('Delta : ', self.Delta)
             print('markers : ', self.markers)
             print('depasse : ', depasse)
             raise Exception('Les marqueurs dépassent du domaine')
@@ -228,7 +233,8 @@ class Bulles:
 
     def copy(self):
         cls = self.__class__
-        return cls(markers=self.markers.copy())
+        copie = cls(markers=self.markers.copy(), Delta=self.Delta)
+        return copie
 
     def indicatrice_liquide(self, x):
         """
@@ -327,16 +333,18 @@ class PhysicalProperties:
 class NumericalProperties:
     def __init__(self, dx=0.1, dt=1., cfl=1., fo=1., schema='weno', time_scheme='euler', phy_prop=None):
         if phy_prop is None:
+            print('Attention : les valeurs par défaut ont été prises pour Delta et les autres params physiques')
             phy_prop = PhysicalProperties()
         self._cfl_lim = cfl
         self._fo_lim = fo
         self._schema = schema
         self._time_scheme = time_scheme
         self._dx_lim = dx
-        self._x = np.linspace(dx / 2., phy_prop.Delta - dx / 2., int(phy_prop.Delta / dx))
-        self._x_f = np.linspace(0, phy_prop.Delta, int(phy_prop.Delta / dx) + 1)
-        dx = self._x[1] - self._x[0]
+        nx = int(phy_prop.Delta / dx)
+        dx = phy_prop.Delta / nx
         self._dx = dx
+        self._x = np.linspace(dx / 2., phy_prop.Delta - dx / 2., nx)
+        self._x_f = np.linspace(0., phy_prop.Delta, nx + 1)
         self._dt_min = dt
 
     @property
@@ -377,15 +385,23 @@ class NumericalProperties:
 
 
 class Problem:
-    def __init__(self, markers, T0, num_prop=None, phy_prop=None):
+    def __init__(self, T0, markers=None, num_prop=None, phy_prop=None):
         if phy_prop is None:
+            print('Attention, les propriétés physiques par défaut sont utilisées')
             phy_prop = PhysicalProperties()
         if num_prop is None:
+            print('Attention, les propriétés numériques par défaut sont utilisées')
             num_prop = NumericalProperties()
         self.phy_prop = phy_prop
         self.num_prop = num_prop
-        self.markers = Bulles(markers=markers, phy_prop=self.phy_prop)
-        self.T = T0(self.num_prop.x, markers=self.markers, phy_prop=phy_prop)
+        if markers is None:
+            self.markers = Bulles(markers=markers, phy_prop=self.phy_prop)
+        elif isinstance(markers, Bulles):
+            self.markers = markers
+        else:
+            print(markers)
+            raise NotImplementedError
+        self.T = T0(self.num_prop.x, markers=self.markers, phy_prop=self.phy_prop)
         self.dt = self.get_time()
         self.time = 0.
 
@@ -449,6 +465,10 @@ class Problem:
     @property
     def energy(self):
         return np.sum(self.rho_cp_a * self.T * self.phy_prop.dS * self.num_prop.dx)
+
+    @property
+    def energy_m(self):
+        return np.sum(self.rho_cp_a * self.T * self.num_prop.dx)/self.phy_prop.Delta
 
     def update_markers(self):
         self.markers.shift(self.phy_prop.v * self.dt)
@@ -725,7 +745,8 @@ def get_T(x, lda_1=1., lda_2=1., markers=None):
 def get_T_creneau(x, markers=None, phy_prop=None):
     if phy_prop is None:
         raise Exception('Attetion, il faut des propriétés thermiques pour déterminer auto le nbre de bulles')
-    markers = Bulles(markers=markers, phy_prop=phy_prop)
+    if markers is None:
+        markers = Bulles(markers=markers, phy_prop=phy_prop)
     T = 1. - markers.indicatrice_liquide(x)
     return T
 

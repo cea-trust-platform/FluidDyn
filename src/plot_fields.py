@@ -32,7 +32,7 @@ def plot_decale(problem, fig=None, ax=None):
         fig, ax = plt.subplots(1)
     fig.suptitle(problem.name)
     x0 = problem.time*problem.v
-    x_dec, T_dec = decale_perio(problem.x, problem.T, x0, problem.markers)
+    x_dec, T_dec = decale_perio(problem.num_prop.x, problem.T, x0, problem.markers)
     c = ax.plot(x_dec, T_dec, label='time %f' % problem.time)
     col = c[-1].get_color()
     maxi = max(np.max(problem.T), np.max(problem.I))
@@ -42,7 +42,7 @@ def plot_decale(problem, fig=None, ax=None):
     for markers in problem.markers():
         ax.plot([decale_positif(markers[0] - x0, problem.Delta)]*2, [mini, maxi], '--', c=col)
         ax.plot([decale_positif(markers[1] - x0, problem.Delta)]*2, [mini, maxi], '--', c=col)
-        ax.set_xticks(problem.x_f)
+        ax.set_xticks(problem.num_prop.x_f)
         ax.set_xticklabels([])
         ax.grid(b=True, which='major')
         ax.legend()
@@ -53,15 +53,15 @@ def plot_classic(problem, fig=None, ax=None):
     if (fig is None) or (ax is None):
         fig, ax = plt.subplots(1)
     fig.suptitle(problem.name)
-    c = ax.plot(problem.x, problem.I, '+')
+    c = ax.plot(problem.num_prop.x, problem.I, '+')
     col = c[-1].get_color()
-    ax.plot(problem.x, problem.T, c=col, label='time %f' % problem.time)
+    ax.plot(problem.num_prop.x, problem.T, c=col, label='time %f' % problem.time)
     maxi = max(np.max(problem.T), np.max(problem.I))
     mini = min(np.min(problem.T), np.min(problem.I))
     for markers in problem.markers():
         ax.plot([markers[0]]*2, [mini, maxi], '--', c=col)
         ax.plot([markers[1]]*2, [mini, maxi], '--', c=col)
-        ax.set_xticks(problem.x_f)
+        ax.set_xticks(problem.num_prop.x_f)
         ax.set_xticklabels([])
         ax.grid(which='major')
         ax.legend()

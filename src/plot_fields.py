@@ -31,17 +31,17 @@ def plot_decale(problem, fig=None, ax=None):
     if (fig is None) or (ax is None):
         fig, ax = plt.subplots(1)
     fig.suptitle(problem.name)
-    x0 = problem.time*problem.v
+    x0 = problem.time*problem.phy_prop.v
     x_dec, T_dec = decale_perio(problem.num_prop.x, problem.T, x0, problem.markers)
     c = ax.plot(x_dec, T_dec, label='time %f' % problem.time)
     col = c[-1].get_color()
     maxi = max(np.max(problem.T), np.max(problem.I))
     mini = min(np.min(problem.T), np.min(problem.I))
-    while x0 > problem.Delta:
-        x0 -= problem.Delta
+    while x0 > problem.phy_prop.Delta:
+        x0 -= problem.phy_prop.Delta
     for markers in problem.markers():
-        ax.plot([decale_positif(markers[0] - x0, problem.Delta)]*2, [mini, maxi], '--', c=col)
-        ax.plot([decale_positif(markers[1] - x0, problem.Delta)]*2, [mini, maxi], '--', c=col)
+        ax.plot([decale_positif(markers[0] - x0, problem.phy_prop.Delta)]*2, [mini, maxi], '--', c=col)
+        ax.plot([decale_positif(markers[1] - x0, problem.phy_prop.Delta)]*2, [mini, maxi], '--', c=col)
         ax.set_xticks(problem.num_prop.x_f)
         ax.set_xticklabels([])
         ax.grid(b=True, which='major')

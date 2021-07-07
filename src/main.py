@@ -193,26 +193,32 @@ def grad_center(center_value, dx=1., cl=1):
 
 
 class Bulles:
-    def __init__(self, markers=None, a_i=None, Delta=1., alpha=None):
+    def __init__(self, markers=None, phy_prop=None, n_bulle=None):
         if markers is None:
             self.markers = []
-            if (a_i is None) or (alpha is None):
-                raise NotImplementedError
-            # On détermine le nombre de bulle pour avoir une aire interfaciale donnée.
-            n_bulle = int(a_i / 2. * Delta) + 1
-            # Avec le taux de vide on en déduit le diamètre d'une bulle. On va considérer que le taux de vide s'exprime
-            # en 1D, cad : alpha = n*d*dS/(Dx*dS)
-            diam = alpha * Delta / n_bulle
-            centers = np.linspace(diam, Delta + diam, n_bulle + 1)[:-1]
-            for center in centers:
-                self.markers.append((center - diam / 2., center + diam / 2.))
-            self.markers = np.array(self.markers)
+            if n_bulle is None:
+                if phy_prop.a_i is None:
+                    raise Exception('On ne peut pas déterminer auto la géométrie des bulles sans le rapport surfacique')
+                else:
+                    # On détermine le nombre de bulle pour avoir une aire interfaciale donnée.
+                    # On considère ici une géométrie 1D comme l'équivalent d'une situation 3D
+                    n_bulle = int(phy_prop.a_i / 2. * phy_prop.Delta) + 1
+            if phy_prop.alpha is None:
+                raise Exception('On ne peut pas déterminer auto la géométrie des bulles sans le taux de vide')
+            else:
+                # Avec le taux de vide on en déduit le diamètre d'une bulle. On va considérer que le taux de vide
+                # s'exprime en 1D, cad : phy_prop.alpha = n*d*dS/(Dx*dS)
+                diam = phy_prop.alpha * phy_prop.Delta / n_bulle
+                centers = np.linspace(diam, phy_prop.Delta + diam, n_bulle + 1)[:-1]
+                for center in centers:
+                    self.markers.append((center - diam / 2., center + diam / 2.))
+                self.markers = np.array(self.markers)
         else:
-            self.markers = markers
-        self.Delta = Delta
-        depasse = (self.markers > Delta) | (self.markers < 0.)
+            self.markers = np.array(markers)
+        self.Delta = phy_prop.Delta
+        depasse = (self.markers > phy_prop.Delta) | (self.markers < 0.)
         if np.any(depasse):
-            print('Delta : ', Delta)
+            print('Delta : ', phy_prop.Delta)
             print('markers : ', self.markers)
             print('depasse : ', depasse)
             raise Exception('Les marqueurs dépassent du domaine')
@@ -225,6 +231,11 @@ class Bulles:
         return cls(markers=self.markers.copy())
 
     def indicatrice_liquide(self, x):
+        """
+        Calcule l'indicatrice qui correspond au liquide avec les marqueurs selon la grille x
+        :param x: les positions des centres des mailles
+        :return: l'indicatrice
+        """
         i = np.ones_like(x)
         dx = x[1] - x[0]
         for markers in self.markers:
@@ -239,6 +250,11 @@ class Bulles:
         return i
 
     def shift(self, dx):
+        """
+        On déplace les marqueurs de dx
+        :param dx: le déplacement
+        :return:
+        """
         self.markers += dx
         depasse = self.markers > self.Delta
         self.markers[depasse] -= self.Delta
@@ -368,7 +384,7 @@ class Problem:
             num_prop = NumericalProperties()
         self.phy_prop = phy_prop
         self.num_prop = num_prop
-        self.markers = Bulles(markers=markers, Delta=phy_prop.Delta, alpha=self.phy_prop.alpha)
+        self.markers = Bulles(markers=markers, phy_prop=self.phy_prop)
         self.T = T0(self.num_prop.x, markers=self.markers, phy_prop=phy_prop)
         self.dt = self.get_time()
         self.time = 0.
@@ -379,7 +395,7 @@ class Problem:
             return 'Cas : %s, %s, %s, dx = %g, dt = %g' % (self.phy_prop.cas, self.num_prop.time_scheme,
                                                            self.num_prop.schema, self.num_prop.dx,
                                                            self.dt)
-        elif self.num_prop.diff == 0.:
+        elif self.phy_prop.diff == 0.:
             return 'Cas : %s, %s, %s, dx = %g, cfl = %g' % (self.phy_prop.cas, self.num_prop.time_scheme,
                                                             self.num_prop.schema, self.num_prop.dx,
                                                             self.cfl)
@@ -707,10 +723,9 @@ def get_T(x, lda_1=1., lda_2=1., markers=None):
 
 
 def get_T_creneau(x, markers=None, phy_prop=None):
-    if markers is None:
-        if phy_prop is None:
-            raise Exception('Pour déterminer la valeur des marqueurs auto il faut les prop physiques')
-        markers = Bulles(markers=np.array([[0.25 * phy_prop.Delta, 0.75 * phy_prop.Delta]]))
+    if phy_prop is None:
+        raise Exception('Attetion, il faut des propriétés thermiques pour déterminer auto le nbre de bulles')
+    markers = Bulles(markers=markers, phy_prop=phy_prop)
     T = 1. - markers.indicatrice_liquide(x)
     return T
 

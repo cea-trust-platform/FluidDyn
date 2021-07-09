@@ -1,22 +1,24 @@
 import numpy as np
-import matplotlib.pyplot as plt
 from scipy import optimize as opt
-import itertools
-
 
 # Press Maj+F10 to execute it or replace it with your code.
 # Press Double Shift to search everywhere for classes, files, tool windows, actions, and settings.
 
 
-def integrale_volume_div(center_value, face_value, I=None, cl=1, dS=1., schema='center'):
+def integrale_volume_div(center_value, face_value, I=None, cl=1, dS=1., schema='weno'):
     """
     Calcule le delta de convection aux bords des cellules
-    :param dS:
-    :param schema:
-    :param center_value: les valeurs présentes aux centres des cellules
-    :param face_value: les valeurs présentes aux faces des cellules
-    :param cl: si cl = 1, on prend des gradients nuls aux bords du domaine
-    :return: le delta au centre
+
+    Args:
+        I: s'il faut prendre en compte si le stencil traverse une interface
+        dS:
+        schema:
+        center_value: les valeurs présentes aux centres des cellules
+        face_value: les valeurs présentes aux faces des cellules
+        cl: si cl = 1, on prend des gradients nuls aux bords du domaine
+
+    Returns:
+        le delta au centre
     """
     if len(center_value.shape) != 1 or len(face_value.shape) != 1:
         raise NotImplementedError
@@ -37,9 +39,6 @@ def integrale_volume_div(center_value, face_value, I=None, cl=1, dS=1., schema='
     else:
         raise NotImplementedError
     flux = interpolated_value * face_value
-    # plt.figure(1)
-    # plt.plot(flux)
-    # plt.show(block=False)
     delta_center_value = flux[1:] - flux[:-1]
     return dS * delta_center_value
 
@@ -79,7 +78,10 @@ def interpolate_form_center_to_face_weno(a, cl=1):
     :return: les valeurs interpolées aux faces de la face -1/2 à la face n+1/2
     """
     if cl == 1:
-        center_values = np.r_[a[-3:], a, a[:2]]
+        center_values = np.empty(a.size + 5)
+        center_values[:3] = a[-3:]
+        center_values[3:-2] = a
+        center_values[-2:] = a[:2]
     else:
         raise NotImplementedError
     ujm2 = center_values[:-4]
@@ -117,8 +119,14 @@ def interpolate_center_value_weno_to_face_upwind_interface(a, I, cl=1):
     # print('a : ', a.shape)
     # print('res : ', res.shape)
     if cl == 1:
-        center_values = np.r_[a[-3:], a, a[:2]]
-        phase_indicator = np.r_[I[-3:], I, I[:2]]
+        center_values = np.empty(a.size + 5)
+        center_values[:3] = a[-3:]
+        center_values[3:-2] = a
+        center_values[-2:] = a[:2]
+        phase_indicator = np.empty(I.size + 5)
+        phase_indicator[:3] = I[-3:]
+        phase_indicator[3:-2] = I
+        phase_indicator[-2:] = I[:2]
         center_diph = (phase_indicator * (1. - phase_indicator) != 0.)
     else:
         raise NotImplementedError
@@ -129,8 +137,6 @@ def interpolate_center_value_weno_to_face_upwind_interface(a, I, cl=1):
     diph_jp2 = center_diph[4:]
     # f diphasic correspond aux faces dont le stencil utilisé par le WENO traverse l'interface
     f_diph = diph_jm2 | diph_jm1 | diph_j | diph_jp1 | diph_jp2
-    # print('f_diph : ', f_diph.shape)
-    # print(f_diph)
 
     # interpolation upwind
     res[f_diph] = center_values[2:-2][f_diph]
@@ -208,13 +214,14 @@ class Bulles:
             else:
                 # Avec le taux de vide on en déduit le diamètre d'une bulle. On va considérer que le taux de vide
                 # s'exprime en 1D, cad : phy_prop.alpha = n*d*dS/(Dx*dS)
-                diam = phy_prop.alpha * phy_prop.Delta / n_bulle
-                centers = np.linspace(diam, phy_prop.Delta + diam, n_bulle + 1)[:-1]
+                self.diam = phy_prop.alpha * phy_prop.Delta / n_bulle
+                centers = np.linspace(self.diam, phy_prop.Delta + self.diam, n_bulle + 1)[:-1]
                 for center in centers:
-                    self.markers.append((center - diam / 2., center + diam / 2.))
+                    self.markers.append((center - self.diam / 2., center + self.diam / 2.))
                 self.markers = np.array(self.markers)
         else:
             self.markers = np.array(markers)
+            self.diam = None
 
         if phy_prop is not None:
             self.Delta = phy_prop.Delta
@@ -234,6 +241,7 @@ class Bulles:
     def copy(self):
         cls = self.__class__
         copie = cls(markers=self.markers.copy(), Delta=self.Delta)
+        copie.diam = self.diam
         return copie
 
     def indicatrice_liquide(self, x):
@@ -257,9 +265,12 @@ class Bulles:
 
     def shift(self, dx):
         """
-        On déplace les marqueurs de dx
-        :param dx: le déplacement
-        :return:
+        On déplace les marqueurs vers la droite
+        Args:
+            dx: la distance du déplacement
+
+        Returns:
+
         """
         self.markers += dx
         depasse = self.markers > self.Delta
@@ -385,6 +396,9 @@ class NumericalProperties:
 
 
 class Problem:
+    T: np.ndarray
+    I: np.ndarray
+
     def __init__(self, T0, markers=None, num_prop=None, phy_prop=None):
         if phy_prop is None:
             print('Attention, les propriétés physiques par défaut sont utilisées')
@@ -397,13 +411,15 @@ class Problem:
         if markers is None:
             self.markers = Bulles(markers=markers, phy_prop=self.phy_prop)
         elif isinstance(markers, Bulles):
-            self.markers = markers
+            self.markers = markers.copy()
         else:
             print(markers)
             raise NotImplementedError
         self.T = T0(self.num_prop.x, markers=self.markers, phy_prop=self.phy_prop)
         self.dt = self.get_time()
         self.time = 0.
+        self.I = self.update_I()
+        self.iter = 0
 
     @property
     def name(self):
@@ -438,8 +454,7 @@ class Problem:
     def rho_cp_h(self):
         return 1. / (self.I / self.phy_prop.rho_cp1 + (1. - self.I) / self.phy_prop.rho_cp2)
 
-    @property
-    def I(self):
+    def update_I(self):
         i = self.markers.indicatrice_liquide(self.num_prop.x)
         return i
 
@@ -460,7 +475,7 @@ class Problem:
         dt = list_dt[i_dt]
         print(temps)
         print(dt)
-        return dt
+        return np.array(dt)
 
     @property
     def energy(self):
@@ -472,97 +487,99 @@ class Problem:
 
     def update_markers(self):
         self.markers.shift(self.phy_prop.v * self.dt)
+        self.I = self.update_I()
 
-    def timestep(self, n=None, t_fin=None, plot_for_each=1, number_of_plots=None, plotter=None, debug=False):
+    def timestep(self, n=None, t_fin=None, plot_for_each=1, number_of_plots=None, plotter=None, debug=None):
         if (n is None) and (t_fin is None):
             raise NotImplementedError
         if t_fin is not None:
             n = int(t_fin / self.dt)
         if number_of_plots is not None:
-            plot_for_each = int(n / number_of_plots)
+            plot_for_each = int((n-1) / number_of_plots)
         energy = np.zeros((n + 1,))
         t = np.linspace(0, n * self.dt, n + 1)
         energy[0] = self.energy
         for i in range(n):
             if self.num_prop.time_scheme is 'euler':
-                self.euler_timestep(debug=(debug & (i % plot_for_each == 0)))
+                self.euler_timestep(debug=debug, bool_debug=(i % plot_for_each == 0))
             elif self.num_prop.time_scheme is 'rk4':
-                self.rk4_timestep(debug=(debug & (i % plot_for_each == 0)))
+                self.rk4_timestep(debug=debug, bool_debug=(i % plot_for_each == 0))
             self.time += self.dt
+            self.iter += 1
             energy[i + 1] = self.energy
             if (i % plot_for_each == 0) and (plotter is not None):
                 plotter.plot(self)
         return t, energy
 
-    def euler_timestep(self, debug=False):
+    def euler_timestep(self, debug=None, bool_debug=False):
         int_div_T_u = 1 / (self.phy_prop.dS * self.num_prop.dx) * \
             integrale_volume_div(self.T, self.phy_prop.v * np.ones((self.T.shape[0] + 1,)), I=self.I,
                                  dS=self.phy_prop.dS, schema=self.num_prop.schema)
         int_div_lda_grad_T = 1. / (self.phy_prop.dS * self.num_prop.dx) * \
             integrale_volume_div(self.Lda_h, grad(self.T, dx=self.num_prop.dx), I=self.I,
                                  dS=self.phy_prop.dS, schema=self.num_prop.schema)
-        if debug:
-            plt.figure()
-            plt.plot(self.num_prop.x, 1. / self.rho_cp_h, label='rho_cp_inv_h, time = %f' % self.time)
-            plt.plot(self.num_prop.x, int_div_lda_grad_T, label='div_lda_grad_T, time = %f' % self.time)
-            plt.xticks(self.num_prop.x_f)
-            plt.grid(which='major')
+        if (debug is not None) and bool_debug:
+            debug.plot(self.num_prop.x, 1. / self.rho_cp_h, label='rho_cp_inv_h, time = %f' % self.time)
+            debug.plot(self.num_prop.x, int_div_lda_grad_T, label='div_lda_grad_T, time = %f' % self.time)
+            debug.xticks(self.num_prop.x_f)
+            debug.grid(which='major')
             maxi = max(np.max(int_div_lda_grad_T), np.max(1. / self.rho_cp_h))
             mini = min(np.min(int_div_lda_grad_T), np.min(1. / self.rho_cp_h))
             for markers in self.markers():
-                plt.plot([markers[0]] * 2, [mini, maxi], '--')
-                plt.plot([markers[1]] * 2, [mini, maxi], '--')
-            plt.legend()
-        self.T += self.dt * (-int_div_T_u + self.phy_prop.diff * 1. / self.rho_cp_h * int_div_lda_grad_T)
+                debug.plot([markers[0]] * 2, [mini, maxi], '--')
+                debug.plot([markers[1]] * 2, [mini, maxi], '--')
+            debug.legend()
+        rho_cp_inv_h = 1./self.rho_cp_h
+        self.T += self.dt * (-int_div_T_u + self.phy_prop.diff * rho_cp_inv_h * int_div_lda_grad_T)
         self.update_markers()
 
-    def rk4_timestep(self, debug=False):
+    def rk4_timestep(self, debug=None, bool_debug=False):
         T_int = self.T.copy()
         K = [0.]
         pas_de_temps = np.array([0, 0.5, 0.5, 1.])
         for h in pas_de_temps:
-            T = T_int + h * self.dt * K[-1]
-            int_div_T_u = -1 / (self.phy_prop.dS * self.num_prop.dx) * \
-                integrale_volume_div(T, self.phy_prop.v * np.ones((T.shape[0] + 1,)),
-                                     dS=self.phy_prop.dS, schema=self.num_prop.schema)
             markers_int = self.markers.copy()
             markers_int.shift(self.phy_prop.v * h * self.dt)
             temp_I = markers_int.indicatrice_liquide(self.num_prop.x)
+            T = T_int + h * self.dt * K[-1]
+            int_div_T_u = -1 / (self.phy_prop.dS * self.num_prop.dx) * \
+                integrale_volume_div(T, self.phy_prop.v * np.ones((T.shape[0] + 1,)), I=temp_I,
+                                     dS=self.phy_prop.dS, schema=self.num_prop.schema)
             Lda_h = 1. / (temp_I / self.phy_prop.lda1 + (1. - temp_I) / self.phy_prop.lda2)
             rho_cp_inv_h = temp_I / self.phy_prop.rho_cp1 + (1. - temp_I) / self.phy_prop.rho_cp2
             div_lda_grad_T = 1 / (self.phy_prop.dS * self.num_prop.dx) * \
-                integrale_volume_div(Lda_h, grad(T, dx=self.num_prop.dx),
+                integrale_volume_div(Lda_h, grad(T, dx=self.num_prop.dx), I=temp_I,
                                      dS=self.phy_prop.dS, schema=self.num_prop.schema)
             rho_cp_inv_int_div_lda_grad_T = self.phy_prop.diff * rho_cp_inv_h * div_lda_grad_T
             K.append(int_div_T_u + rho_cp_inv_int_div_lda_grad_T)
-            if debug:
-                plt.figure('sous-pas de temps %f' % (len(K) - 2))
-                plt.plot(self.num_prop.x_f, interpolate_form_center_to_face_weno(Lda_h) * grad(T, dx=self.num_prop.dx),
-                         label='lda_h grad T, time = %f' % self.time)
-                plt.plot(self.num_prop.x, rho_cp_inv_h, label='rho_cp_inv_h, time = %f' % self.time)
-                plt.plot(self.num_prop.x, div_lda_grad_T, label='div_lda_grad_T, time = %f' % self.time)
+            if (debug is not None) and bool_debug:
+                debug.set_title('sous-pas de temps %f' % (len(K) - 2))
+                debug.plot(self.num_prop.x_f, interpolate_form_center_to_face_weno(Lda_h) * grad(T, dx=self.num_prop.dx),
+                           label='lda_h grad T, time = %f' % self.time)
+                debug.plot(self.num_prop.x, rho_cp_inv_h, label='rho_cp_inv_h, time = %f' % self.time)
+                debug.plot(self.num_prop.x, div_lda_grad_T, label='div_lda_grad_T, time = %f' % self.time)
                 maxi = max(np.max(div_lda_grad_T), np.max(rho_cp_inv_int_div_lda_grad_T), np.max(rho_cp_inv_h))
                 mini = min(np.min(div_lda_grad_T), np.min(rho_cp_inv_int_div_lda_grad_T), np.min(rho_cp_inv_h))
                 for markers in self.markers():
-                    plt.plot([markers[0] + self.phy_prop.v * h * self.dt] * 2, [mini, maxi], '--')
-                    plt.plot([markers[1] + self.phy_prop.v * h * self.dt] * 2, [mini, maxi], '--')
-                    plt.xticks(self.num_prop.x_f)
-                    plt.grid(b=True, which='major')
-                    plt.legend()
+                    debug.plot([markers[0] + self.phy_prop.v * h * self.dt] * 2, [mini, maxi], '--')
+                    debug.plot([markers[1] + self.phy_prop.v * h * self.dt] * 2, [mini, maxi], '--')
+                    debug.set_xticks(self.num_prop.x_f)
+                    debug.grid(b=True, which='major')
+                    debug.legend()
         coeff = np.array([1. / 6, 1 / 3., 1 / 3., 1. / 6])
         self.T += np.sum(self.dt * coeff * np.array(K[1:]).T, axis=-1)
         self.update_markers()
 
 
 class ProblemConserv(Problem):
-    def __init__(self, markers, T0, num_prop=None, phy_prop=None):
-        super().__init__(markers, T0, num_prop=num_prop, phy_prop=phy_prop)
+    def __init__(self, T0, markers=None, num_prop=None, phy_prop=None):
+        super().__init__(T0, markers=markers, num_prop=num_prop, phy_prop=phy_prop)
 
     @property
     def name(self):
         return 'Forme conservative 1, ' + super().name
 
-    def euler_timestep(self, debug=False):
+    def euler_timestep(self, debug=None, bool_debug=False):
         markers_int = self.markers.copy()
         markers_int.shift(self.phy_prop.v * self.dt)
         Inp1 = markers_int.indicatrice_liquide(self.num_prop.x)
@@ -573,23 +590,22 @@ class ProblemConserv(Problem):
         int_div_lda_grad_T = 1. / (self.phy_prop.dS * self.num_prop.dx) * \
             integrale_volume_div(self.Lda_h, grad(self.T, dx=self.num_prop.dx), I=self.I,
                                  dS=self.phy_prop.dS, schema=self.num_prop.schema)
-        if debug:
-            plt.figure()
-            plt.plot(self.num_prop.x, 1. / self.rho_cp_h, label='rho_cp_inv_h, time = %f' % self.time)
-            plt.plot(self.num_prop.x, int_div_lda_grad_T, label='div_lda_grad_T, time = %f' % self.time)
-            plt.xticks(self.num_prop.x_f)
-            plt.grid(which='major')
+        if (debug is not None) and bool_debug:
+            debug.plot(self.num_prop.x, 1. / self.rho_cp_h, label='rho_cp_inv_h, time = %f' % self.time)
+            debug.plot(self.num_prop.x, int_div_lda_grad_T, label='div_lda_grad_T, time = %f' % self.time)
+            debug.xticks(self.num_prop.x_f)
+            debug.grid(which='major')
             maxi = max(np.max(int_div_lda_grad_T), np.max(1. / self.rho_cp_h))
             mini = min(np.min(int_div_lda_grad_T), np.min(1. / self.rho_cp_h))
             for markers in self.markers():
-                plt.plot([markers[0]] * 2, [mini, maxi], '--')
-                plt.plot([markers[1]] * 2, [mini, maxi], '--')
-                plt.legend()
+                debug.plot([markers[0]] * 2, [mini, maxi], '--')
+                debug.plot([markers[1]] * 2, [mini, maxi], '--')
+                debug.legend()
         self.T = self.rho_cp_a * self.T / rho_cp_np1 + self.dt / rho_cp_np1 * (
                     -int_div_rho_cp_T_u + self.phy_prop.diff * int_div_lda_grad_T)
         self.update_markers()
 
-    def rk4_timestep(self, debug=False):
+    def rk4_timestep(self, debug=None, bool_debug=False):
         T_int = self.T.copy()
         K = [0.]
         pas_de_temps = np.array([0, 0.5, 0.5, 1.])
@@ -609,19 +625,19 @@ class ProblemConserv(Problem):
                                      dS=self.phy_prop.dS, schema=self.num_prop.schema)
             int_div_lda_grad_T = self.phy_prop.diff * div_lda_grad_T
             K.append(-int_div_rho_cp_T_u + int_div_lda_grad_T)
-            if debug:
-                plt.figure('sous-pas de temps %f' % (len(K) - 2))
-                plt.plot(self.num_prop.x_f, interpolate_form_center_to_face_weno(Lda_h) * grad(T, dx=self.num_prop.dx),
+            if (debug is not None) and bool_debug:
+                debug.set_title('sous-pas de temps %f' % (len(K) - 2))
+                debug.plot(self.num_prop.x_f, interpolate_form_center_to_face_weno(Lda_h) * grad(T, dx=self.num_prop.dx),
                          label='lda_h grad T, time = %f' % self.time)
-                plt.plot(self.num_prop.x, div_lda_grad_T, label='div_lda_grad_T, time = %f' % self.time)
+                debug.plot(self.num_prop.x, div_lda_grad_T, label='div_lda_grad_T, time = %f' % self.time)
                 maxi = max(np.max(div_lda_grad_T), np.max(int_div_lda_grad_T))
                 mini = min(np.min(div_lda_grad_T), np.min(int_div_lda_grad_T))
                 for markers in self.markers():
-                    plt.plot([markers[0] + self.phy_prop.v * h * self.dt] * 2, [mini, maxi], '--')
-                    plt.plot([markers[1] + self.phy_prop.v * h * self.dt] * 2, [mini, maxi], '--')
-                    plt.xticks(self.num_prop.x_f)
-                    plt.grid(b=True, which='major')
-                    plt.legend()
+                    debug.plot([markers[0] + self.phy_prop.v * h * self.dt] * 2, [mini, maxi], '--')
+                    debug.plot([markers[1] + self.phy_prop.v * h * self.dt] * 2, [mini, maxi], '--')
+                    debug.xticks(self.num_prop.x_f)
+                    debug.grid(b=True, which='major')
+                    debug.legend()
         markers_np1 = self.markers.copy()
         markers_np1.shift(self.phy_prop.v * self.dt)
         temp_I = markers_np1.indicatrice_liquide(self.num_prop.x)
@@ -633,14 +649,14 @@ class ProblemConserv(Problem):
 
 
 class ProblemConserv2(Problem):
-    def __init__(self, markers, T0, num_prop=None, phy_prop=None):
-        super().__init__(markers, T0, num_prop=num_prop, phy_prop=phy_prop)
+    def __init__(self, T0, markers=None, num_prop=None, phy_prop=None):
+        super().__init__(T0, markers=markers, num_prop=num_prop, phy_prop=phy_prop)
 
     @property
     def name(self):
         return 'Forme conservative boniou, ' + super().name
 
-    def euler_timestep(self, debug=False):
+    def euler_timestep(self, debug=None, bool_debug=False):
         markers_np1 = self.markers.copy()
         markers_np1.shift(self.phy_prop.v * self.dt)
         Inp1 = markers_np1.indicatrice_liquide(self.num_prop.x)
@@ -655,29 +671,28 @@ class ProblemConserv2(Problem):
         int_div_lda_grad_T = 1. / (self.phy_prop.dS * self.num_prop.dx) * \
             integrale_volume_div(self.Lda_h, grad(self.T, dx=self.num_prop.dx), I=self.I,
                                  dS=self.phy_prop.dS, schema=self.num_prop.schema)
-        if debug:
-            plt.figure()
-            plt.plot(self.num_prop.x, 1. / self.rho_cp_h, label='rho_cp_inv_h, time = %f' % self.time)
-            plt.plot(self.num_prop.x, int_div_lda_grad_T, label='div_lda_grad_T, time = %f' % self.time)
-            plt.xticks(self.num_prop.x_f)
-            plt.grid(which='major')
+        if (debug is not None) and bool_debug:
+            debug.plot(self.num_prop.x, 1. / self.rho_cp_h, label='rho_cp_inv_h, time = %f' % self.time)
+            debug.plot(self.num_prop.x, int_div_lda_grad_T, label='div_lda_grad_T, time = %f' % self.time)
+            debug.xticks(self.num_prop.x_f)
+            debug.grid(which='major')
             maxi = max(np.max(int_div_lda_grad_T), np.max(1. / self.rho_cp_h))
             mini = min(np.min(int_div_lda_grad_T), np.min(1. / self.rho_cp_h))
             for markers in self.markers():
-                plt.plot([markers[0]] * 2, [mini, maxi], '--')
-                plt.plot([markers[1]] * 2, [mini, maxi], '--')
-                plt.legend()
+                debug.plot([markers[0]] * 2, [mini, maxi], '--')
+                debug.plot([markers[1]] * 2, [mini, maxi], '--')
+                debug.legend()
         self.T += self.dt / rho_cp_etoile * (int_div_rho_cp_u * self.T +
                                              (- int_div_rho_cp_T_u + self.phy_prop.diff * int_div_lda_grad_T))
         self.update_markers()
 
-    def rk4_timestep(self, debug=False):
-        K = [0.]
+    def rk4_timestep(self, debug=None, bool_debug=False):
+        K = [np.array(0.)]  # type: list[np.ndarray]
         K_rhocp = [0.]
         pas_de_temps = np.array([0, 0.5, 0.5, 1.])
         for h in pas_de_temps:
             markers_int = self.markers.copy()
-            markers_int.shift(self.phy_prop.v * self.dt)
+            markers_int.shift(self.phy_prop.v * self.dt * h)
             temp_I = markers_int.indicatrice_liquide(self.num_prop.x)
 
             # On s'occupe de calculer d_rho_cp
@@ -685,7 +700,7 @@ class ProblemConserv2(Problem):
             # rho_cp_markers = self.phy_prop.rho_cp1 * temp_I + self.phy_prop.rho_cp2 * (1. - temp_I)
             rho_cp = self.rho_cp_a + h * self.dt * K_rhocp[-1]
             int_div_rho_cp_u = 1 / (self.phy_prop.dS * self.num_prop.dx) * \
-                integrale_volume_div(rho_cp, self.phy_prop.v * np.ones((self.T.shape[0] + 1,)),
+                integrale_volume_div(rho_cp, self.phy_prop.v * np.ones((self.T.shape[0] + 1,)), I=temp_I,
                                      dS=self.phy_prop.dS, schema=self.num_prop.schema)
             rho_cp_etoile = rho_cp - int_div_rho_cp_u * self.dt * h
 
@@ -693,11 +708,11 @@ class ProblemConserv2(Problem):
 
             T = self.T + h * self.dt * K[-1]
             int_div_rho_cp_T_u = 1 / (self.phy_prop.dS * self.num_prop.dx) * \
-                integrale_volume_div(rho_cp * T, self.phy_prop.v * np.ones((T.shape[0] + 1,)),
+                integrale_volume_div(rho_cp * T, self.phy_prop.v * np.ones((T.shape[0] + 1,)), I=temp_I,
                                      dS=self.phy_prop.dS, schema=self.num_prop.schema)
             Lda_h = 1. / (temp_I / self.phy_prop.lda1 + (1. - temp_I) / self.phy_prop.lda2)
             int_div_lda_grad_T = 1 / (self.phy_prop.dS * self.num_prop.dx) * \
-                integrale_volume_div(Lda_h, grad(T, dx=self.num_prop.dx),
+                integrale_volume_div(Lda_h, grad(T, dx=self.num_prop.dx), I=temp_I,
                                      dS=self.phy_prop.dS, schema=self.num_prop.schema)
             int_div_lda_grad_T = self.phy_prop.diff * int_div_lda_grad_T
             K.append(1. / rho_cp_etoile * (T * int_div_rho_cp_u - int_div_rho_cp_T_u + int_div_lda_grad_T))
@@ -777,16 +792,16 @@ def get_T_creneau(x, markers=None, phy_prop=None):
 #
 #         prob = Problem(Delta, dx, lda_1, lda_2, rho_cp_1, rho_cp_2, markers, get_T_creneau, v, dt, cfl, fo,
 #                        diff=0., schema='upwind', time_scheme='rk4')
-#         t, e = prob.timestep(n=10000, number_of_plots=3, debug=False)
+#         t, e = prob.timestep(n=10000, number_of_plots=3, debug=None)
 #         t_m.append(t)
 #         e_m.append(e)
 #     i = 0
 #     Cas_test = itertools.product(Dx, Cfl)
 #     for dx, cfl in Cas_test:
-#         plt.figure('energie')
-#         plt.plot(t_m[i], e_m[i], label='dx = %f, cfl = %f' % (dx, cfl))
-#         plt.legend()
+#         debug.figure('energie')
+#         debug.plot(t_m[i], e_m[i], label='dx = %f, cfl = %f' % (dx, cfl))
+#         debug.legend()
 #         dedt = (e_m[i][-1] - e_m[i][0]) / (t_m[i][-1] - t_m[i][0])
 #         print('dx = %f, cfl = %f, dE/dt = %f' % (dx, cfl, dedt))
 #         i += 1
-#     plt.show()
+#     debug.show()

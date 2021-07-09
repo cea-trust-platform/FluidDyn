@@ -35,7 +35,7 @@ def plot_decale(problem, fig=None, ax=None):
     fig.suptitle(problem.name)
     x0 = problem.time*problem.phy_prop.v
     x_dec, T_dec = decale_perio(problem.num_prop.x, problem.T, x0, problem.markers)
-    c = ax.plot(x_dec, T_dec, label='time %f' % problem.time)
+    c = ax.plot(x_dec, T_dec, label='time %g' % problem.time)
     col = c[-1].get_color()
     maxi = max(np.max(problem.T), np.max(problem.I))
     mini = min(np.min(problem.T), np.min(problem.I))
@@ -57,7 +57,7 @@ def plot_classic(problem, fig=None, ax=None):
     fig.suptitle(problem.name)
     c = ax.plot(problem.num_prop.x, problem.I, '+')
     col = c[-1].get_color()
-    ax.plot(problem.num_prop.x, problem.T, c=col, label='time %f' % problem.time)
+    ax.plot(problem.num_prop.x, problem.T, c=col, label='time %g' % problem.time)
     maxi = max(np.max(problem.T), np.max(problem.I))
     mini = min(np.min(problem.T), np.min(problem.I))
     for markers in problem.markers():

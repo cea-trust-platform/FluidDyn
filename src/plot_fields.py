@@ -34,14 +34,14 @@ def plot_decale(problem, fig=None, ax=None):
         fig, ax = plt.subplots(1)
     fig.suptitle(problem.name)
     x0 = problem.time*problem.phy_prop.v
-    x_dec, T_dec = decale_perio(problem.num_prop.x, problem.T, x0, problem.markers)
+    x_dec, T_dec = decale_perio(problem.num_prop.x, problem.T, x0, problem.bulles)
     c = ax.plot(x_dec, T_dec, label='time %g' % problem.time)
     col = c[-1].get_color()
     maxi = max(np.max(problem.T), np.max(problem.I))
     mini = min(np.min(problem.T), np.min(problem.I))
     while x0 > problem.phy_prop.Delta:
         x0 -= problem.phy_prop.Delta
-    for markers in problem.markers():
+    for markers in problem.bulles():
         ax.plot([decale_positif(markers[0] - x0, problem.phy_prop.Delta)]*2, [mini, maxi], '--', c=col)
         ax.plot([decale_positif(markers[1] - x0, problem.phy_prop.Delta)]*2, [mini, maxi], '--', c=col)
     ax.set_xticks(problem.num_prop.x_f)
@@ -60,7 +60,7 @@ def plot_classic(problem, fig=None, ax=None):
     ax.plot(problem.num_prop.x, problem.T, c=col, label='time %g' % problem.time)
     maxi = max(np.max(problem.T), np.max(problem.I))
     mini = min(np.min(problem.T), np.min(problem.I))
-    for markers in problem.markers():
+    for markers in problem.bulles():
         ax.plot([markers[0]]*2, [mini, maxi], '--', c=col)
         ax.plot([markers[1]]*2, [mini, maxi], '--', c=col)
     ax.set_xticks(problem.num_prop.x_f)

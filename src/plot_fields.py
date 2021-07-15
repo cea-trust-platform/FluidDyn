@@ -1,4 +1,5 @@
 import numpy as np
+from src.main_discontinu import BulleTemperature, cl_perio
 
 from matplotlib import rc
 rc('text', usetex=True)
@@ -44,6 +45,8 @@ def plot_decale(problem, fig=None, ax=None):
     for markers in problem.bulles():
         ax.plot([decale_positif(markers[0] - x0, problem.phy_prop.Delta)]*2, [mini, maxi], '--', c=col)
         ax.plot([decale_positif(markers[1] - x0, problem.phy_prop.Delta)]*2, [mini, maxi], '--', c=col)
+    if isinstance(problem.bulles, BulleTemperature):
+        plot_temperature_bulles(problem, x0=x0, ax=ax, col=col)
     ax.set_xticks(problem.num_prop.x_f)
     ax.set_xticklabels([])
     ax.grid(b=True, which='major')
@@ -55,19 +58,45 @@ def plot_classic(problem, fig=None, ax=None):
     if (fig is None) or (ax is None):
         fig, ax = plt.subplots(1)
     fig.suptitle(problem.name)
-    c = ax.plot(problem.num_prop.x, problem.I, '+')
+    # c = ax.plot(problem.num_prop.x, problem.I, '+')
+    c = ax.plot(problem.num_prop.x, problem.T, label='time %g' % problem.time)
     col = c[-1].get_color()
-    ax.plot(problem.num_prop.x, problem.T, c=col, label='time %g' % problem.time)
     maxi = max(np.max(problem.T), np.max(problem.I))
     mini = min(np.min(problem.T), np.min(problem.I))
     for markers in problem.bulles():
         ax.plot([markers[0]]*2, [mini, maxi], '--', c=col)
         ax.plot([markers[1]]*2, [mini, maxi], '--', c=col)
+    if isinstance(problem.bulles, BulleTemperature):
+        plot_temperature_bulles(problem, col=col, ax=ax)
     ax.set_xticks(problem.num_prop.x_f)
     ax.set_xticklabels([])
-    ax.grid(which='major')
+    ax.grid(b=True, which='major')
     ax.legend()
     return fig, ax
+
+
+def plot_temperature_bulles(problem, x0=0., fig=None, ax=None, col=None):
+    for i_int, x in enumerate(problem.bulles()):
+        for j, xi in enumerate(x):
+            n = len(problem.num_prop.x)
+            i = problem.bulles.ind[i_int, j]
+            ax.plot([xi - x0], [problem.bulles.T[i_int, j]], 'r+')
+            ax.plot([problem.num_prop.x[i] - x0], [problem.bulles.Tg[i_int, j]], 'g+')
+            ax.plot([problem.num_prop.x[i] - x0], [problem.bulles.Td[i_int, j]], 'b+')
+            if i > 1:
+                # ax.plot([problem.num_prop.x[i-1]-x0, xi-x0], [problem.T[i-1], problem.bulles.T[i_int, j]], '--', c=col)
+                ax.quiver(problem.num_prop.x_f[i-1]-x0, (problem.T[i-2] + problem.T[i-1])/2., 1., (problem.T[i-1] - problem.T[i-2])/problem.num_prop.dx, angles='xy')
+                print('gradTim32 : ', (problem.T[i-1] - problem.T[i-2])/problem.num_prop.dx)
+                # ax.quiver(problem.num_prop.x_f[i]-x0, (problem.T[i-1] + problem.T[i])/2., 1., problem.bulles.gradTg[i_int, j], angles='xy')
+            ax.quiver(xi - x0, problem.bulles.T[i_int, j], 1., problem.bulles.lda_grad_T[i_int, j]/problem.phy_prop.lda1, 0., angles='xy')
+            print('gradTg : ', problem.bulles.lda_grad_T[i_int, j]/problem.phy_prop.lda1)
+            ax.quiver(xi - x0, problem.bulles.T[i_int, j], 1., problem.bulles.lda_grad_T[i_int, j]/problem.phy_prop.lda2, 1., angles='xy')
+            print('gradTd : ', problem.bulles.lda_grad_T[i_int, j]/problem.phy_prop.lda2)
+            if i < n-1:
+                ax.plot([problem.num_prop.x[i+1]-x0, xi-x0], [problem.T[i+1], problem.bulles.T[i_int, j]], '--', c=col)
+                # ax.quiver(problem.num_prop.x_f[i+1]-x0, (problem.T[i] + problem.T[i+1])/2., 1., problem.bulles.gradTd[i_int, j], angles='xy')
+                ax.quiver(problem.num_prop.x_f[i+2]-x0, (problem.T[i+2] + problem.T[i+1])/2., 1., (problem.T[i+2] - problem.T[i+1])/problem.num_prop.dx, angles='xy')
+                print('gradTip32 : ', (problem.T[i+2] - problem.T[i+1])/problem.num_prop.dx)
 
 
 def decale_perio(x, T, x0=0., markers=None, plot=False):

@@ -500,6 +500,8 @@ class Problem:
             n = int(t_fin / self.dt)
         if number_of_plots is not None:
             plot_for_each = int((n - 1) / number_of_plots)
+        if plot_for_each == 0:
+            plot_for_each = 1
         energy = np.zeros((n + 1,))
         t = np.linspace(0, n * self.dt, n + 1)
         energy[0] = self.energy
@@ -508,6 +510,7 @@ class Problem:
                 self.euler_timestep(debug=debug, bool_debug=(i % plot_for_each == 0))
             elif self.num_prop.time_scheme is 'rk4':
                 self.rk4_timestep(debug=debug, bool_debug=(i % plot_for_each == 0))
+            self.update_markers()
             self.time += self.dt
             self.iter += 1
             energy[i + 1] = self.energy
@@ -535,7 +538,6 @@ class Problem:
             debug.legend()
         rho_cp_inv_h = 1. / self.rho_cp_h
         self.T += self.dt * (-int_div_T_u + self.phy_prop.diff * rho_cp_inv_h * int_div_lda_grad_T)
-        self.update_markers()
 
     def rk4_timestep(self, debug=None, bool_debug=False):
         T_int = self.T.copy()
@@ -573,7 +575,6 @@ class Problem:
                     debug.legend()
         coeff = np.array([1. / 6, 1 / 3., 1 / 3., 1. / 6])
         self.T += np.sum(self.dt * coeff * np.array(K[1:]).T, axis=-1)
-        self.update_markers()
 
 
 class ProblemConserv(Problem):
@@ -609,7 +610,6 @@ class ProblemConserv(Problem):
                 debug.legend()
         self.T = self.rho_cp_a * self.T / rho_cp_np1 + self.dt / rho_cp_np1 * (
                 -int_div_rho_cp_T_u + self.phy_prop.diff * int_div_lda_grad_T)
-        self.update_markers()
 
     def rk4_timestep(self, debug=None, bool_debug=False):
         T_int = self.T.copy()
@@ -652,7 +652,6 @@ class ProblemConserv(Problem):
         coeff = np.array([1. / 6, 1 / 3., 1 / 3., 1. / 6])
         self.T = self.rho_cp_a * self.T / rho_cp_np1 + 1. / rho_cp_np1 * np.sum(self.dt * coeff * np.array(K[1:]).T,
                                                                                 axis=-1)
-        self.update_markers()
 
 
 class ProblemConserv2(Problem):
@@ -691,7 +690,6 @@ class ProblemConserv2(Problem):
                 debug.legend()
         self.T += self.dt / rho_cp_etoile * (int_div_rho_cp_u * self.T +
                                              (- int_div_rho_cp_T_u + self.phy_prop.diff * int_div_lda_grad_T))
-        self.update_markers()
 
     def rk4_timestep(self, debug=None, bool_debug=False):
         K = [np.array(0.)]  # type: list[np.ndarray]
@@ -731,7 +729,6 @@ class ProblemConserv2(Problem):
         # rho_cp_etoile = rho_cp_markers
         # rho_cp_etoile = self.rho_cp_a + d_rhocp
         self.T += d_rhocpT
-        self.update_markers()
 
 
 def get_T(x, lda_1=1., lda_2=1., markers=None):

@@ -49,39 +49,6 @@ class BulleTemperature(Bulles):
             res.append([ind1, ind2])
         self.ind = np.array(res, dtype=np.int)
 
-    # def update_lda_grad_T_and_T(self, prob):
-    #     """
-    #     Met à jour lda_grad_T et T selon les nouvelles valeurs calculées de T1 et T2 (les valeurs de la température au
-    #     centre des sous volumes de la cellule diphasique.
-    #     Args:
-    #         prob: the problem, with T and I
-    #
-    #     Returns:
-    #         Met à jour les tableaux self.lda_grad_T et self.T
-    #     """
-    #     lda_grad_T_np1 = []
-    #     T_np1 = []
-    #     for i, marks in enumerate(self.markers):
-    #         ind1 = self.ind[i, 0]
-    #         lda_grad_T_1 = get_lda_grad_face_left1(ind1, self.Tg[i, 0], prob)
-    #         lda_grad_T_2 = get_lda_grad_face_right2(ind1, self.Td[i, 0], prob)
-    #         lda_grad_T1_np1 = (1.-prob.I[ind1]) * lda_grad_T_1 + prob.I[ind1] * lda_grad_T_2  # on a pondéré par
-    #         # l'indicatrice pour que la valeur de la face la plus proche de l'face compte plus
-    #         Tg = get_temperature_from_left1(ind1, self.Tg[i, 0], lda_grad_T1_np1, prob)
-    #         Td = get_temperature_from_right2(ind1, self.Td[i, 0], lda_grad_T1_np1, prob)
-    #         T1_np1 = (Tg + Td)/2.
-    #         ind2 = self.ind[i, 1]
-    #         lda_grad_T_1 = get_lda_grad_face_left2(ind2, self.Tg[i, 1], prob)
-    #         lda_grad_T_2 = get_lda_grad_face_right1(ind2, self.Td[i, 1], prob)
-    #         lda_grad_T2_np1 = (1. - prob.I[ind2]) * lda_grad_T_1 + prob.I[ind2] * lda_grad_T_2
-    #         Tg = get_temperature_from_left2(ind2, self.Tg[i, 1], lda_grad_T2_np1, prob)
-    #         Td = get_temperature_from_right1(ind2, self.Td[i, 1], lda_grad_T2_np1, prob)
-    #         T2_np1 = (Tg + Td)/2.
-    #         lda_grad_T_np1.append([lda_grad_T1_np1, lda_grad_T2_np1])
-    #         T_np1.append([T1_np1, T2_np1])
-    #     self.lda_grad_T = np.array(lda_grad_T_np1)
-    #     self.T = np.array(T_np1)
-
 
 def get_prop(prop, i, liqu_a_gauche=True):
     if liqu_a_gauche:
@@ -117,18 +84,34 @@ class CellsInterface:
         self.Ti = None
         self.lda_gradTi = None
 
-    def compute_from_lda_gradTi(self):
+    def compute_from_ldagradTi(self):
+        """
+        On commence par récupérer lda_grad_Ti, gradTg, gradTd par continuité à partir de gradTim32 et gradTip32.
+        On en déduit Ti par continuité à gauche et à droite.
+
+        Returns:
+            Calcule les gradients g, I, d, et Ti
+        """
         lda_gradTg, lda_gradTig, self.lda_gradTi, lda_gradTid, lda_gradTd = \
             get_lda_grad_T_i_from_ldagradT_continuity(self.ldag, self.ldad, *self.T[[0, 1, 3, 4]],
                                                       (3./2. + self.ag)*self.dx, (3./2. + self.ad)*self.dx, self.dx)
+        grad_Tg = lda_gradTg/self.ldag
+        grad_Td = lda_gradTd/self.ldad
+
         self.Ti = get_Ti_from_lda_grad_Ti(self.ldag, self.ldad, *self.T[[1, 3]],
                                           (0.5+self.ag)*self.dx, (0.5+self.ad)*self.dx,
                                           lda_gradTig, lda_gradTid)
-        grad_Tg = lda_gradTg/self.ldag
-        grad_Td = lda_gradTd/self.ldad
         self.gradT[1:-1] = [grad_Tg, grad_Td]
 
-    def compute_grad_from_Ti(self):
+    def compute_from_Ti(self):
+        """
+        On commence par calculer Ti et lda_grad_Ti à partir de Tim1 et Tip1.
+        Ensuite on procède au calcul de grad_Tg et grad_Td en interpolant avec lda_grad_T_i et les gradients m32 et p32.
+        Il y a une grande incertitude sur lda_grad_Ti, donc ce n'est pas terrible d'interpoler comme ça.
+
+        Returns:
+            Calcule les gradients g, I, d, et Ti
+        """
         self.Ti, self.lda_gradTi = get_T_i_and_lda_grad_T_i(self.ldag, self.ldad, *self.T[[1, 3]],
                                                             (1.+self.ag)/2.*self.dx, (1.+self.ad)/2.*self.dx)
         grad_Tg = pid_interp(np.array([self.gradT[0], self.lda_gradTi/self.ldag]), np.array([1., self.ag])*self.dx)
@@ -138,13 +121,9 @@ class CellsInterface:
 
 def get_T_i_and_lda_grad_T_i(ldag, ldad, Tg, Td, dg, dd):
     T_i = (ldag/dg*Tg + ldad/dd*Td) / (ldag/dg + ldad/dd)
-    lda_grad_T_i = ldag * (T_i - Tg)/dg
+    lda_grad_T_ig = ldag * (T_i - Tg)/dg
     lda_grad_T_id = ldad * (Td - T_i)/dd
-    # if lda_grad_T_id != lda_grad_T_i:
-    #     print('Erreur, les lda_gradT sont différents')
-    #     print('gauche : ', lda_grad_T_i)
-    #     print('droite : ', lda_grad_T_id)
-    return T_i, lda_grad_T_i
+    return T_i, (lda_grad_T_ig + lda_grad_T_id)/2.
 
 
 def get_lda_grad_T_i_from_ldagradT_continuity(ldag, ldad, Tim2, Tim1, Tip1, Tip2, dg, dd, dx):
@@ -159,9 +138,11 @@ def get_lda_grad_T_i_from_ldagradT_continuity(ldag, ldad, Tim2, Tim1, Tip1, Tip2
 
 
 def get_Ti_from_lda_grad_Ti(ldag, ldad, Tim1, Tip1, dg, dd, lda_gradTgi, lda_gradTdi):
-    Tig = Tim1 + lda_gradTgi/ldag * dg
-    Tid = Tip1 - lda_gradTdi/ldad * dd
-    return (Tig + Tid)/2.
+    if ldag > ldad:
+        Ti = Tim1 + lda_gradTgi/ldag * dg
+    else:
+        Ti = Tip1 - lda_gradTdi/ldad * dd
+    return Ti
 
 
 def pid_interp(T, d):
@@ -169,125 +150,8 @@ def pid_interp(T, d):
     return Tm
 
 
-# def compute_Tgdi(Tipm1, Tgd, agd, dx):
-#     """
-#     Comme il suffit d'inverser le sens des absisses pour que la situation soit la meme, la formule est valable pour
-#     calculer T gauche i et T droite i
-#     Args:
-#         Tipm1: Tim1 ou Tip1
-#         Tgd: Tg ou Td
-#         agd: ag ou ad
-#         dx:
-#
-#     Returns:
-#         Tgi ou Tdi
-#     """
-#     dg_ipm1 = (0.5 + agd/2.) * dx
-#     gradT = (Tgd - Tipm1)/dg_ipm1
-#     dgd_i = (0.5 - agd/2.) * dx
-#     Tgdi = Tgd + gradT * dgd_i
-#     return Tgdi
-#
-#
-# def get_lda_grad_face_left1(ind, T, prob, cl=1):
-#     """
-#     On est dans la config suivante :
-#        liquide      vapeur
-#             +--------------+
-#             | T1  |   T2   |
-#            -|> +  | +  +  -|> avec à l'face T_i et lda_lda_grad_T_i
-#             |     | T      |
-#             +--------------+
-#     Args:
-#         ind: l'indice de la cellule diphasique
-#         T: la temperature T1 ou T2
-#         prob: le problème (qui nous donne les propriétés physiques, T et I)
-#         cl: la condition limite (1 = pério)
-#
-#     Returns:
-#         le gradient de température sur la face gauche ou droite multiplié par lda de la bonne phase
-#     """
-#     lda = prob.phy_prop.lda1
-#     if cl == 1:
-#         _, im1, _, _, _ = cl_perio(len(prob.T), ind)
-#         Tim1 = prob.T[im1]
-#     else:
-#         raise NotImplementedError
-#     Delta_T = T - Tim1
-#     Delta_x = (0.5 + prob.I[ind]/2.) * prob.num_prop.dx
-#     return lda * Delta_T / Delta_x
-#
-#
-# def get_lda_grad_face_left2(ind, T, prob, cl=1):
-#     lda = prob.phy_prop.lda2
-#     if cl == 1:
-#         _, im1, _, _, _ = cl_perio(len(prob.T), ind)
-#         Tim1 = prob.T[im1]
-#     else:
-#         raise NotImplementedError
-#     Delta_T = T - Tim1
-#     Delta_x = (0.5 + (1-prob.I[ind])/2.) * prob.num_prop.dx
-#     return lda * Delta_T / Delta_x
-#
-#
-# def get_lda_grad_face_right1(ind, T, prob, cl=1):
-#     lda = prob.phy_prop.lda1
-#     if cl == 1:
-#         _, _, _, ip1, _ = cl_perio(len(prob.T), ind)
-#         Tip1 = prob.T[ip1]
-#     else:
-#         raise NotImplementedError
-#     Delta_T = Tip1 - T
-#     Delta_x = (0.5 + prob.I[ind]/2.) * prob.num_prop.dx
-#     return lda * Delta_T / Delta_x
-#
-#
-# def get_lda_grad_face_right2(ind, T, prob, cl=1):
-#     lda = prob.phy_prop.lda2
-#     if cl == 1:
-#         _, _, _, ip1, _ = cl_perio(len(prob.T), ind)
-#         Tip1 = prob.T[ip1]
-#     else:
-#         raise NotImplementedError
-#     Delta_T = Tip1 - T
-#     Delta_x = (0.5 + (1. - prob.I[ind])/2.) * prob.num_prop.dx
-#     return lda * Delta_T / Delta_x
-#
-#
-# def get_temperature_from_left1(ind, T, lda_grad_T, prob):
-#     """
-#     Cf. le dessin dans :method:`get_grad_interface_left1`, on calcule la température à l'interface avec lda_grad_T et T1
-#     ou T2
-#     Args:
-#         ind: l'indice de la cellule diphasique
-#         T: T1 ou T2
-#         lda_grad_T: c'est assez explicite
-#         prob: le prob qui nous donne accès à dx et à I pour caluler Delta_x
-#
-#     Returns:
-#         La température de l'interface calculée en amont ou en aval
-#     """
-#     Delta_x = prob.I[ind]/2. * prob.num_prop.dx
-#     return T + lda_grad_T / prob.phy_prop.lda1 * Delta_x
-#
-#
-# def get_temperature_from_left2(ind, T, lda_grad_T, prob):
-#     Delta_x = (1. - prob.I[ind])/2. * prob.num_prop.dx
-#     return T + lda_grad_T / prob.phy_prop.lda2 * Delta_x
-#
-#
-# def get_temperature_from_right1(ind, T, lda_grad_T, prob):
-#     Delta_x = prob.I[ind]/2. * prob.num_prop.dx
-#     return T - lda_grad_T / prob.phy_prop.lda1 * Delta_x
-#
-#
-# def get_temperature_from_right2(ind, T, lda_grad_T, prob):
-#     Delta_x = (1. - prob.I[ind])/2. * prob.num_prop.dx
-#     return T - lda_grad_T / prob.phy_prop.lda2 * Delta_x
-#
-#
 class ProblemDiscontinu(Problem):
-    def __init__(self, T0, markers=None, num_prop=None, phy_prop=None):
+    def __init__(self, T0, markers=None, num_prop=None, phy_prop=None, interp_type=None):
         """
         Cette classe résout le problème en 3 étapes :
 
@@ -308,6 +172,10 @@ class ProblemDiscontinu(Problem):
         if self.num_prop.schema != 'weno upwind':
             raise Exception('Cette version ne marche que pour un stencil de 2 à proximité de l interface')
         self.T_old = self.T.copy()
+        if interp_type is None:
+            self.interp_type = 'gradTi'
+        else:
+            self.interp_type = interp_type
 
     def _init_bulles(self, markers=None):
         if markers is None:
@@ -366,7 +234,10 @@ class ProblemDiscontinu(Problem):
 
                 ldag, rhocpg, ag, ldad, rhocpd, ad = get_prop(self, i, liqu_a_gauche=from_liqu_to_vap)
                 cells = CellsInterface(ldag, ldad, ag, dx, self.T_old, i)
-                cells.compute_grad_from_Ti()
+                if self.interp_type == 'Ti':
+                    cells.compute_from_Ti()
+                else:
+                    cells.compute_from_ldagradTi()
 
                 self.bulles.T[i_int, ist] = cells.Ti
                 self.bulles.lda_grad_T[i_int, ist] = cells.lda_gradTi
@@ -374,8 +245,8 @@ class ProblemDiscontinu(Problem):
 
                 # Tgf = pid_interp(np.array([self.T_old[im1], Ti]), np.array([0.5, ag/2.])*self.num_prop.dx)
                 # Tdf = pid_interp(np.array([Ti, self.T_old[ip1]]), np.array([ad/2., 0.5])*self.num_prop.dx)
-                Ti0d = self.T_old[ip1] - grad_Td*dx
-                Ti0g = self.T_old[im1] + grad_Tg*dx
+                Ti0d = self.T_old[ip1] - grad_Tip32*dx
+                Ti0g = self.T_old[im1] + grad_Tim32*dx
 
                 self.bulles.Tg[i_int, ist] = Ti0g
                 self.bulles.Td[i_int, ist] = Ti0d

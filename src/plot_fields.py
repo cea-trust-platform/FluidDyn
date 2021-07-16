@@ -1,5 +1,6 @@
 import numpy as np
-from src.main_discontinu import BulleTemperature, cl_perio
+from src.main_discontinu import *
+from src.main import *
 
 from matplotlib import rc
 rc('text', usetex=True)
@@ -76,27 +77,38 @@ def plot_classic(problem, fig=None, ax=None):
 
 
 def plot_temperature_bulles(problem, x0=0., fig=None, ax=None, col=None):
+    n = len(problem.num_prop.x)
+    # fig1, ax1 = plt.subplots(1)
+    lda_grad_T = interpolate_from_center_to_face_center(problem.Lda_h) * grad(problem.T, dx=problem.num_prop.dx)
     for i_int, x in enumerate(problem.bulles()):
         for j, xi in enumerate(x):
-            n = len(problem.num_prop.x)
             i = problem.bulles.ind[i_int, j]
-            ax.plot([xi - x0], [problem.bulles.T[i_int, j]], 'r+')
-            ax.plot([problem.num_prop.x[i] - x0], [problem.bulles.Tg[i_int, j]], 'g+')
+            ldag, rhocpg, ag, ldad, rhocpd, ad = get_prop(problem, i, liqu_a_gauche=(not j))
+            ax.plot([xi - x0], [problem.bulles.T[i_int, j]], 'k+')
+            ax.plot([problem.num_prop.x[i] - x0], [problem.bulles.Tg[i_int, j]], 'r+')
             ax.plot([problem.num_prop.x[i] - x0], [problem.bulles.Td[i_int, j]], 'b+')
             if i > 1:
                 # ax.plot([problem.num_prop.x[i-1]-x0, xi-x0], [problem.T[i-1], problem.bulles.T[i_int, j]], '--', c=col)
                 ax.quiver(problem.num_prop.x_f[i-1]-x0, (problem.T[i-2] + problem.T[i-1])/2., 1., (problem.T[i-1] - problem.T[i-2])/problem.num_prop.dx, angles='xy')
-                print('gradTim32 : ', (problem.T[i-1] - problem.T[i-2])/problem.num_prop.dx)
+                # print('gradTim32 : ', (problem.T[i-1] - problem.T[i-2])/problem.num_prop.dx)
                 # ax.quiver(problem.num_prop.x_f[i]-x0, (problem.T[i-1] + problem.T[i])/2., 1., problem.bulles.gradTg[i_int, j], angles='xy')
-            ax.quiver(xi - x0, problem.bulles.T[i_int, j], 1., problem.bulles.lda_grad_T[i_int, j]/problem.phy_prop.lda1, 0., angles='xy')
-            print('gradTg : ', problem.bulles.lda_grad_T[i_int, j]/problem.phy_prop.lda1)
-            ax.quiver(xi - x0, problem.bulles.T[i_int, j], 1., problem.bulles.lda_grad_T[i_int, j]/problem.phy_prop.lda2, 1., angles='xy')
-            print('gradTd : ', problem.bulles.lda_grad_T[i_int, j]/problem.phy_prop.lda2)
+            ax.quiver(xi - x0, problem.bulles.T[i_int, j], 1., problem.bulles.lda_grad_T[i_int, j]/ldag, 0., angles='xy')
+            # print('gradTg : ', problem.bulles.lda_grad_T[i_int, j]/ldag)
+            ax.quiver(xi - x0, problem.bulles.T[i_int, j], 1., problem.bulles.lda_grad_T[i_int, j]/ldad, 1., angles='xy')
+            # print('gradTd : ', problem.bulles.lda_grad_T[i_int, j]/ldad)
             if i < n-1:
                 ax.plot([problem.num_prop.x[i+1]-x0, xi-x0], [problem.T[i+1], problem.bulles.T[i_int, j]], '--', c=col)
                 # ax.quiver(problem.num_prop.x_f[i+1]-x0, (problem.T[i] + problem.T[i+1])/2., 1., problem.bulles.gradTd[i_int, j], angles='xy')
                 ax.quiver(problem.num_prop.x_f[i+2]-x0, (problem.T[i+2] + problem.T[i+1])/2., 1., (problem.T[i+2] - problem.T[i+1])/problem.num_prop.dx, angles='xy')
-                print('gradTip32 : ', (problem.T[i+2] - problem.T[i+1])/problem.num_prop.dx)
+                # print('gradTip32 : ', (problem.T[i+2] - problem.T[i+1])/problem.num_prop.dx)
+            lda_grad_T[i] = ldag*problem.bulles.gradTg[i_int, j]
+            lda_grad_T[i+1] = ldad*problem.bulles.gradTd[i_int, j]
+    ax.plot(problem.num_prop.x_f, lda_grad_T, label='lda grad T')
+    ax.plot(problem.bulles.markers.flatten(), problem.bulles.lda_grad_T.flatten(), '+', label='lda grad Ti')
+    # ax.legend()
+    # ax.set_xticks(problem.num_prop.x_f)
+    # ax.set_xticklabels([])
+    # ax.grid(b=True, which='both')
 
 
 def decale_perio(x, T, x0=0., markers=None, plot=False):

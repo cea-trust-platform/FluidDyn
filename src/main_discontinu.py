@@ -101,15 +101,67 @@ def get_prop(prop, i, liqu_a_gauche=True):
     return ldag, rhocpg, ag, ldad, rhocpd, ad
 
 
+class CellsInterface:
+    def __init__(self, ldag, ldad, ag, dx, T, i):
+        self.ldag = ldag
+        self.ldad = ldad
+        self.ag = ag
+        self.ad = 1. - ag
+        self.dx = dx
+        im2, im1, i0, ip1, ip2 = cl_perio(len(T), i)
+        self.T = T[[im2, im1, i0, ip1, ip2]]
+        self.T[2] = np.nan
+        self.x = np.array([-2., -1., 0., 1., 2.])*dx
+        self.x_f = np.array([-1.5, -0.5, 0.5, 1.5])*dx
+        self.gradT = (self.T[1:] - self.T[:-1])/dx
+        self.Ti = None
+        self.lda_gradTi = None
+
+    def compute_from_lda_gradTi(self):
+        lda_gradTg, lda_gradTig, self.lda_gradTi, lda_gradTid, lda_gradTd = \
+            get_lda_grad_T_i_from_ldagradT_continuity(self.ldag, self.ldad, *self.T[[0, 1, 3, 4]],
+                                                      (3./2. + self.ag)*self.dx, (3./2. + self.ad)*self.dx, self.dx)
+        self.Ti = get_Ti_from_lda_grad_Ti(self.ldag, self.ldad, *self.T[[1, 3]],
+                                          (0.5+self.ag)*self.dx, (0.5+self.ad)*self.dx,
+                                          lda_gradTig, lda_gradTid)
+        grad_Tg = lda_gradTg/self.ldag
+        grad_Td = lda_gradTd/self.ldad
+        self.gradT[1:-1] = [grad_Tg, grad_Td]
+
+    def compute_grad_from_Ti(self):
+        self.Ti, self.lda_gradTi = get_T_i_and_lda_grad_T_i(self.ldag, self.ldad, *self.T[[1, 3]],
+                                                            (1.+self.ag)/2.*self.dx, (1.+self.ad)/2.*self.dx)
+        grad_Tg = pid_interp(np.array([self.gradT[0], self.lda_gradTi/self.ldag]), np.array([1., self.ag])*self.dx)
+        grad_Td = pid_interp(np.array([self.lda_gradTi/self.ldad, self.gradT[-1]]), np.array([self.ad, 1.])*self.dx)
+        self.gradT[1:-1] = [grad_Tg, grad_Td]
+
+
 def get_T_i_and_lda_grad_T_i(ldag, ldad, Tg, Td, dg, dd):
     T_i = (ldag/dg*Tg + ldad/dd*Td) / (ldag/dg + ldad/dd)
     lda_grad_T_i = ldag * (T_i - Tg)/dg
     lda_grad_T_id = ldad * (Td - T_i)/dd
-    if lda_grad_T_id != lda_grad_T_i:
-        print('Erreur, les lda_gradT sont différents')
-        print('gauche : ', lda_grad_T_i)
-        print('droite : ', lda_grad_T_id)
+    # if lda_grad_T_id != lda_grad_T_i:
+    #     print('Erreur, les lda_gradT sont différents')
+    #     print('gauche : ', lda_grad_T_i)
+    #     print('droite : ', lda_grad_T_id)
     return T_i, lda_grad_T_i
+
+
+def get_lda_grad_T_i_from_ldagradT_continuity(ldag, ldad, Tim2, Tim1, Tip1, Tip2, dg, dd, dx):
+    ldagradTgg = ldag*(Tim1 - Tim2)/dx
+    ldagradTdd = ldad*(Tip2 - Tip1)/dx
+    lda_gradTg = pid_interp(np.array([ldagradTgg, ldagradTdd]), np.array([dx, 2.*dx]))
+    lda_gradTgi = pid_interp(np.array([ldagradTgg, ldagradTdd]), np.array([dg - (dg-0.5*dx)/2., dd + (dg-0.5*dx)/2.]))
+    lda_gradTi = pid_interp(np.array([ldagradTgg, ldagradTdd]), np.array([dg, dd]))
+    lda_gradTdi = pid_interp(np.array([ldagradTgg, ldagradTdd]), np.array([dg + (dd-0.5*dx)/2., dd - (dd-0.5*dx)/2.]))
+    lda_gradTd = pid_interp(np.array([ldagradTgg, ldagradTdd]), np.array([2.*dx, dx]))
+    return lda_gradTg, lda_gradTgi, lda_gradTi, lda_gradTdi, lda_gradTd
+
+
+def get_Ti_from_lda_grad_Ti(ldag, ldad, Tim1, Tip1, dg, dd, lda_gradTgi, lda_gradTdi):
+    Tig = Tim1 + lda_gradTgi/ldag * dg
+    Tid = Tip1 - lda_gradTdi/ldad * dd
+    return (Tig + Tid)/2.
 
 
 def pid_interp(T, d):
@@ -297,6 +349,7 @@ class ProblemDiscontinu(Problem):
         bulles_np1.shift(self.phy_prop.v*self.dt)
         Inp1 = bulles_np1.indicatrice_liquide(self.num_prop.x)
         rhocp_np1 = self.phy_prop.rho_cp1 * Inp1 + self.phy_prop.rho_cp2 * (1.-Inp1)
+        dx = self.num_prop.dx
 
         for i_int, (i1, i2) in enumerate(self.bulles.ind):
             # i_int sert à aller chercher les valeurs aux interfaces, i1 et i2 servent à aller chercher les valeurs sur
@@ -309,25 +362,20 @@ class ProblemDiscontinu(Problem):
                     from_liqu_to_vap = False
                 im2, im1, i0, ip1, ip2 = cl_perio(len(self.T), i)
 
-                # On calcule gradTgf, Tgf, gradTi, Ti, gradTdf, Tdf
+                # On calcule gradTg, gradTi, Ti, gradTd
 
                 ldag, rhocpg, ag, ldad, rhocpd, ad = get_prop(self, i, liqu_a_gauche=from_liqu_to_vap)
-                Ti, lda_gradTi = get_T_i_and_lda_grad_T_i(ldag, ldad, self.T_old[im1], self.T_old[ip1],
-                                                          (1.+ag)/2.*self.num_prop.dx, (1.+ad)/2.*self.num_prop.dx)
-                self.bulles.T[i_int, ist] = Ti
-                self.bulles.lda_grad_T[i_int, ist] = lda_gradTi
-                # print('Ti : ', Ti)
-                # print('ldagradTi : ', lda_gradTi)
-                grad_Tim32 = (self.T_old[im1] - self.T_old[im2])/self.num_prop.dx
-                grad_Tip32 = (self.T_old[ip2] - self.T_old[ip1]) / self.num_prop.dx
-                # print('gradTim32 : ', grad_Tim32)
-                grad_Tg = pid_interp(np.array([grad_Tim32, lda_gradTi/ldag]), np.array([1., ag])*self.num_prop.dx)
-                # print('grad tg', grad_Tg.shape)
-                grad_Td = pid_interp(np.array([lda_gradTi/ldad, grad_Tip32]), np.array([ad, 1.])*self.num_prop.dx)
+                cells = CellsInterface(ldag, ldad, ag, dx, self.T_old, i)
+                cells.compute_grad_from_Ti()
+
+                self.bulles.T[i_int, ist] = cells.Ti
+                self.bulles.lda_grad_T[i_int, ist] = cells.lda_gradTi
+                grad_Tim32, grad_Tg, grad_Td, grad_Tip32 = cells.gradT
+
                 # Tgf = pid_interp(np.array([self.T_old[im1], Ti]), np.array([0.5, ag/2.])*self.num_prop.dx)
                 # Tdf = pid_interp(np.array([Ti, self.T_old[ip1]]), np.array([ad/2., 0.5])*self.num_prop.dx)
-                Ti0d = self.T_old[ip1] - grad_Td*self.num_prop.dx
-                Ti0g = self.T_old[im1] + grad_Tg*self.num_prop.dx
+                Ti0d = self.T_old[ip1] - grad_Td*dx
+                Ti0g = self.T_old[im1] + grad_Tg*dx
 
                 self.bulles.Tg[i_int, ist] = Ti0g
                 self.bulles.Td[i_int, ist] = Ti0d
@@ -337,21 +385,19 @@ class ProblemDiscontinu(Problem):
                 dV = self.num_prop.dx
                 # Correction de la cellule i0 - 1
                 # interpolation upwind
-                int_div_T_u = 1./dV * (self.T_old[im2] - self.T_old[im1]) * self.phy_prop.v
-                # gradients centres
-                int_rhocp_inv_div_lda_grad_T = 1./dV * ldag/rhocpg * (grad_Tim32 - grad_Tg)
+                int_div_T_u = 1./dV * (self.T_old[im1] - self.T_old[im2]) * self.phy_prop.v
+                int_rhocp_inv_div_lda_grad_T = 1./dV * ldag/rhocpg * (- grad_Tim32 + grad_Tg)
                 self.T[im1] += self.dt * (-int_div_T_u + self.phy_prop.diff * int_rhocp_inv_div_lda_grad_T)
 
                 # Correction de la cellule i0
-                int_div_rhocp_T_u = 1./dV * (rhocpg*self.T_old[im1] -
-                                             rhocpd*Ti0d) * self.phy_prop.v
-                int_div_lda_grad_T = 1./dV * (ldag * grad_Tg - ldad * grad_Td)
+                int_div_rhocp_T_u = 1./dV * (- rhocpg*self.T_old[im1] + rhocpd*Ti0d) * self.phy_prop.v
+                int_div_lda_grad_T = 1./dV * (- ldag * grad_Tg + ldad * grad_Td)
                 self.T[i] = (self.T_old[i]*self.rho_cp_a[i] +
                              self.dt * (-int_div_rhocp_T_u + self.phy_prop.diff * int_div_lda_grad_T)) / rhocp_np1[i]
 
                 # Correction de la cellule i0 + 1
-                int_div_T_u = 1. / dV * (Ti0d - self.T_old[ip1]) * self.phy_prop.v
-                int_rhocp_inv_div_lda_grad_T = 1. / rhocpd / dV * ldad * (grad_Td - grad_Tip32)
+                int_div_T_u = 1. / dV * (- Ti0d + self.T_old[ip1]) * self.phy_prop.v
+                int_rhocp_inv_div_lda_grad_T = 1. / rhocpd / dV * ldad * (- grad_Td + grad_Tip32)
                 self.T[ip1] += self.dt * (-int_div_T_u + self.phy_prop.diff * int_rhocp_inv_div_lda_grad_T)
         self.T_old = self.T.copy()
 

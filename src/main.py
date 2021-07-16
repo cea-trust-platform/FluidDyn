@@ -502,6 +502,7 @@ class Problem:
             plot_for_each = int((n - 1) / number_of_plots)
         if plot_for_each == 0:
             plot_for_each = 1
+        plotter.plot(self)
         energy = np.zeros((n + 1,))
         t = np.linspace(0, n * self.dt, n + 1)
         energy[0] = self.energy
@@ -514,7 +515,7 @@ class Problem:
             self.time += self.dt
             self.iter += 1
             energy[i + 1] = self.energy
-            if (i % plot_for_each == 0) and (plotter is not None):
+            if (i % plot_for_each == 0) and (plotter is not None) and ((i != 0) or (n == 1)):
                 plotter.plot(self)
         return t, energy
 

@@ -67,7 +67,7 @@ def get_prop(prop, i, liqu_a_gauche=True):
 
 
 class CellsInterface:
-    def __init__(self, ldag=1., ldad=1., ag=1., dx=1., T=None, i=1, rhocpg=1., rhocpd=1.):
+    def __init__(self, ldag=1., ldad=1., ag=1., dx=1., T=None, rhocpg=1., rhocpd=1.):
         """
         Cellule type ::
 
@@ -90,7 +90,6 @@ class CellsInterface:
             ag:
             dx:
             T:
-            i:
             rhocpg:
             rhocpd:
         """
@@ -99,14 +98,13 @@ class CellsInterface:
         self.ag = ag
         self.ad = 1. - ag
         self.dx = dx
-        im2, im1, i0, ip1, ip2 = cl_perio(len(T), i)
-        self.T = T[[im2, im1, i0, ip1, ip2]].copy()
+        self.T = T.copy()
         self.T[2] = np.nan
         # self.x = np.array([-2., -1., 0., 1., 2.])*dx
         # self.x_f = np.array([-1.5, -0.5, 0.5, 1.5])*dx
         self.gradT = (self.T[1:] - self.T[:-1])/dx
         self.lda_f = np.array([ldag, ldag, ldad, ldad])
-        self.rhocp_f = np.array([rhocpg, rhocpg, rhocpd, rhocpd])
+        self.rhocp_f = np.array([rhocpg, rhocpg, np.nan, rhocpd])
         self.Ti = None
         self.lda_gradTi = None
         self.Ti0d = None
@@ -228,26 +226,13 @@ class ProblemDiscontinu(Problem):
             print(markers)
             raise NotImplementedError
 
-    def corrige_interface_adrien1(self):
+    def corrige_interface_aymeric1(self):
         """
-        Cellule type ::
-
-                             Ti,
-                             lda_gradTi
-                               Ti0g
-                               Ti0d
-                        Tgf        Tdf
-               +---------+---------+---------+
-               |         |   |     |         |
-              -|>   +    |   | +  -|>   +   -|>
-               |    i-1  |   | i   |    i+1  |
-               +---------+---------+---------+
-           gradTi-3/2                    gradTi+3/2
-                      gradTg      gradTd
-
-        Dans cette approche on calclue Ti et lda_gradTi avec Tim1 et Tip1.
-        On en déduit Ti-1/2, Ti+1/2 corrige. On peut utiliser une interpolation proportionnelle à l'inverse de la
-        distance pour en déduire lda_gradTgf et lda_gradTdf avec lda_gradTi et gradTi-3/2 et gradTi+3/2.
+        Dans cette approche on calclue Ti et lda_gradTi soit en utilisant la continuité avec Tim1 et Tip1, soit en
+        utilisant la continuité des lda_grad_T calculés avec Tim2, Tim1, Tip1 et Tip2.
+        Dans les deux cas il est à noter que l'on utilise pas les valeurs présentes dans la cellule de l'interface.
+        On en déduit ensuite les gradients de température aux faces, les températures aux faces (en fait les
+        températures au milieu parce qu'on fait du upwind).
 
         Returns:
             Rien, mais met à jour T en le remplaçant par les nouvelles valeurs à proximité de l'interface, puis met à
@@ -273,12 +258,21 @@ class ProblemDiscontinu(Problem):
                 # On calcule gradTg, gradTi, Ti, gradTd
 
                 ldag, rhocpg, ag, ldad, rhocpd, ad = get_prop(self, i, liqu_a_gauche=from_liqu_to_vap)
-                cells = CellsInterface(ldag, ldad, ag, dx, self.T_old, i)
+                cells = CellsInterface(ldag, ldad, ag, dx, self.T_old[[im2, im1, i0, ip1, ip2]], rhocpg=rhocpg,
+                                       rhocpd=rhocpd)
                 if self.interp_type == 'Ti':
                     cells.compute_from_Ti()
                 else:
                     cells.compute_from_ldagradTi()
                 cells.set_Ti0_upwind()
+                # On vérifie que l'interface ne traverse pas la face, sinon on met à jour rho_cp_face_droite qui est
+                # un mélange au prorato du temps de passage entre la phase de droite et la phase de gauche.
+                if self.phy_prop.v > 0.:
+                    dt1_dt = max(self.I[i0] * self.num_prop.dx / (self.phy_prop.v * self.dt), 1.)
+                else:
+                    dt1_dt = 1.
+                dt2_dt = 1. - dt1_dt
+                cells.rhocp_f[2] = dt1_dt*rhocpd + dt2_dt*rhocpd
 
                 # post-traitements
 
@@ -305,193 +299,16 @@ class ProblemDiscontinu(Problem):
                                                                   schema='center', dS=self.phy_prop.dS, cl=1)
 
                 # Correction des cellules
-                self.T[i-1:i+2] = (self.T_old[i-1:i+2]*self.rho_cp_a[i-1:i+2] +
-                                   self.dt * (-int_div_rhocpT_u +
-                                              self.phy_prop.diff * int_div_lda_grad_T)) / rhocp_np1[i-1:i+2]
+                ind_to_change = [im1, i0, ip1]
+                self.T[ind_to_change] = (self.T_old[ind_to_change]*self.rho_cp_a[ind_to_change] +
+                                         self.dt * (-int_div_rhocpT_u +
+                                                    self.phy_prop.diff * int_div_lda_grad_T)) / rhocp_np1[ind_to_change]
 
         self.T_old = self.T.copy()
 
-    # def corrige_interface_broken(self):
-    #     """
-    #
-    #            +---------+---------+---------+---------+
-    #            |         |         | T1|  T2 |         |
-    #            |    +   -|>   +    | + | ++ -|>   +   -|>
-    #            |    i-2  |    i-1  |   | i   |    i+1  |
-    #            +---------+---------+---------+---------+
-    #
-    #     Attention en tout il a 2 configs possibles, selon si on passe du liquide à la vapeur.
-    #     Il faudrait factoriser le code par une méthode générale qui traite ces deux cas.
-    #     Dans chaque cas, on doit calculer l'évolution des températures Ti-1, T1, T2 et Ti+1
-    #     Il est à noter que si l'on se place dans un cas ou le stencil qui est à proximité de l'interface est de taille
-    #     plus grande il faudra aussi corriger les cellules de ce stencil.
-    #
-    #     Returns:
-    #         Rien, mais met à jour T en le remplaçant par T_new
-    #     """
-    #     for i_int, (i1, i2) in enumerate(self.bulles.ind):
-    #         # i_int sert à aller chercher les valeurs aux interfaces, i1 et i2 servent à aller chercher les valeurs sur
-    #         # le maillage cartésien
-    #
-    #         #########################################
-    #         # Cas du passage du liquide a la vapeur #
-    #         #########################################
-    #
-    #         im2, im1, i, ip1, ip2 = cl_perio(len(self.T), i1)
-    #         # Correction de la cellule i1 - 1
-    #
-    #         # on a une interpolation amont de la température donc on ne change rien
-    #         int_div_T_u = 1./self.num_prop.dx * (self.T_old[im2] - self.T_old[im1]) * self.phy_prop.v
-    #
-    #         # on calcule le gradient de température corrigé à la face i-1/2
-    #         grad_T1 = (self.bulles.Tg[i_int, 0] - self.T_old[im1]) / ((0.5 + self.I[i]/2.)*self.num_prop.dx)
-    #         grad_Tim1 = (self.T_old[im2] - self.T_old[im1])/self.num_prop.dx
-    #         # on calcule la divergence de diffusion avec ce nouveau gradient à droite et l'ancien qui est bien
-    #         # monophasique à gauche. Les deux gradients sont monophasiques.
-    #         int_rhocp_inv_div_lda_grad_T = 1/self.phy_prop.rho_cp1 * \
-    #             1./self.num_prop.dx * self.phy_prop.lda1 * \
-    #             (grad_Tim1 - grad_T1)
-    #         self.T[im1] += self.dt * (-int_div_T_u + int_rhocp_inv_div_lda_grad_T)
-    #
-    #         # Correction de la cellule i1 à gauche
-    #         # La cellule est de volume dS*I*dx
-    #
-    #         # interpole en centre Tg ?
-    #         Tg = (self.I[i]/(1. + self.I[i])) * self.T_old[im1] + (1. / (1. + self.I[i])) * self.bulles.Tg[i_int, 0]
-    #         int_div_T_u = 1. / (self.I[i]*self.num_prop.dx) * (Tg - self.bulles.T[i_int, 0]) * self.phy_prop.v
-    #
-    #         # on calcule le gradient de température corrigé à la face i-1/2
-    #         # on calcule la divergence de diffusion avec ce nouveau gradient à droite et l'ancien qui est bien
-    #         # monophasique à gauche. Les deux gradients sont monophasiques.
-    #         grad_T1 = (self.bulles.Tg[i_int, 0] - self.T_old[im1]) / ((0.5 + self.I[i] / 2.) * self.num_prop.dx)
-    #         grad_Tint = self.bulles.lda_grad_T[i_int, 0]/self.phy_prop.lda1
-    #         int_rhocp_inv_div_lda_grad_T = 1 / self.phy_prop.rho_cp1 * \
-    #             1. / (self.I[i]*self.num_prop.dx) * self.phy_prop.lda1 * \
-    #             (grad_T1 - grad_Tint)
-    #         self.bulles.Tg[i_int, 0] += self.dt * (-int_div_T_u + int_rhocp_inv_div_lda_grad_T)
-    #
-    #         # Correction de la cellule i1 à droite
-    #         # La cellule est de volume dS*(1-I)*dx
-    #
-    #         # on a une interpolation centre de Td entre Td_centre et Tip1
-    #         Td = ((1. - self.I[i])/(2. - self.I[i])) * self.T_old[ip1] + (1. / (2. - self.I[i])) * self.bulles.Td[i_int, 0]
-    #         int_div_T_u = 1. / ((1.-self.I[i]) * self.num_prop.dx) * (self.bulles.T[i_int, 0] - Td) * self.phy_prop.v
-    #
-    #         # on calcule le gradient de température corrigé à la face i+1/2
-    #         grad_Tint = self.bulles.lda_grad_T[i_int, 0] / self.phy_prop.lda2
-    #         grad_T2 = (self.T_old[ip1] - self.bulles.Td[i_int, 0]) / ((0.5 + (1.-self.I[i])/2.) * self.num_prop.dx)
-    #         # on calcule la divergence de diffusion avec ce nouveau gradient à droite et l'ancien qui est bien
-    #         # monophasique à gauche. Les deux gradients sont monophasiques.
-    #         int_rhocp_inv_div_lda_grad_T = 1 / self.phy_prop.rho_cp2 * \
-    #             1. / ((1.-self.I[i]) * self.num_prop.dx) * self.phy_prop.lda2 * \
-    #             (grad_Tint - grad_T2)
-    #         self.bulles.Td[i_int, 0] += self.dt * (-int_div_T_u + int_rhocp_inv_div_lda_grad_T)
-    #
-    #         # On remplit la valeur au centre de la cellule i, qui vaut soit celle de la partie liquide, soit celle de
-    #         # la partie vapeur selon la position de l'interface par rapport au centre de la cellule.
-    #         if self.bulles.markers[i_int, 0] > self.num_prop.x[i]:
-    #             self.T[i] = self.bulles.Tg[i_int, 0]
-    #         else:
-    #             self.T[i] = self.bulles.Td[i_int, 0]
-    #
-    #         # Correction de la cellule i1 + 1
-    #
-    #         # on a une interpolation amont de Ti qu'on prend à Td_centre
-    #         Td = self.bulles.Td[i_int, 0]
-    #         int_div_T_u = 1. / self.num_prop.dx * (Td - self.T_old[ip1]) * self.phy_prop.v
-    #
-    #         # on calcule le gradient de température corrigé à la face i+1/2
-    #         grad_T2 = (self.T_old[ip1] - self.bulles.Td[i_int, 0]) / ((0.5 + (1. - self.I[i]) / 2.) * self.num_prop.dx)
-    #         grad_Tip1 = (self.T_old[ip2] - self.T_old[ip1]) / self.num_prop.dx
-    #         # on calcule la divergence de diffusion avec ce nouveau gradient à droite et l'ancien qui est bien
-    #         # monophasique à gauche. Les deux gradients sont monophasiques.
-    #         int_rhocp_inv_div_lda_grad_T = 1 / self.phy_prop.rho_cp2 * \
-    #             1. / self.num_prop.dx * self.phy_prop.lda2 * \
-    #             (grad_T2 - grad_Tip1)
-    #         self.T[ip1] += self.dt * (-int_div_T_u + int_rhocp_inv_div_lda_grad_T)
-    #
-    #         ##########################################
-    #         # Cas du passage de la vapeur au liquide #
-    #         ##########################################
-    #
-    #         im2, im1, i, ip1, ip2 = cl_perio(len(self.T), i2)
-    #
-    #         # Correction de la cellule i2 - 1
-    #
-    #         # on a une interpolation amont de la température donc on ne change rien
-    #         int_div_T_u = 1. / self.num_prop.dx * (self.T_old[im2] - self.T_old[im1]) * self.phy_prop.v
-    #
-    #         # on calcule le gradient de température corrigé à la face i-1/2
-    #         grad_T1 = (self.bulles.Tg[i_int, 1] - self.T_old[im1]) / ((0.5 + (1.-self.I[i]) / 2.) * self.num_prop.dx)
-    #         grad_Tim1 = (self.T_old[im2] - self.T_old[im1]) / self.num_prop.dx
-    #         # on calcule la divergence de diffusion avec ce nouveau gradient à droite et l'ancien qui est bien
-    #         # monophasique à gauche. Les deux gradients sont monophasiques.
-    #         int_rhocp_inv_div_lda_grad_T = 1 / self.phy_prop.rho_cp2 * \
-    #             1. / self.num_prop.dx * self.phy_prop.lda2 * \
-    #             (grad_Tim1 - grad_T1)
-    #         self.T[im1] += self.dt * (-int_div_T_u + int_rhocp_inv_div_lda_grad_T)
-    #
-    #         # Correction de la cellule i2 à gauche
-    #         # La cellule est de volume dS*(1-I)*dx
-    #
-    #         # interpole en centre Tg ?
-    #         Tg = ((1. - self.I[i]) / (2. - self.I[i])) * self.T_old[im1] + (1. / (2. - self.I[i])) * self.bulles.Tg[i_int,
-    #                                                                                                             1]
-    #         int_div_T_u = 1. / ((1.-self.I[i]) * self.num_prop.dx) * (Tg - self.bulles.T[i_int, 1]) * self.phy_prop.v
-    #
-    #         # on calcule le gradient de température corrigé à la face i-1/2
-    #         # on calcule la divergence de diffusion avec ce nouveau gradient à droite et l'ancien qui est bien
-    #         # monophasique à gauche. Les deux gradients sont monophasiques.
-    #         grad_T1 = (self.bulles.Tg[i_int, 1] - self.T_old[im1]) / ((0.5 + (1. - self.I[i]) / 2.) * self.num_prop.dx)
-    #         grad_Tint = self.bulles.lda_grad_T[i_int, 1] / self.phy_prop.lda2
-    #         int_rhocp_inv_div_lda_grad_T = 1 / self.phy_prop.rho_cp2 * \
-    #             1. / ((1.-self.I[i]) * self.num_prop.dx) * self.phy_prop.lda2 * \
-    #             (grad_T1 - grad_Tint)
-    #         self.bulles.Tg[i_int, 1] += self.dt * (-int_div_T_u + int_rhocp_inv_div_lda_grad_T)
-    #
-    #         # Correction de la cellule i2 à droite
-    #         # La cellule est de volume dS*I*dx
-    #
-    #         # on a une interpolation centre de Td entre Td_centre et Tip1
-    #         Td = (self.I[i] / (1. + self.I[i])) * self.T_old[ip1] + (1. / (1. + self.I[i])) * self.bulles.Td[i_int, 1]
-    #         int_div_T_u = 1. / (self.I[i] * self.num_prop.dx) * (self.bulles.T[i_int, 1] - Td) * self.phy_prop.v
-    #
-    #         # on calcule le gradient de température corrigé à la face i+1/2
-    #         grad_Tint = self.bulles.lda_grad_T[i_int, 1] / self.phy_prop.lda1
-    #         grad_T2 = (self.T_old[ip1] - self.bulles.Td[i_int, 1]) / ((0.5 + self.I[i] / 2.) * self.num_prop.dx)
-    #         # on calcule la divergence de diffusion avec ce nouveau gradient à droite et l'ancien qui est bien
-    #         # monophasique à gauche. Les deux gradients sont monophasiques.
-    #         int_rhocp_inv_div_lda_grad_T = 1 / self.phy_prop.rho_cp1 * \
-    #             1. / (self.I[i] * self.num_prop.dx) * self.phy_prop.lda1 * \
-    #             (grad_Tint - grad_T2)
-    #         self.bulles.Td[i_int, 1] += self.dt * (-int_div_T_u + int_rhocp_inv_div_lda_grad_T)
-    #
-    #         # On remplit la valeur au centre de la cellule i, qui vaut soit celle de la partie liquide, soit celle de
-    #         # la partie vapeur selon la position de l'interface par rapport au centre de la cellule.
-    #         if self.bulles.markers[i_int, 1] > self.num_prop.x[i]:
-    #             self.T[i] = self.bulles.Tg[i_int, 1]
-    #         else:
-    #             self.T[i] = self.bulles.Td[i_int, 1]
-    #
-    #         # Correction de la cellule i2 + 1
-    #
-    #         # on a une interpolation amont de Ti qu'on prend à Td_centre
-    #         Td = self.bulles.Td[i_int, 1]
-    #         int_div_T_u = 1. / self.num_prop.dx * (Td - self.T_old[ip1]) * self.phy_prop.v
-    #
-    #         # on calcule le gradient de température corrigé à la face i+1/2
-    #         grad_T2 = (self.T_old[ip1] - self.bulles.Td[i_int, 1]) / ((0.5 + self.I[i] / 2.) * self.num_prop.dx)
-    #         grad_Tip1 = (self.T_old[ip2] - self.T_old[ip1]) / self.num_prop.dx
-    #         # on calcule la divergence de diffusion avec ce nouveau gradient à droite et l'ancien qui est bien
-    #         # monophasique à gauche. Les deux gradients sont monophasiques.
-    #         int_rhocp_inv_div_lda_grad_T = 1 / self.phy_prop.rho_cp1 * \
-    #             1. / self.num_prop.dx * self.phy_prop.lda1 * \
-    #             (grad_T2 - grad_Tip1)
-    #         self.T[ip1] += self.dt * (-int_div_T_u + int_rhocp_inv_div_lda_grad_T)
-
     def euler_timestep(self, debug=None, bool_debug=False):
         super().euler_timestep(debug=debug, bool_debug=bool_debug)
-        self.corrige_interface_adrien1()
+        self.corrige_interface_aymeric1()
 
     def update_markers(self):
         super().update_markers()

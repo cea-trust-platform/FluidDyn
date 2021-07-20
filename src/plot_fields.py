@@ -1,4 +1,3 @@
-import numpy as np
 from src.main_discontinu import *
 from src.main import *
 
@@ -8,7 +7,7 @@ rc('font', size=14)
 rc('font', family='serif')
 rc('legend', fontsize=13)
 rc('figure', max_open_warning=50)
-rc('figure', figsize=(19,8))
+rc('figure', figsize=(19, 8))
 rc('figure', dpi=200)
 rc('savefig', dpi=300)
 
@@ -75,7 +74,7 @@ def plot_classic(problem, fig=None, ax=None, ax2=None):
         ax.plot([markers[0]]*2, [mini, maxi], '--', c=col)
         ax.plot([markers[1]]*2, [mini, maxi], '--', c=col)
     if isinstance(problem.bulles, BulleTemperature):
-        plot_temperature_bulles(problem, col=col, ax=ax, ax2=ax2)
+        plot_temperature_bulles(problem, ax=ax, col=col, ax2=ax2)
     ax.set_xticks(problem.num_prop.x_f)
     ax.set_xticklabels([])
     ax.grid(b=True, which='major')
@@ -83,7 +82,7 @@ def plot_classic(problem, fig=None, ax=None, ax2=None):
     return fig, ax, ax2
 
 
-def plot_temperature_bulles(problem, x0=0., fig=None, ax=None, col=None, ax2=None):
+def plot_temperature_bulles(problem, x0=0., ax=None, col=None, ax2=None):
     n = len(problem.num_prop.x)
     Delta = problem.phy_prop.Delta
     dx = problem.num_prop.dx
@@ -107,17 +106,25 @@ def plot_temperature_bulles(problem, x0=0., fig=None, ax=None, col=None, ax2=Non
             ldag, rhocpg, ag, ldad, rhocpd, ad = get_prop(problem, i, liqu_a_gauche=(not j))
             if i > 1:
                 if problem.time > 0.:
-                    ax.plot([problem.num_prop.x[i-1]-x0, xi-x0], [problem.T[i-1], problem.bulles.T[i_int, j]], '--', c=col)
-                ax.quiver(problem.num_prop.x_f[i-1]-x0, (problem.T[i-2] + problem.T[i-1])/2., 1., (problem.T[i-1] - problem.T[i-2])/problem.num_prop.dx, angles='xy')
-                # ax.quiver(problem.num_prop.x_f[i]-x0, (problem.T[i-1] + problem.T[i])/2., 1., problem.bulles.gradTg[i_int, j], angles='xy')
+                    ax.plot([problem.num_prop.x[i-1]-x0, xi-x0], [problem.T[i-1], problem.bulles.T[i_int, j]], '--',
+                            c=col)
+                ax.quiver(problem.num_prop.x_f[i-1]-x0, (problem.T[i-2] + problem.T[i-1])/2., 1.,
+                          (problem.T[i-1] - problem.T[i-2])/problem.num_prop.dx, angles='xy')
+                # ax.quiver(problem.num_prop.x_f[i]-x0, (problem.T[i-1] + problem.T[i])/2., 1.,
+                #           problem.bulles.gradTg[i_int, j], angles='xy')
             if problem.time > 0.:
-                ax.quiver(xi - x0, problem.bulles.T[i_int, j], 1., problem.bulles.lda_grad_T[i_int, j]/ldag, 0., angles='xy')
-                ax.quiver(xi - x0, problem.bulles.T[i_int, j], 1., problem.bulles.lda_grad_T[i_int, j]/ldad, 1., angles='xy')
+                ax.quiver(xi - x0, problem.bulles.T[i_int, j], 1., problem.bulles.lda_grad_T[i_int, j]/ldag,
+                          0., angles='xy')
+                ax.quiver(xi - x0, problem.bulles.T[i_int, j], 1., problem.bulles.lda_grad_T[i_int, j]/ldad,
+                          1., angles='xy')
             if i < n-1:
                 if problem.time > 0.:
-                    ax.plot([problem.num_prop.x[i+1]-x0, xi-x0], [problem.T[i+1], problem.bulles.T[i_int, j]], '--', c=col)
-                # ax.quiver(problem.num_prop.x_f[i+1]-x0, (problem.T[i] + problem.T[i+1])/2., 1., problem.bulles.gradTd[i_int, j], angles='xy')
-                ax.quiver(problem.num_prop.x_f[i+2]-x0, (problem.T[i+2] + problem.T[i+1])/2., 1., (problem.T[i+2] - problem.T[i+1])/problem.num_prop.dx, angles='xy')
+                    ax.plot([problem.num_prop.x[i+1]-x0, xi-x0], [problem.T[i+1], problem.bulles.T[i_int, j]],
+                            '--', c=col)
+                # ax.quiver(problem.num_prop.x_f[i+1]-x0, (problem.T[i] + problem.T[i+1])/2., 1.,
+                #           problem.bulles.gradTd[i_int, j], angles='xy')
+                ax.quiver(problem.num_prop.x_f[i+2]-x0, (problem.T[i+2] + problem.T[i+1])/2., 1.,
+                          (problem.T[i+2] - problem.T[i+1])/problem.num_prop.dx, angles='xy')
             lda_grad_T[i] = ldag*problem.bulles.gradTg[i_int, j]
             lda_grad_T[i+1] = ldad*problem.bulles.gradTd[i_int, j]
     if problem.time > 0.:

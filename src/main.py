@@ -132,6 +132,8 @@ def interpolate_center_value_weno_to_face_upwind_interface(a, I, cl=1, cv_0=0., 
     interpolate the center value a[i] at the face res[i+1] (corresponding to the upwind scheme) on diphasic cells
 
     Args:
+        cv_n:
+        cv_0:
         cl: the limit condition, 1 is periodic
         a: the center values
         I: the phase indicator
@@ -495,12 +497,12 @@ class Problem:
         return i
 
     def get_time(self):
-        # nombre CFL = 0.5
+        # nombre CFL = 1. par défaut
         if self.phy_prop.v > 10 ** (-15):
             dt_cfl = self.num_prop.dx / self.phy_prop.v * self.num_prop.cfl_lim
         else:
             dt_cfl = 10 ** 15
-        # nombre de fourier = 0.5
+        # nombre de fourier = 1. par défaut
         dt_fo = self.num_prop.dx ** 2 / max(self.phy_prop.lda1, self.phy_prop.lda2) * \
             min(self.phy_prop.rho_cp2, self.phy_prop.rho_cp1) * self.num_prop.fo_lim
         # dt_fo = dx**2/max(lda1/rho_cp1, lda2/rho_cp2)*fo

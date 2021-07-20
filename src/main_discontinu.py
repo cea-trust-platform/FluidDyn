@@ -1,5 +1,3 @@
-import numpy as np
-
 from src.main import *
 
 
@@ -69,20 +67,50 @@ def get_prop(prop, i, liqu_a_gauche=True):
 
 
 class CellsInterface:
-    def __init__(self, ldag, ldad, ag, dx, T, i):
+    def __init__(self, ldag=1., ldad=1., ag=1., dx=1., T=None, i=1, rhocpg=1., rhocpd=1.):
+        """
+        Cellule type ::
+
+                                        Ti,
+                                        lda_gradTi
+                                          Ti0g
+                                          Ti0d
+                                    Tgf       Tdf
+               +----------+---------+---------+---------+---------+
+               |          |         |   |     |         |         |
+               |    +    -|>   +   -|>  | +  -|>   +   -|>   +    |
+               |    0     |    1    |   | 2   |    3    |    4    |
+               +----------+---------+---------+---------+---------+
+                          0         1         2         3
+                        gradTi-3/2  gradTg    gradTd    gradTi+3/2
+
+        Args:
+            ldag:
+            ldad:
+            ag:
+            dx:
+            T:
+            i:
+            rhocpg:
+            rhocpd:
+        """
         self.ldag = ldag
         self.ldad = ldad
         self.ag = ag
         self.ad = 1. - ag
         self.dx = dx
         im2, im1, i0, ip1, ip2 = cl_perio(len(T), i)
-        self.T = T[[im2, im1, i0, ip1, ip2]]
+        self.T = T[[im2, im1, i0, ip1, ip2]].copy()
         self.T[2] = np.nan
-        self.x = np.array([-2., -1., 0., 1., 2.])*dx
-        self.x_f = np.array([-1.5, -0.5, 0.5, 1.5])*dx
+        # self.x = np.array([-2., -1., 0., 1., 2.])*dx
+        # self.x_f = np.array([-1.5, -0.5, 0.5, 1.5])*dx
         self.gradT = (self.T[1:] - self.T[:-1])/dx
+        self.lda_f = np.array([ldag, ldag, ldad, ldad])
+        self.rhocp_f = np.array([rhocpg, rhocpg, rhocpd, rhocpd])
         self.Ti = None
         self.lda_gradTi = None
+        self.Ti0d = None
+        self.Ti0g = None
 
     def compute_from_ldagradTi(self):
         """
@@ -117,6 +145,18 @@ class CellsInterface:
         grad_Tg = pid_interp(np.array([self.gradT[0], self.lda_gradTi/self.ldag]), np.array([1., self.ag])*self.dx)
         grad_Td = pid_interp(np.array([self.lda_gradTi/self.ldad, self.gradT[-1]]), np.array([self.ad, 1.])*self.dx)
         self.gradT[1:-1] = [grad_Tg, grad_Td]
+
+    def set_Ti0_upwind(self):
+        """
+        Ici on choisit Ti0 ghost de manière à ce qu'il corresponde à la température ghost de la phase avale au centre de
+        la cellule i0
+
+        Returns:
+            Set la température i0 à Tid ou Tig selon le sens de la vitesse
+        """
+        self.Ti0d = self.T[3] - self.gradT[2] * self.dx
+        self.Ti0g = self.T[1] + self.gradT[1] * self.dx
+        self.T[2] = self.Ti0d
 
 
 def get_T_i_and_lda_grad_T_i(ldag, ldad, Tg, Td, dg, dd):
@@ -169,8 +209,8 @@ class ProblemDiscontinu(Problem):
             phy_prop: les propriétés physiques du calcul
         """
         super().__init__(T0, markers, num_prop=num_prop, phy_prop=phy_prop)
-        if self.num_prop.schema != 'weno upwind':
-            raise Exception('Cette version ne marche que pour un stencil de 2 à proximité de l interface')
+        if self.num_prop.schema != 'upwind':
+            raise Exception('Cette version ne marche que pour un schéma upwind')
         self.T_old = self.T.copy()
         if interp_type is None:
             self.interp_type = 'gradTi'
@@ -238,38 +278,37 @@ class ProblemDiscontinu(Problem):
                     cells.compute_from_Ti()
                 else:
                     cells.compute_from_ldagradTi()
+                cells.set_Ti0_upwind()
+
+                # post-traitements
 
                 self.bulles.T[i_int, ist] = cells.Ti
                 self.bulles.lda_grad_T[i_int, ist] = cells.lda_gradTi
-                grad_Tim32, grad_Tg, grad_Td, grad_Tip32 = cells.gradT
+                _, grad_Tg, grad_Td, _ = cells.gradT
 
                 # Tgf = pid_interp(np.array([self.T_old[im1], Ti]), np.array([0.5, ag/2.])*self.num_prop.dx)
                 # Tdf = pid_interp(np.array([Ti, self.T_old[ip1]]), np.array([ad/2., 0.5])*self.num_prop.dx)
-                Ti0d = self.T_old[ip1] - grad_Tip32*dx
-                Ti0g = self.T_old[im1] + grad_Tim32*dx
 
-                self.bulles.Tg[i_int, ist] = Ti0g
-                self.bulles.Td[i_int, ist] = Ti0d
+                self.bulles.Tg[i_int, ist] = cells.Ti0g
+                self.bulles.Td[i_int, ist] = cells.Ti0d
                 self.bulles.gradTg[i_int, ist] = grad_Tg
                 self.bulles.gradTd[i_int, ist] = grad_Td
 
-                dV = self.num_prop.dx
-                # Correction de la cellule i0 - 1
+                dV = self.num_prop.dx*self.phy_prop.dS
+                # Correction des cellules i0 - 1 à i0 + 1 inclue
                 # interpolation upwind
-                int_div_T_u = 1./dV * (self.T_old[im1] - self.T_old[im2]) * self.phy_prop.v
-                int_rhocp_inv_div_lda_grad_T = 1./dV * ldag/rhocpg * (- grad_Tim32 + grad_Tg)
-                self.T[im1] += self.dt * (-int_div_T_u + self.phy_prop.diff * int_rhocp_inv_div_lda_grad_T)
+                # DONE: l'écrire en version flux pour être sûr de la conservation
+                int_div_rhocpT_u = 1./dV * integrale_volume_div(cells.T[1:-1], cells.rhocp_f*self.phy_prop.v,
+                                                                cl=0, dS=self.phy_prop.dS, schema='upwind',
+                                                                cv_0=cells.T[0], cv_n=cells.T[-1])
+                int_div_lda_grad_T = 1./dV * integrale_volume_div(np.ones((3,)), cells.lda_f*cells.gradT,
+                                                                  schema='center', dS=self.phy_prop.dS, cl=1)
 
-                # Correction de la cellule i0
-                int_div_rhocp_T_u = 1./dV * (- rhocpg*self.T_old[im1] + rhocpd*Ti0d) * self.phy_prop.v
-                int_div_lda_grad_T = 1./dV * (- ldag * grad_Tg + ldad * grad_Td)
-                self.T[i] = (self.T_old[i]*self.rho_cp_a[i] +
-                             self.dt * (-int_div_rhocp_T_u + self.phy_prop.diff * int_div_lda_grad_T)) / rhocp_np1[i]
+                # Correction des cellules
+                self.T[i-1:i+2] = (self.T_old[i-1:i+2]*self.rho_cp_a[i-1:i+2] +
+                                   self.dt * (-int_div_rhocpT_u +
+                                              self.phy_prop.diff * int_div_lda_grad_T)) / rhocp_np1[i-1:i+2]
 
-                # Correction de la cellule i0 + 1
-                int_div_T_u = 1. / dV * (- Ti0d + self.T_old[ip1]) * self.phy_prop.v
-                int_rhocp_inv_div_lda_grad_T = 1. / rhocpd / dV * ldad * (- grad_Td + grad_Tip32)
-                self.T[ip1] += self.dt * (-int_div_T_u + self.phy_prop.diff * int_rhocp_inv_div_lda_grad_T)
         self.T_old = self.T.copy()
 
     # def corrige_interface_broken(self):
@@ -453,12 +492,10 @@ class ProblemDiscontinu(Problem):
     def euler_timestep(self, debug=None, bool_debug=False):
         super().euler_timestep(debug=debug, bool_debug=bool_debug)
         self.corrige_interface_adrien1()
-        # self.bulles.update_lda_grad_T_and_T(self)
 
     def update_markers(self):
-        self.bulles.shift(self.phy_prop.v * self.dt)
+        super().update_markers()
         self.bulles.set_indices_markers(self.num_prop.x)
-        self.I = self.update_I()
 
 
 def cl_perio(n, i):

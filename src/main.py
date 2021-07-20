@@ -6,7 +6,7 @@ from scipy import optimize as opt
 # Press Double Shift to search everywhere for classes, files, tool windows, actions, and settings.
 
 
-def integrale_volume_div(center_value, face_value, I=None, cl=1, dS=1., schema='weno'):
+def integrale_volume_div(center_value, face_value, I=None, cl=1, dS=1., schema='weno', cv_0=0., cv_n=0.):
     """
     Calcule le delta de convection aux bords des cellules
 
@@ -16,7 +16,9 @@ def integrale_volume_div(center_value, face_value, I=None, cl=1, dS=1., schema='
         schema:
         center_value: les valeurs présentes aux centres des cellules
         face_value: les valeurs présentes aux faces des cellules
-        cl: si cl = 1, on prend des gradients nuls aux bords du domaine
+        cl: si cl = 1, on prend des gradients nuls aux bords du domaine, si cl = 0 on utilise cv_0 et cv_n
+        cv_0 : la valeur au centre au bord en -1
+        cv_n : la valeur au centre au bord en n+1
 
     Returns:
         le delta au centre
@@ -28,15 +30,16 @@ def integrale_volume_div(center_value, face_value, I=None, cl=1, dS=1., schema='
         print(center_value.shape, face_value.shape)
         raise NotImplementedError
     if schema is 'upwind':
-        interpolated_value = interpolate_from_center_to_face_upwind(center_value, cl)
+        interpolated_value = interpolate_from_center_to_face_upwind(center_value, cl=cl, cv_0=cv_0)
     elif schema is 'center':
-        interpolated_value = interpolate_from_center_to_face_center(center_value, cl)
+        interpolated_value = interpolate_from_center_to_face_center(center_value, cl=cl, cv_0=cv_0, cv_n=cv_n)
     elif schema is 'weno':
-        interpolated_value = interpolate_form_center_to_face_weno(center_value, cl=1)
+        interpolated_value = interpolate_form_center_to_face_weno(center_value, cl=cl, cv_0=cv_0, cv_n=cv_n)
     elif schema == 'weno upwind':
         if I is None:
             raise NotImplementedError
-        interpolated_value = interpolate_center_value_weno_to_face_upwind_interface(center_value, I, cl=1)
+        interpolated_value = interpolate_center_value_weno_to_face_upwind_interface(center_value, I, cl=cl, cv_0=cv_0,
+                                                                                    cv_n=cv_n)
     else:
         raise NotImplementedError
     flux = interpolated_value * face_value
@@ -44,7 +47,7 @@ def integrale_volume_div(center_value, face_value, I=None, cl=1, dS=1., schema='
     return dS * delta_center_value
 
 
-def interpolate_from_center_to_face_center(center_value, cl=1):
+def interpolate_from_center_to_face_center(center_value, cl=1, cv_0=0., cv_n=0.):
     interpolated_value = np.zeros((center_value.shape[0] + 1,))
     interpolated_value[1:-1] = (center_value[:-1] + center_value[1:]) / 2.
     if cl == 1:
@@ -53,12 +56,15 @@ def interpolate_from_center_to_face_center(center_value, cl=1):
     elif cl == 2:
         interpolated_value[0] = interpolated_value[1]
         interpolated_value[-1] = interpolated_value[-2]
+    elif cl == 0:
+        interpolated_value[0] = (center_value[0] + cv_0) / 2.
+        interpolated_value[-1] = (center_value[-1] + cv_n) / 2.
     else:
         raise NotImplementedError
     return interpolated_value
 
 
-def interpolate_from_center_to_face_upwind(center_value, cl=1):
+def interpolate_from_center_to_face_upwind(center_value, cl=1, cv_0=0.):
     interpolated_value = np.zeros((center_value.shape[0] + 1,))
     interpolated_value[1:] = center_value
     if cl == 2:
@@ -66,23 +72,36 @@ def interpolate_from_center_to_face_upwind(center_value, cl=1):
         interpolated_value[-1] = interpolated_value[-2]
     elif cl == 1:
         interpolated_value[0] = center_value[-1]
+    elif cl == 0:
+        interpolated_value[0] = cv_0
     else:
         raise NotImplementedError
     return interpolated_value
 
 
-def interpolate_form_center_to_face_weno(a, cl=1):
+def interpolate_form_center_to_face_weno(a, cl=1, cv_0=0., cv_n=0.):
     """
     Weno scheme
-    :param a: the scalar value at the center of the cell
-    :param cl: conditions aux limites, cl = 1: périodicité
-    :return: les valeurs interpolées aux faces de la face -1/2 à la face n+1/2
+
+    Args:
+        cv_n: center value at n+1
+        cv_0: center value at -1
+        a: the scalar value at the center of the cell
+        cl: conditions aux limites, cl = 1: périodicité, cl=0 valeurs imposées aux bords à cv_0 et cv_n avec gradients
+            nuls
+
+    Returns:
+        les valeurs interpolées aux faces de la face -1/2 à la face n+1/2
     """
+    center_values = np.empty(a.size + 5)
     if cl == 1:
-        center_values = np.empty(a.size + 5)
         center_values[:3] = a[-3:]
         center_values[3:-2] = a
         center_values[-2:] = a[:2]
+    elif cl == 0:
+        center_values[:3] = cv_0
+        center_values[3:-2] = a
+        center_values[-2:] = cv_n
     else:
         raise NotImplementedError
     ujm2 = center_values[:-4]
@@ -108,26 +127,39 @@ def interpolate_form_center_to_face_weno(a, cl=1):
     return interpolated_value
 
 
-def interpolate_center_value_weno_to_face_upwind_interface(a, I, cl=1):
+def interpolate_center_value_weno_to_face_upwind_interface(a, I, cl=1, cv_0=0., cv_n=0.):
     """
     interpolate the center value a[i] at the face res[i+1] (corresponding to the upwind scheme) on diphasic cells
-    :param cl: the limit condition, 1 is periodic
-    :param a: the center values
-    :param I: the phase indicator
-    :return: res
+
+    Args:
+        cl: the limit condition, 1 is periodic
+        a: the center values
+        I: the phase indicator
+
+    Returns:
+        res
     """
     res = interpolate_form_center_to_face_weno(a, cl)
     # print('a : ', a.shape)
     # print('res : ', res.shape)
+    center_values = np.empty(a.size + 5)
+    phase_indicator = np.empty(I.size + 5)
     if cl == 1:
-        center_values = np.empty(a.size + 5)
         center_values[:3] = a[-3:]
         center_values[3:-2] = a
         center_values[-2:] = a[:2]
-        phase_indicator = np.empty(I.size + 5)
         phase_indicator[:3] = I[-3:]
         phase_indicator[3:-2] = I
         phase_indicator[-2:] = I[:2]
+        center_diph = (phase_indicator * (1. - phase_indicator) != 0.)
+    elif cl == 0:
+        center_values[:3] = cv_0
+        center_values[3:-2] = a
+        center_values[-2:] = cv_n
+        # en cas d'utilisation du schéma avec des conditions aux limites on n'est pas diphasique aux bords
+        phase_indicator[:3] = 0.
+        phase_indicator[3:-2] = I
+        phase_indicator[-2:] = 0.
         center_diph = (phase_indicator * (1. - phase_indicator) != 0.)
     else:
         raise NotImplementedError
@@ -512,6 +544,7 @@ class Problem:
             elif self.num_prop.time_scheme is 'rk4':
                 self.rk4_timestep(debug=debug, bool_debug=(i % plot_for_each == 0))
             self.update_markers()
+            # TODO: vérifier que le rho cp correspond au rho cp np1 utilisé dans ProblemDiscontinu
             self.time += self.dt
             self.iter += 1
             energy[i + 1] = self.energy

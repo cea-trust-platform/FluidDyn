@@ -34,7 +34,7 @@ def integrale_volume_div(center_value, face_value, I=None, cl=1, dS=1., schema='
     elif schema is 'center':
         interpolated_value = interpolate_from_center_to_face_center(center_value, cl=cl, cv_0=cv_0, cv_n=cv_n)
     elif schema is 'weno':
-        interpolated_value = interpolate_form_center_to_face_weno(center_value, cl=cl, cv_0=cv_0, cv_n=cv_n)
+        interpolated_value = interpolate_from_center_to_face_weno(center_value, cl=cl, cv_0=cv_0, cv_n=cv_n)
     elif schema == 'weno upwind':
         if I is None:
             raise NotImplementedError
@@ -79,7 +79,7 @@ def interpolate_from_center_to_face_upwind(center_value, cl=1, cv_0=0.):
     return interpolated_value
 
 
-def interpolate_form_center_to_face_weno(a, cl=1, cv_0=0., cv_n=0.):
+def interpolate_from_center_to_face_weno(a, cl=1, cv_0=0., cv_n=0.):
     """
     Weno scheme
 
@@ -141,7 +141,7 @@ def interpolate_center_value_weno_to_face_upwind_interface(a, I, cl=1, cv_0=0., 
     Returns:
         res
     """
-    res = interpolate_form_center_to_face_weno(a, cl)
+    res = interpolate_from_center_to_face_weno(a, cl)
     # print('a : ', a.shape)
     # print('res : ', res.shape)
     center_values = np.empty(a.size + 5)
@@ -433,6 +433,7 @@ class NumericalProperties:
 class Problem:
     T: np.ndarray
     I: np.ndarray
+    bulles: Bulles
 
     def __init__(self, T0, markers=None, num_prop=None, phy_prop=None):
         if phy_prop is None:
@@ -597,7 +598,7 @@ class Problem:
             if (debug is not None) and bool_debug:
                 debug.set_title('sous-pas de temps %f' % (len(K) - 2))
                 debug.plot(self.num_prop.x_f,
-                           interpolate_form_center_to_face_weno(Lda_h) * grad(T, dx=self.num_prop.dx),
+                           interpolate_from_center_to_face_weno(Lda_h) * grad(T, dx=self.num_prop.dx),
                            label='lda_h grad T, time = %f' % self.time)
                 debug.plot(self.num_prop.x, rho_cp_inv_h, label='rho_cp_inv_h, time = %f' % self.time)
                 debug.plot(self.num_prop.x, div_lda_grad_T, label='div_lda_grad_T, time = %f' % self.time)
@@ -670,7 +671,7 @@ class ProblemConserv(Problem):
             if (debug is not None) and bool_debug:
                 debug.set_title('sous-pas de temps %f' % (len(K) - 2))
                 debug.plot(self.num_prop.x_f,
-                           interpolate_form_center_to_face_weno(Lda_h) * grad(T, dx=self.num_prop.dx),
+                           interpolate_from_center_to_face_weno(Lda_h) * grad(T, dx=self.num_prop.dx),
                            label='lda_h grad T, time = %f' % self.time)
                 debug.plot(self.num_prop.x, div_lda_grad_T, label='div_lda_grad_T, time = %f' % self.time)
                 maxi = max(np.max(div_lda_grad_T), np.max(int_div_lda_grad_T))

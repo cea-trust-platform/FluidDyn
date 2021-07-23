@@ -393,6 +393,11 @@ class ProblemDiscontinuEnergieTemperature(Problem):
                 self.intS_rho_cp_T_u_n_dS[ind_flux_to_change] = self.phy_prop.dS * self.phy_prop.v * \
                     cells.rhocp_f[1:3] * cells.T_f[1:3]
                 self.intS_lda_gradT_n_dS[ind_flux_to_change] = self.phy_prop.dS * cells.lda_f[1:3] * cells.gradT[1:3]
+                # TODO: bouger cette écriture et l'utiliser avec un autre type de cellule, ou on reconstruit la
+                #       température exacte en Ti, et non avec la température moyenne de maille
+                # self.intS_lda_gradT_n_dS[ind_flux_to_change] = self.phy_prop.dS * \
+                #     ((cells.lda[1:] * cells.T[1:] - cells.lda[:-1] * cells.T[:-1]) -
+                #      cells.T_f[1:3] * (cells.lda[1:] - cells.lda[:-1])) / self.num_prop.dx
 
         dV = self.phy_prop.dS * self.num_prop.dx
         int_div_T_u = 1/dV * (self.intS_T_u_n_dS[1:] - self.intS_T_u_n_dS[:-1])

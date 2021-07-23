@@ -66,6 +66,103 @@ def get_prop(prop, i, liqu_a_gauche=True):
     return ldag, rhocpg, ag, ldad, rhocpd, ad
 
 
+class CellsInterfaceBase:
+    def __init__(self, ldag=1., ldad=1., ag=1., dx=1., T=None, rhocpg=1., rhocpd=1., vdt=None, schema_conv='upwind'):
+        """
+        Cellule type ::
+
+                Tg, gradTg                          Tghost
+               +---------+----------+---------+---------+
+               |         |          |         |   |     |
+               |    +   -|>   +    -|>   +   -|>  |+    |
+               |    0    |    1     |    2    |   |3    |
+               +---------+----------+---------+---------+---------+---------+---------+
+                                              |   |     |         |         |         |
+                                 Td, gradTd   |   |+   -|>   +   -|>   +   -|>   +    |
+                                              |   |0    |    1    |    2    |    3    |
+                                              +---------+---------+---------+---------+
+                                                  Ti,                              |--|
+                                                  lda_gradTi                         vdt
+
+        Dans cette représentation de donnée de base, on peut stocker les valeurs de la température au centre, aux faces,
+        la valeur des gradients aux faces, la valeur des lda et rhocp aux faces. On stocke aussi les valeurs à
+        l'interface.
+
+        Args:
+            ldag:
+            ldad:
+            ag:
+            dx:
+            T:
+            rhocpg:
+            rhocpd:
+        """
+        self.ldag = ldag
+        self.ldad = ldad
+        self.rhocpg = rhocpg
+        self.rhocpd = rhocpd
+        self.ag = ag
+        self.ad = 1. - ag
+        self.dx = dx
+        self.Tg = T[:4].copy()
+        self.Tg[-1] = np.nan
+        self.Td = T[3:].copy()
+        self.Td[0] = np.nan
+        self._rhocp_f = np.array([rhocpg, rhocpg, rhocpg, np.nan, rhocpd, rhocpd])
+        self.Ti = None
+        self.lda_gradTi = None
+        self.schema_conv = schema_conv
+        self.vdt = vdt
+
+    @property
+    def T_f(self):
+        if self.vdt is not None:
+            # TODO: on fait un calcul exacte pour la convection, cad qu'on calcule la température moyenne au centre du
+            #       volume qui va passer pour chaque face
+            # On fait une interpolation PID
+            coeffg = 1./(self.dx - self.vdt/2.)
+            coeffd = 1./(self.vdt/2.)
+            sum = coeffd + coeffg
+            coeffd /= sum
+            coeffg /= sum
+            T_intg = coeffg * self.Tg[:-1] + coeffd * self.Tg[1:]
+            T_intd = coeffg * self.Td[:-1] + coeffd * self.Td[1:]
+            return np.concatenate((T_intg, T_intd))
+        elif self.schema_conv == 'upwind':
+            return np.concatenate((self.Tg[:-1], self.Td[:-1]))
+        else:
+            # schema centre
+            return np.concatenate(((self.Tg[1:] + self.Tg[:-1])/2., (self.Td[1:] + self.Td[:-1])/2.))
+
+    @property
+    def gradTg(self):
+        return (self.Tg[1:] - self.Tg[:-1])/self.dx
+
+    @property
+    def gradTd(self):
+        return (self.Td[1:] - self.Td[:-1])/self.dx
+
+    @property
+    def rhocp_f(self):
+        if self.vdt is not None:
+            coeff_d = min(self.vdt, self.ad*self.dx)/self.vdt
+            self._rhocp_f[3] = coeff_d * self.rhocpd + (1. - coeff_d) * self.rhocpg
+            return self._rhocp_f
+        else:
+            self._rhocp_f[3] = self.rhocpd
+            return self._rhocp_f
+
+    @property
+    def rhocpT_f(self):
+        if self.vdt is not None:
+            # TODO: implémenter une méthode qui renvoie rho * cp * T intégré sur le volume qui va passer d'une cellule à
+            #  l'autre. Cette précision n'est peut-être pas nécessaire
+            rhocpTf = self.rhocp_f * self.T_f
+            return rhocpTf
+        else:
+            return self.rhocp_f * self.T_f
+
+
 class CellsInterface:
     def __init__(self, ldag=1., ldad=1., ag=1., dx=1., T=None, rhocpg=1., rhocpd=1.):
         """
@@ -73,13 +170,13 @@ class CellsInterface:
 
                                         Ti,
                                         lda_gradTi
-                                          Ti0g
-                                          Ti0d
+                                         Ti0g
+                                         Ti0d
                                     Tgf       Tdf
                +----------+---------+---------+---------+---------+
                |          |         |   |     |         |         |
-               |    +    -|>   +   -|>  | +  -|>   +   -|>   +    |
-               |    0     |    1    |   | 2   |    3    |    4    |
+               |    +    -|>   +   -|>  |+   -|>   +   -|>   +    |
+               |    0     |    1    |   |2    |    3    |    4    |
                +----------+---------+---------+---------+---------+
                           0         1         2         3
                         gradTi-3/2  gradTg    gradTd    gradTi+3/2

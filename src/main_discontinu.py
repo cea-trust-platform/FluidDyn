@@ -163,7 +163,7 @@ class CellsInterfaceBase:
             return self.rhocp_f * self.T_f
 
 
-class CellsInterface:
+class CellsInterface(CellsInterfaceBase):
     def __init__(self, ldag=1., ldad=1., ag=1., dx=1., T=None, rhocpg=1., rhocpd=1.):
         """
         Cellule type ::
@@ -176,9 +176,8 @@ class CellsInterface:
                +----------+---------+---------+---------+---------+
                |          |         |   |     |         |         |
                |    +    -|>   +   -|>  |+   -|>   +   -|>   +    |
-               |    0     |    1    |   |2    |    3    |    4    |
+               |          |         |   |     |         |         |
                +----------+---------+---------+---------+---------+
-                          0         1         2         3
                         gradTi-3/2  gradTg    gradTd    gradTi+3/2
 
         Dans ce modèle on connait initialement les températures aux centes des cellules monophasiques. On ne se sert pas
@@ -194,22 +193,7 @@ class CellsInterface:
             rhocpg:
             rhocpd:
         """
-        self.ldag = ldag
-        self.ldad = ldad
-        self.ag = ag
-        self.ad = 1. - ag
-        self.dx = dx
-        self.T = T.copy()
-        self.T[2] = np.nan
-        # self.x = np.array([-2., -1., 0., 1., 2.])*dx
-        # self.x_f = np.array([-1.5, -0.5, 0.5, 1.5])*dx
-        self.gradT = (self.T[1:] - self.T[:-1])/dx
-        self.lda_f = np.array([ldag, ldag, ldad, ldad])
-        self.rhocp_f = np.array([rhocpg, rhocpg, rhocpd, rhocpd])
-        self.Ti = None
-        self.lda_gradTi = None
-        self.Ti0d = None
-        self.Ti0g = None
+        super().__init__(ldag, ldad, ag, dx, T, rhocpg, rhocpd, vdt=None, schema_conv='upwind')
 
     def compute_from_ldagradTi(self):
         """
@@ -217,18 +201,37 @@ class CellsInterface:
         On en déduit Ti par continuité à gauche et à droite.
 
         Returns:
+            Calcule les gradients g, I, d, et Ti. gradTig et gradTid sont les gradients centrés entre TI et Tim1 et TI
+            et Tip1
+        """
+        lda_gradTg, lda_gradTig, self.lda_gradTi, lda_gradTid, lda_gradTd = \
+            get_lda_grad_T_i_from_ldagradT_continuity(self.ldag, self.ldad, *self.Tg[[1, 2]], *self.Td[[1, 2]],
+                                                      (3./2. + self.ag)*self.dx, (3./2. + self.ad)*self.dx, self.dx)
+
+        self.Ti = get_Ti_from_lda_grad_Ti(self.ldag, self.ldad, self.Tg[2], self.Td[1],
+                                          (0.5+self.ag)*self.dx, (0.5+self.ad)*self.dx,
+                                          lda_gradTig, lda_gradTid)
+        self.Tg[-1] = self.Tg[2] + lda_gradTg/self.ldag * self.dx
+        self.Td[0] = self.Td[1] - lda_gradTd/self.ldad * self.dx
+
+    def compute_from_ldagradTi_ordre2(self):
+        """
+        On commence par récupérer lda_grad_Ti par continuité à partir de gradTim52 gradTim32 gradTip32
+        et gradTip52.
+        On en déduit Ti par continuité à gauche et à droite.
+
+        Returns:
             Calcule les gradients g, I, d, et Ti
         """
         lda_gradTg, lda_gradTig, self.lda_gradTi, lda_gradTid, lda_gradTd = \
-            get_lda_grad_T_i_from_ldagradT_continuity(self.ldag, self.ldad, *self.T[[0, 1, 3, 4]],
-                                                      (3./2. + self.ag)*self.dx, (3./2. + self.ad)*self.dx, self.dx)
-        grad_Tg = lda_gradTg/self.ldag
-        grad_Td = lda_gradTd/self.ldad
+            get_lda_grad_T_i_from_ldagradT_interp(self.ldag, self.ldad, *self.Tg[:-1], *self.Td[1:],
+                                                  self.ag, self.ad, self.dx)
 
-        self.Ti = get_Ti_from_lda_grad_Ti(self.ldag, self.ldad, *self.T[[1, 3]],
+        self.Ti = get_Ti_from_lda_grad_Ti(self.ldag, self.ldad, self.Tg[2], self.Td[1],
                                           (0.5+self.ag)*self.dx, (0.5+self.ad)*self.dx,
                                           lda_gradTig, lda_gradTid)
-        self.gradT[1:-1] = [grad_Tg, grad_Td]
+        self.Tg[-1] = self.Tg[2] + lda_gradTig/self.ldag * self.dx
+        self.Td[0] = self.Td[1] - lda_gradTid/self.ldad * self.dx
 
     def compute_from_Ti(self):
         """
@@ -241,24 +244,14 @@ class CellsInterface:
         """
         self.Ti, self.lda_gradTi = get_T_i_and_lda_grad_T_i(self.ldag, self.ldad, *self.T[[1, 3]],
                                                             (1.+self.ag)/2.*self.dx, (1.+self.ad)/2.*self.dx)
-        grad_Tg = pid_interp(np.array([self.gradT[0], self.lda_gradTi/self.ldag]), np.array([1., self.ag])*self.dx)
-        grad_Td = pid_interp(np.array([self.lda_gradTi/self.ldad, self.gradT[-1]]), np.array([self.ad, 1.])*self.dx)
-        self.gradT[1:-1] = [grad_Tg, grad_Td]
-
-    def set_Ti0_upwind(self):
-        """
-        Ici on choisit Ti0 ghost de manière à ce qu'il corresponde à la température ghost de la phase avale au centre de
-        la cellule i0
-
-        Returns:
-            Set la température i0 à Tid ou Tig selon le sens de la vitesse
-        """
-        self.Ti0d = self.T[3] - self.gradT[2] * self.dx
-        self.Ti0g = self.T[1] + self.gradT[1] * self.dx
-        self.T[2] = self.Ti0d
+        grad_Tg = pid_interp(np.array([self.gradTg[1], self.lda_gradTi/self.ldag]), np.array([1., self.ag])*self.dx)
+        grad_Td = pid_interp(np.array([self.lda_gradTi/self.ldad, self.gradTd[1]]), np.array([self.ad, 1.])*self.dx)
+        # self.gradT[1:-1] = [grad_Tg, grad_Td]
+        self.Tg[-1] = self.Tg[-2] + grad_Tg * self.dx
+        self.Td[0] = self.Td[1] - grad_Td * self.dx
 
 
-class CellsInterfaceSousVolumes(CellsInterface):
+class CellsInterfaceSousVolumes(CellsInterfaceBase):
     def __init__(self, ldag=1., ldad=1., ag=1., dx=1., T=None, h=None, rhocpg=1., rhocpd=1.):
         """
         Cellule type ::
@@ -271,9 +264,8 @@ class CellsInterfaceSousVolumes(CellsInterface):
                +----------+---------+---------+---------+---------+
                |          |         | gc|  dc |         |         |
                |    +    -|>   +   -|>* | +* -|>   +   -|>   +    |
-               |    0     |    1    |   | 2   |    3    |    4    |
+               |          |         |   |     |         |         |
                +----------+---------+---------+---------+---------+
-                          0         1         2         3
                         gradTi-3/2  gradTg    gradTd    gradTi+3/2
 
         Dans ce modèle on connait initialement les températures moyenne aux centes de toutes les cellules.
@@ -368,6 +360,23 @@ def get_T_i_and_lda_grad_T_i(ldag, ldad, Tg, Td, dg, dd):
 
 
 def get_lda_grad_T_i_from_ldagradT_continuity(ldag, ldad, Tim2, Tim1, Tip1, Tip2, dg, dd, dx):
+    """
+    On utilise la continuité de lad_grad_T pour interpoler linéairement à partir des valeurs en im32 et ip32
+    On retourne les gradients suivants ::
+
+                         dg                      dd
+                |-------------------|---------------------------|
+                +---------------+---------------+---------------+
+                |               |   |           |               |
+               -|>      +    o -|>  |   +     o-|>      +      -|>
+                |               |   |           |               |
+                +---------------+---------------+---------------+
+             gradTi-3/2       gradTg          gradTd            gradTip32
+                            gradTgi          gradTdi
+
+    Returns:
+        Calcule les gradients g, I, d, et Ti
+    """
     ldagradTgg = ldag*(Tim1 - Tim2)/dx
     ldagradTdd = ldad*(Tip2 - Tip1)/dx
     lda_gradTg = pid_interp(np.array([ldagradTgg, ldagradTdd]), np.array([dx, 2.*dx]))
@@ -375,6 +384,46 @@ def get_lda_grad_T_i_from_ldagradT_continuity(ldag, ldad, Tim2, Tim1, Tip1, Tip2
     lda_gradTi = pid_interp(np.array([ldagradTgg, ldagradTdd]), np.array([dg, dd]))
     lda_gradTdi = pid_interp(np.array([ldagradTgg, ldagradTdd]), np.array([dg + (dd-0.5*dx)/2., dd - (dd-0.5*dx)/2.]))
     lda_gradTd = pid_interp(np.array([ldagradTgg, ldagradTdd]), np.array([2.*dx, dx]))
+    return lda_gradTg, lda_gradTgi, lda_gradTi, lda_gradTdi, lda_gradTd
+
+
+def get_lda_grad_T_i_from_ldagradT_interp(ldag, ldad, Tim3, Tim2, Tim1, Tip1, Tip2, Tip3, ag, ad, dx):
+    """
+    On utilise la continuité de lad_grad_T pour extrapoler linéairement par morceau à partir des valeurs en im52, im32,
+    ip32 et ip52. On fait ensuite la moyenne des deux valeurs trouvées.
+    On retourne les gradients suivants ::
+
+                                  ag       dg
+                                |---|-----------|
+                    dgi |-----o-----|---------o---------| ddi
+                +---------------+---------------+---------------+
+                |               |   |           |               |
+               -|>      +     o-|>  |   +     o-|>      +      -|>
+                |               |   |           |               |
+                +---------------+---------------+---------------+
+             gradTim32          gradTg          gradTd          gradTip32
+                             gradTgi         gradTdi
+
+    Returns:
+        Calcule les gradients g, I, d, et Ti
+    """
+    lda_gradTim52 = ldag*(Tim2 - Tim3)/dx
+    lda_gradTim32 = ldag*(Tim1 - Tim2)/dx
+    lda_gradTip32 = ldad*(Tip2 - Tip1)/dx
+    lda_gradTip52 = ldad*(Tip3 - Tip2)/dx
+    gradgradg = (lda_gradTim32 - lda_gradTim52)/dx
+    gradgrad = (lda_gradTip52 - lda_gradTip32)/dx
+
+    ldagradTig = lda_gradTim32 + gradgradg * (dx + ag*dx)
+    ldagradTid = lda_gradTip32 - gradgrad * (dx + ad*dx)
+    lda_gradTi = (ldagradTig + ldagradTid)/2.
+
+    lda_gradTg = pid_interp(np.array([lda_gradTim32, lda_gradTi]), np.array([dx, ag*dx]))
+    lda_gradTd = pid_interp(np.array([lda_gradTi, lda_gradTip32]), np.array([ad*dx, dx]))
+    dgi = (1/2. + ag)*dx
+    lda_gradTgi = pid_interp(np.array([lda_gradTim32, lda_gradTi]), np.array([dx/2 + dgi/2, dgi/2.]))
+    ddi = (1./2 + ad)*dx
+    lda_gradTdi = pid_interp(np.array([lda_gradTi, lda_gradTip32]), np.array([ddi/2., dx/2 + ddi/2.]))
     return lda_gradTg, lda_gradTgi, lda_gradTi, lda_gradTdi, lda_gradTd
 
 

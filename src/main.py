@@ -181,10 +181,14 @@ def interpolate_center_value_weno_to_face_upwind_interface(a, I, cl=1, cv_0=0., 
 def grad(center_value, dx=1., cl=1):
     """
     Calcule le gradient aux faces
-    :param center_value: globalement lambda
-    :param cl: si cl = 1 les gradients aux bords sont périodiques
-    :param dx: le delta x
-    :return: le gradient aux faces
+
+    Args:
+        center_value: globalement lambda
+        cl: si cl = 1 les gradients aux bords sont périodiques
+        dx: le delta x
+
+    Returns:
+        le gradient aux faces
     """
     if len(center_value.shape) != 1:
         raise NotImplementedError
@@ -202,10 +206,14 @@ def grad(center_value, dx=1., cl=1):
 def grad_center(center_value, dx=1., cl=1):
     """
     Ce schéma calcule les gradients aux éléments, c'est expérimental pour avoir un lda_grad_T plus continu
-    :param center_value:
-    :param dx:
-    :param cl:
-    :return: les gradients au centres des cellules
+
+    Args:
+        center_value:
+        dx:
+        cl:
+
+    Returns:
+        les gradients au centres des cellules
     """
     if len(center_value.shape) != 1:
         raise NotImplementedError
@@ -215,22 +223,6 @@ def grad_center(center_value, dx=1., cl=1):
         raise NotImplementedError
     gradient = (center_extended[2:] - center_extended[:-2]) / (2. * dx)
     return gradient
-
-
-# def indicatrice_liquide(x, markers=None):
-#     i = np.ones_like(x)
-#     if markers is None:
-#         return i
-#     dx = x[1] - x[0]
-#     if markers[0] < markers[1]:
-#         i[(x > markers[0]) & (x < markers[1])] = 0.
-#     else:
-#         i[(x > markers[0]) | (x < markers[1])] = 0.
-#     diph0 = (np.abs(x - markers[0]) < dx / 2.)
-#     i[diph0] = (markers[0] - x[diph0]) / dx + 1. / 2.
-#     diph1 = (np.abs(x - markers[1]) < dx / 2.)
-#     i[diph1] = -(markers[1] - x[diph1]) / dx + 1 / 2.
-#     return i
 
 
 class Bulles:
@@ -282,8 +274,12 @@ class Bulles:
     def indicatrice_liquide(self, x):
         """
         Calcule l'indicatrice qui correspond au liquide avec les marqueurs selon la grille x
-        :param x: les positions des centres des mailles
-        :return: l'indicatrice
+
+        Args:
+            x: les positions des centres des mailles
+
+        Returns:
+            l'indicatrice
         """
         i = np.ones_like(x)
         dx = x[1] - x[0]
@@ -301,10 +297,9 @@ class Bulles:
     def shift(self, dx):
         """
         On déplace les marqueurs vers la droite
+
         Args:
             dx: la distance du déplacement
-
-        Returns:
 
         """
         self.markers += dx
@@ -816,44 +811,3 @@ def get_T_creneau(x, markers=None, phy_prop=None):
         markers = Bulles(markers=markers, phy_prop=phy_prop)
     T = 1. - markers.indicatrice_liquide(x)
     return T
-
-# Press the green button in the gutter to run the script.
-# if __name__ == '__main__':
-#     Delta = 10.
-#     dx = 0.2
-#     lda_1 = 2.
-#     lda_2 = 2.
-#     rho_cp_1 = 1.
-#     rho_cp_2 = 1.
-#     markers = np.array([0.4 * Delta, 0.55 * Delta])
-#     v = 0.
-#     dt = 1.
-#     fo = 0.5
-#
-#     t_fin = 1.
-#     t_m = []
-#     e_m = []
-#     Dx = 10. ** np.linspace(-1.5, -1, 1)
-#     Cfl = 10. ** np.linspace(-1, -0.5, 1)
-#
-#     Cas_test = itertools.product(Dx, Cfl)
-#
-#     for dx, cfl in Cas_test:
-#         # x, T = get_T(dx=dx, Delta=Delta, lda_1=lda_1, lda_2=lda_2, markers=markers)
-#         # x, T = get_T_creneau(dx=dx, Delta=Delta, markers=markers)
-#
-#         prob = Problem(Delta, dx, lda_1, lda_2, rho_cp_1, rho_cp_2, markers, get_T_creneau, v, dt, cfl, fo,
-#                        diff=0., schema='upwind', time_scheme='rk4')
-#         t, e = prob.timestep(n=10000, number_of_plots=3, debug=None)
-#         t_m.append(t)
-#         e_m.append(e)
-#     i = 0
-#     Cas_test = itertools.product(Dx, Cfl)
-#     for dx, cfl in Cas_test:
-#         debug.figure('energie')
-#         debug.plot(t_m[i], e_m[i], label='dx = %f, cfl = %f' % (dx, cfl))
-#         debug.legend()
-#         dedt = (e_m[i][-1] - e_m[i][0]) / (t_m[i][-1] - t_m[i][0])
-#         print('dx = %f, cfl = %f, dE/dt = %f' % (dx, cfl, dedt))
-#         i += 1
-#     debug.show()

@@ -2,3 +2,4 @@
 venv-flu1d
 .ipynb_checkpoints
 __pycache__
+doc/_build

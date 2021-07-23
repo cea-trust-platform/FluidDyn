@@ -89,7 +89,9 @@ def plot_temperature_bulles(problem, x0=0., ax=None, col=None, ax2=None):
     while x0 >= Delta - dx/2.:
         x0 -= Delta
     # fig1, ax1 = plt.subplots(1)
-    lda_grad_T = interpolate_from_center_to_face_center(problem.Lda_h) * grad(problem.T, dx=problem.num_prop.dx)
+    # lda_grad_T = interpolate_from_center_to_face_center(problem.Lda_h) * grad(problem.T, dx=problem.num_prop.dx)
+    # TODO: vérifier que cette valeur existe bien...
+    lda_grad_T = problem.intS_lda_grad_T_n_dS
     xil = []
     x0l = []
     Ti = []

@@ -1,4 +1,5 @@
 from src.main import *
+from copy import deepcopy
 from src.cells_interface import CellsInterface1eq, CellsInterface2eq
 
 
@@ -26,20 +27,23 @@ class BulleTemperature(Bulles):
         self.lda_grad_T = np.zeros_like(self.markers)
         self.ind = None
         if x is not None:
-            self.set_indices_markers(x)
-            print('initialisation des indices des cellules des marqueurs')
+            self.x = x
+            self._set_indices_markers(x)
+        else:
+            raise Exception('x est un argument obligatoire')
 
     def copy(self):
-        copie = super().copy()
-        copie.T = self.T.copy()
-        copie.lda_grad_T = self.lda_grad_T.copy()
-        if self.ind is None:
-            copie.ind = None
-        else:
-            copie.ind = self.ind.copy()
+        """
+        Cette copie est récursive. De cette manière il n'y a pas de crainte à avoir à changer les valeurs de l'originale
+        en changeant les valeurs dans la copie.
+
+        Returns:
+            Une copie récursive
+        """
+        copie = deepcopy(self)
         return copie
 
-    def set_indices_markers(self, x):
+    def _set_indices_markers(self, x):
         """
         Retourne les indices des cellules traveresées par l'interface.
         Il serait beaucoup plus économe de considérer que les marqueurs ne se déplacent pas de plus d'une cellule entre
@@ -59,6 +63,10 @@ class BulleTemperature(Bulles):
             ind2 = (np.abs(marks[1] - x) < dx/2.).nonzero()[0][0]
             res.append([ind1, ind2])
         self.ind = np.array(res, dtype=np.int)
+
+    def shift(self, dx):
+        super().shift(dx)
+        self._set_indices_markers(self.x)
 
 
 def get_prop(prop, i, liqu_a_gauche=True):
@@ -149,26 +157,13 @@ class ProblemDiscontinuEnergieTemperature(Problem):
                                           rhocpg=rhocpg, rhocpd=rhocpd, vdt=self.phy_prop.v*self.dt)
                 cells.compute_from_h_T(self.h[i0], self.T[i0])
 
-                # On vérifie que l'interface ne traverse pas la face, sinon on met à jour rho_cp_face_droite qui est
-                # un mélange au prorato du temps de passage entre la phase de droite et la phase de gauche.
-                # En fait cela revient à considérer la température constante sur tout le pas de temps dt et uniforme
-                # dans le petit volume v*dt*dS qui traverse la face en dt, mais pas rho_cp. C'est une approximation qui
-                # semble raisonnable.
-                # Maintenant c'est fait dans la classe cells
-                # if self.phy_prop.v > 0.:
-                #     dt1_dt = max(self.I[i0] * self.num_prop.dx / (self.phy_prop.v * self.dt), 1.)
-                # else:
-                #     dt1_dt = 1.
-                # dt2_dt = 1. - dt1_dt
-                # cells.rhocp_f[2] = dt1_dt*rhocpd + dt2_dt*rhocpd
-
                 # post-traitements
 
                 self.bulles.T[i_int, ist] = cells.Ti
                 self.bulles.lda_grad_T[i_int, ist] = cells.lda_gradTi
 
-                self.bulles.Tg[i_int, ist] = cells.Tgc
-                self.bulles.Td[i_int, ist] = cells.Tdc
+                self.bulles.Tg[i_int, ist] = cells.Tg[-1]
+                self.bulles.Td[i_int, ist] = cells.Td[0]
                 self.bulles.gradTg[i_int, ist] = cells.gradTg[-1]
                 self.bulles.gradTd[i_int, ist] = cells.gradTd[0]
 
@@ -191,10 +186,6 @@ class ProblemDiscontinuEnergieTemperature(Problem):
         rho_cp_inv_h = 1. / self.rho_cp_h
         self.T += self.dt * (-int_div_T_u + self.phy_prop.diff * rho_cp_inv_h * int_div_lda_grad_T)
         self.h += self.dt * (-int_div_rho_cp_T_u + self.phy_prop.diff * int_div_lda_grad_T)
-
-    def update_markers(self):
-        super().update_markers()
-        self.bulles.set_indices_markers(self.num_prop.x)
 
 
 class ProblemDiscontinu(Problem):
@@ -227,10 +218,13 @@ class ProblemDiscontinu(Problem):
             self.interp_type = 'gradTi'
         else:
             self.interp_type = interp_type
+        self.intS_T_u_n_dS = np.empty_like(self.num_prop.x_f)
+        self.intS_rho_cp_T_u_n_dS = np.empty_like(self.num_prop.x_f)
+        self.intS_lda_gradT_n_dS = np.empty_like(self.num_prop.x_f)
 
     def _init_bulles(self, markers=None):
         if markers is None:
-            return BulleTemperature(markers=markers, phy_prop=self.phy_prop)
+            return BulleTemperature(markers=markers, phy_prop=self.phy_prop, x=self.num_prop.x)
         elif isinstance(markers, BulleTemperature):
             return markers.copy()
         elif isinstance(markers, Bulles):
@@ -274,8 +268,10 @@ class ProblemDiscontinu(Problem):
                                           rhocpg=rhocpg, rhocpd=rhocpd)
                 if self.interp_type == 'Ti':
                     cells.compute_from_Ti()
-                else:
+                elif self.interp_type == 'gradTi':
                     cells.compute_from_ldagradTi()
+                else:
+                    cells.compute_from_ldagradTi_ordre2()
                 # On vérifie que l'interface ne traverse pas la face, sinon on met à jour rho_cp_face_droite qui est
                 # un mélange au prorato du temps de passage entre la phase de droite et la phase de gauche.
                 # Maintenant c'est fait dans la classe cells
@@ -303,6 +299,7 @@ class ProblemDiscontinu(Problem):
                 # Correction des cellules i0 - 1 à i0 + 1 inclue
                 # interpolation upwind
                 # DONE: l'écrire en version flux pour être sûr de la conservation
+                # self.intS_rho_cp_T_u_n_dS =
                 int_div_rhocpT_u = 1./dV * integrale_volume_div(np.ones((len(cells.gradT) - 1,)),
                                                                 cells.rhocp_f*cells.T_f*self.phy_prop.v,
                                                                 cl=1, dS=self.phy_prop.dS)
@@ -315,16 +312,11 @@ class ProblemDiscontinu(Problem):
                 self.T[ind_to_change] = (self.T_old[ind_to_change]*self.rho_cp_a[ind_to_change] +
                                          self.dt * (-int_div_rhocpT_u +
                                                     self.phy_prop.diff * int_div_lda_grad_T)) / rhocp_np1[ind_to_change]
-
         self.T_old = self.T.copy()
 
     def euler_timestep(self, debug=None, bool_debug=False):
         super().euler_timestep(debug=debug, bool_debug=bool_debug)
         self.corrige_interface_aymeric1()
-
-    def update_markers(self):
-        super().update_markers()
-        self.bulles.set_indices_markers(self.num_prop.x)
 
 
 def cl_perio(n, i):

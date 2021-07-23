@@ -445,6 +445,8 @@ class Problem:
         self.time = 0.
         self.I = self.update_I()
         self.iter = 0
+        self.intS_T_u_n_dS = np.empty_like(self.num_prop.x_f)
+        self.intS_lda_gradT_n_dS = np.empty_like(self.num_prop.x_f)
 
     def _init_bulles(self, markers=None):
         if markers is None:
@@ -526,7 +528,9 @@ class Problem:
     def timestep(self, n=None, t_fin=None, plot_for_each=1, number_of_plots=None, plotter=None, debug=None):
         if (n is None) and (t_fin is None):
             raise NotImplementedError
-        if t_fin is not None:
+        elif (n is not None) and (t_fin is not None):
+            n = min(n, int(t_fin / self.dt))
+        elif t_fin is not None:
             n = int(t_fin / self.dt)
         if number_of_plots is not None:
             plot_for_each = int((n - 1) / number_of_plots)

@@ -2,36 +2,37 @@ import numpy as np
 
 
 class CellsInterfaceBase:
+    """
+    Cellule type ::
+
+            Tg, gradTg                          Tghost
+           +---------+----------+---------+---------+
+           |         |          |         |   |     |
+           |    +   -|>   +    -|>   +   -|>  |+    |
+           |    0    |    1     |    2    |   |3    |
+           +---------+----------+---------+---------+---------+---------+---------+
+                                          |   |     |         |         |         |
+                             Td, gradTd   |   |+   -|>   +   -|>   +   -|>   +    |
+                                          |   |0    |    1    |    2    |    3    |
+                                          +---------+---------+---------+---------+
+                                              Ti,                              |--|
+                                              lda_gradTi                         vdt
+
+    Dans cette représentation de donnée de base, on peut stocker les valeurs de la température au centre, aux faces,
+    la valeur des gradients aux faces, la valeur des lda et rhocp aux faces. On stocke aussi les valeurs à
+    l'interface.
+
+    Args:
+        ldag:
+        ldad:
+        ag:
+        dx:
+        T:
+        rhocpg:
+        rhocpd:
+    """
+
     def __init__(self, ldag=1., ldad=1., ag=1., dx=1., T=None, rhocpg=1., rhocpd=1., vdt=None, schema_conv='upwind'):
-        """
-        Cellule type ::
-
-                Tg, gradTg                          Tghost
-               +---------+----------+---------+---------+
-               |         |          |         |   |     |
-               |    +   -|>   +    -|>   +   -|>  |+    |
-               |    0    |    1     |    2    |   |3    |
-               +---------+----------+---------+---------+---------+---------+---------+
-                                              |   |     |         |         |         |
-                                 Td, gradTd   |   |+   -|>   +   -|>   +   -|>   +    |
-                                              |   |0    |    1    |    2    |    3    |
-                                              +---------+---------+---------+---------+
-                                                  Ti,                              |--|
-                                                  lda_gradTi                         vdt
-
-        Dans cette représentation de donnée de base, on peut stocker les valeurs de la température au centre, aux faces,
-        la valeur des gradients aux faces, la valeur des lda et rhocp aux faces. On stocke aussi les valeurs à
-        l'interface.
-
-        Args:
-            ldag:
-            ldad:
-            ag:
-            dx:
-            T:
-            rhocpg:
-            rhocpd:
-        """
         self.ldag = ldag
         self.ldad = ldad
         self.rhocpg = rhocpg
@@ -104,37 +105,38 @@ class CellsInterfaceBase:
 
 
 class CellsInterface1eq(CellsInterfaceBase):
+    """
+    Cellule type ::
+
+                                    Ti,
+                                    lda_gradTi
+                                     Ti0g
+                                     Ti0d
+                                Tgf       Tdf
+           +----------+---------+---------+---------+---------+
+           |          |         |   |     |         |         |
+           |    +    -|>   +   -|>  |+   -|>   +   -|>   +    |
+           |          |         |   |     |         |         |
+           +----------+---------+---------+---------+---------+
+                    gradTi-3/2  gradTg    gradTd    gradTi+3/2
+
+    Dans ce modèle on connait initialement les températures aux centes des cellules monophasiques. On ne se sert pas
+    de la température de la cellule traversée par l'interface. Toutes les valeurs dans la cellule sont reconstruites
+    avec les valeurs adjacentes.
+    Il n'y a qu'une équation d'évolution, elle porte sur T, en dehors de la maille diphasique. La valeur de la
+    maille diphasique ne sert pas entre 2 pas de temps tant que l'interface ne change pas de cellule.
+
+    Args:
+        ldag:
+        ldad:
+        ag:
+        dx:
+        T:
+        rhocpg:
+        rhocpd:
+    """
+
     def __init__(self, ldag=1., ldad=1., ag=1., dx=1., T=None, rhocpg=1., rhocpd=1., vdt=None):
-        """
-        Cellule type ::
-
-                                        Ti,
-                                        lda_gradTi
-                                         Ti0g
-                                         Ti0d
-                                    Tgf       Tdf
-               +----------+---------+---------+---------+---------+
-               |          |         |   |     |         |         |
-               |    +    -|>   +   -|>  |+   -|>   +   -|>   +    |
-               |          |         |   |     |         |         |
-               +----------+---------+---------+---------+---------+
-                        gradTi-3/2  gradTg    gradTd    gradTi+3/2
-
-        Dans ce modèle on connait initialement les températures aux centes des cellules monophasiques. On ne se sert pas
-        de la température de la cellule traversée par l'interface. Toutes les valeurs dans la cellule sont reconstruites
-        avec les valeurs adjacentes.
-        Il n'y a qu'une équation d'évolution, elle porte sur T, en dehors de la maille diphasique. La valeur de la
-        maille diphasique ne sert pas entre 2 pas de temps tant que l'interface ne change pas de cellule.
-
-        Args:
-            ldag:
-            ldad:
-            ag:
-            dx:
-            T:
-            rhocpg:
-            rhocpd:
-        """
         super().__init__(ldag=ldag, ldad=ldad, ag=ag, dx=dx, T=T, rhocpg=rhocpg, rhocpd=rhocpd, vdt=vdt,
                          schema_conv='upwind')
 
@@ -194,39 +196,40 @@ class CellsInterface1eq(CellsInterfaceBase):
 
 
 class CellsInterface2eq(CellsInterfaceBase):
+    """
+    Cellule type ::
+
+                                    Ti,
+                                    lda_gradTi
+                                      Ti0g
+                                      Ti0d
+                              Tgf Tgc  Tdc Tdf
+           +----------+---------+---------+---------+---------+
+           |          |         | gc|  dc |         |         |
+           |    +    -|>   +   -|>* | +* -|>   +   -|>   +    |
+           |          |         |   |     |         |         |
+           +----------+---------+---------+---------+---------+
+                    gradTi-3/2  gradTg    gradTd    gradTi+3/2
+
+    Dans ce modèle on connait initialement les températures moyenne aux centes de toutes les cellules.
+    On reconstruit les valeurs de Tgc et Tdc avec le système sur la valeur moyenne de température dans la maille et
+    la valeur moyenne de l'énergie.
+    Au contraire de la classe mère on utilise uniquement les valeurs de la mailles diphasiques pour trouver Ti et
+    lda_grad_Ti.
+    Ensuite évidemment on interpole là ou on en aura besoin.
+    Il faudra faire 2 équations d'évolution dans la cellule i, une sur h et une sur T.
+
+    Args:
+        ldag:
+        ldad:
+        ag:
+        dx:
+        T:
+        rhocpg:
+        rhocpd:
+    """
+
     def __init__(self, ldag=1., ldad=1., ag=1., dx=1., T=None, rhocpg=1., rhocpd=1., vdt=None):
-        """
-        Cellule type ::
-
-                                        Ti,
-                                        lda_gradTi
-                                          Ti0g
-                                          Ti0d
-                                  Tgf Tgc  Tdc Tdf
-               +----------+---------+---------+---------+---------+
-               |          |         | gc|  dc |         |         |
-               |    +    -|>   +   -|>* | +* -|>   +   -|>   +    |
-               |          |         |   |     |         |         |
-               +----------+---------+---------+---------+---------+
-                        gradTi-3/2  gradTg    gradTd    gradTi+3/2
-
-        Dans ce modèle on connait initialement les températures moyenne aux centes de toutes les cellules.
-        On reconstruit les valeurs de Tgc et Tdc avec le système sur la valeur moyenne de température dans la maille et
-        la valeur moyenne de l'énergie.
-        Au contraire de la classe mère on utilise uniquement les valeurs de la mailles diphasiques pour trouver Ti et
-        lda_grad_Ti.
-        Ensuite évidemment on interpole là ou on en aura besoin.
-        Il faudra faire 2 équations d'évolution dans la cellule i, une sur h et une sur T.
-
-        Args:
-            ldag:
-            ldad:
-            ag:
-            dx:
-            T:
-            rhocpg:
-            rhocpd:
-        """
         super().__init__(ldag=ldag, ldad=ldad, ag=ag, dx=dx, T=T, rhocpg=rhocpg, rhocpd=rhocpd, vdt=vdt)
         if rhocpd == rhocpg:
             raise Exception('Le problème est à rho cp constant, il n a pas besoin et ne peut pas être traité avec cette'

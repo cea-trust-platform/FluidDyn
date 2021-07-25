@@ -27,9 +27,9 @@
 
    .. autosummary::
    
-      CellsInterface
+      CellsInterface1eq
+      CellsInterface2eq
       CellsInterfaceBase
-      CellsInterfaceSousVolumes
    
    
 

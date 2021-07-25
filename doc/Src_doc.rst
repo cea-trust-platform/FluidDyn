@@ -1,4 +1,4 @@
-DynFlu1d
+Flu1dDyn
 ========
 
 Dans cette partie se trouve le coeur de la documentation du la librairie DynFlu1d

@@ -1,5 +1,5 @@
-Instalation de PyTools
-======================
+Instalation
+===========
 
 Installation de l'environnement virtuel
 ---------------------------------------
@@ -9,7 +9,7 @@ Pour installer un environnement virtuel qui contient tous les paquets du fichier
 
 .. code-block:: bash
         
-   cd .../PyTools3/
+   cd .../Flu1dDyn/
    python3 -m venv venv
    
    # pour activer l'environnement lancer :
@@ -85,7 +85,7 @@ Pour lancer jupyter procéder de la manière suivante :
 
 .. code-block:: bash
 
-   cd .../PyTools3
+   cd .../Flu1dDyn
    source venv/bin/activate
    jupyter notebook
 
@@ -93,14 +93,14 @@ Pour lancer un test de non régression sur des notebooks de test :
 
 .. code-block:: bash
 
-   cd mon/chemin/vers/PyTools3/fiche_test/
+   cd mon/chemin/vers/Flu1dDyn/fiche_test/
    pytest --nbval
 
 Pour avoir un rapport de coverage des tests du code :
 
 .. code-block:: bash
 
-   cd mon/chemin/vers/PyTools3/fiche_test
+   cd mon/chemin/vers/Flu1dDyn/fiche_test
    pytest --nbval --cov=../commons/ . --cov-report=html
 
 Pour lancer les test, le rapport de coverage, la documentation et inclure le rapport de test à la doc,
@@ -108,6 +108,6 @@ il faut lancer le script suivant :
 
 .. code-block:: bash
 
-   cd mon/chemin/vers/PyTools3/
+   cd mon/chemin/vers/Flu1dDyn/
    ./test_and_doc.sh
 

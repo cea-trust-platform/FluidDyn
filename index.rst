@@ -16,9 +16,8 @@ Sommaire
    :maxdepth: 4
 
    doc/installation.rst
-   doc/getting_stated.rst
    doc/Src_doc.rst
-   doc/todo.rst
+   doc/index_nb.rst
 
 
 ==================

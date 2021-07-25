@@ -17,7 +17,8 @@
       get_T_creneau
       grad
       grad_center
-      integrale_volume_div
+      integrale_vol_div
+      interpolate
       interpolate_center_value_weno_to_face_upwind_interface
       interpolate_from_center_to_face_center
       interpolate_from_center_to_face_upwind
@@ -35,7 +36,6 @@
       NumericalProperties
       PhysicalProperties
       Problem
-      ProblemConserv
       ProblemConserv2
    
    

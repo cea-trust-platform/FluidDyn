@@ -85,13 +85,10 @@ def plot_classic(problem, fig=None, ax=None, ax2=None):
 def plot_temperature_bulles(problem, x0=0., ax=None, col=None, ax2=None):
     n = len(problem.num_prop.x)
     Delta = problem.phy_prop.Delta
-    dx = problem.num_prop.dx
-    while x0 >= Delta - dx/2.:
+    while x0 > Delta:
         x0 -= Delta
     # fig1, ax1 = plt.subplots(1)
     # lda_grad_T = interpolate_from_center_to_face_center(problem.Lda_h) * grad(problem.T, dx=problem.num_prop.dx)
-    # TODO: vérifier que cette valeur existe bien...
-    lda_grad_T = problem.intS_lda_grad_T_n_dS
     xil = []
     x0l = []
     Ti = []
@@ -127,13 +124,11 @@ def plot_temperature_bulles(problem, x0=0., ax=None, col=None, ax2=None):
                 #           problem.bulles.gradTd[i_int, j], angles='xy')
                 ax.quiver(problem.num_prop.x_f[i+2]-x0, (problem.T[i+2] + problem.T[i+1])/2., 1.,
                           (problem.T[i+2] - problem.T[i+1])/problem.num_prop.dx, angles='xy')
-            lda_grad_T[i] = ldag*problem.bulles.gradTg[i_int, j]
-            lda_grad_T[i+1] = ldad*problem.bulles.gradTd[i_int, j]
     if problem.time > 0.:
         ax.plot(xil, Ti, 'k+')
         ax.plot(x0l, Tig, '+', label=r'$T_g$')
         ax.plot(x0l, Tid, '+', label=r'$T_d$')
-    xf_dec, lda_grad_T_dec = decale_perio(problem.num_prop.x_f, lda_grad_T, x0)
+    xf_dec, lda_grad_T_dec = decale_perio(problem.num_prop.x_f, problem.flux_diff, x0=x0)
     ax2.plot(xf_dec, lda_grad_T_dec, label='lda grad T')
     ax2.plot(problem.bulles.markers.flatten() - x0, problem.bulles.lda_grad_T.flatten(), '+', label='lda grad Ti')
     ax2.legend()
@@ -146,12 +141,16 @@ def decale_perio(x, T, x0=0., markers=None, plot=False):
     """
     décale de x0 vers la gauche la courbe T en interpolant entre les décalages direct de n*dx < x0 < (n+1)*dx
     avec la formule suivante : x_interp += (x0-n*dx)
-    :param markers:
-    :param plot:
-    :param x:
-    :param T:
-    :param x0:
-    :return: x et T decalé
+
+    Args:
+        markers:
+        plot:
+        x:
+        T:
+        x0:
+
+    Returns:
+        x et T decalé
     """
     dx = x[1] - x[0]
     Delta = x[-1] + dx/2.

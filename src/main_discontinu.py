@@ -2,7 +2,7 @@ import numpy as np
 
 from src.main import *
 from copy import deepcopy
-from src.cells_interface import CellsInterface1eq, CellsInterface2eq
+from src.cells_interface import *
 
 
 class BulleTemperature(Bulles):
@@ -260,14 +260,8 @@ class ProblemDiscontinu(Problem):
                 # On calcule gradTg, gradTi, Ti, gradTd
 
                 ldag, rhocpg, ag, ldad, rhocpd, ad = get_prop(self, i, liqu_a_gauche=from_liqu_to_vap)
-                cells = CellsInterface1eq(ldag, ldad, ag, dx, self.T_old[[im3, im2, im1, i0, ip1, ip2, ip3]],
-                                          rhocpg=rhocpg, rhocpd=rhocpd)
-                if self.interp_type == 'Ti':
-                    cells.compute_from_Ti()
-                elif self.interp_type == 'gradTi':
-                    cells.compute_from_ldagradTi()
-                else:
-                    cells.compute_from_ldagradTi_ordre2()
+                cells = CellsInterface(ldag, ldad, ag, dx, self.T_old[[im3, im2, im1, i0, ip1, ip2, ip3]],
+                                       rhocpg=rhocpg, rhocpd=rhocpd, interp_type=self.interp_type)
 
                 # post-traitements
 
@@ -310,3 +304,104 @@ def cl_perio(n, i):
     ip2 = (i + 2) % n
     ip3 = (i + 3) % n
     return im3, im2, im1, i0, ip1, ip2, ip3
+
+
+class ProblemDiscontinuFT(Problem):
+    T: np.ndarray
+    I: np.ndarray
+    bulles: BulleTemperature
+
+    """
+    Cette classe résout le problème en 3 étapes :
+
+    - on calcule le nouveau T comme avant (avec un stencil de 1 à proximité des interfaces par simplicité)
+    - on calcule précisemment T1 et T2 ansi que les bons flux aux faces, on met à jour T
+    - on met à jour T_i et lda_grad_T_i
+
+    Elle résout donc le problème de manière complètement monophasique et recolle à l'interface en imposant la
+    continuité de lda_grad_T et T à l'interface.
+
+    Args:
+        T0: la fonction initiale de température
+        markers: les bulles
+        num_prop: les propriétés numériques du calcul
+        phy_prop: les propriétés physiques du calcul
+    """
+
+    def __init__(self, T0, markers=None, num_prop=None, phy_prop=None, interp_type=None):
+        super().__init__(T0, markers, num_prop=num_prop, phy_prop=phy_prop)
+        if self.num_prop.schema != 'upwind':
+            raise Exception('Cette version ne marche que pour un schéma upwind')
+        self.T_old = self.T.copy()
+        if interp_type is None:
+            self.interp_type = 'gradTi'
+        else:
+            self.interp_type = interp_type
+
+    def _init_bulles(self, markers=None):
+        if markers is None:
+            return BulleTemperature(markers=markers, phy_prop=self.phy_prop, x=self.num_prop.x)
+        elif isinstance(markers, BulleTemperature):
+            return markers.copy()
+        elif isinstance(markers, Bulles):
+            return BulleTemperature(markers=markers.markers, phy_prop=self.phy_prop, x=self.num_prop.x)
+        else:
+            print(markers)
+            raise NotImplementedError
+
+    def corrige_interface_ft(self):
+        """
+        Dans cette correction, on calcule l'évolution de la température dans des cellules qui suivent l'interface (donc
+        sans convection). Ensuite on réinterpole sur la grille fixe des température.
+
+        Returns:
+            Rien, mais met à jour T en le remplaçant par les nouvelles valeurs à proximité de l'interface, puis met à
+            jour T_old
+        """
+        bulles_np1 = self.bulles.copy()
+        bulles_np1.shift(self.phy_prop.v*self.dt)
+        Inp1 = bulles_np1.indicatrice_liquide(self.num_prop.x)
+        rhocp_np1 = self.phy_prop.rho_cp1 * Inp1 + self.phy_prop.rho_cp2 * (1.-Inp1)
+        dx = self.num_prop.dx
+
+        for i_int, (i1, i2) in enumerate(self.bulles.ind):
+            # i_int sert à aller chercher les valeurs aux interfaces, i1 et i2 servent à aller chercher les valeurs sur
+            # le maillage cartésien
+
+            for ist, i in enumerate((i1, i2)):
+                if i == i1:
+                    from_liqu_to_vap = True
+                else:
+                    from_liqu_to_vap = False
+                im3, im2, im1, i0, ip1, ip2, ip3 = cl_perio(len(self.T), i)
+
+                # On calcule gradTg, gradTi, Ti, gradTd
+
+                ldag, rhocpg, ag, ldad, rhocpd, ad = get_prop(self, i, liqu_a_gauche=from_liqu_to_vap)
+                cells_ft = CellsSuiviInterface(ldag, ldad, ag, dx, self.T_old[[im3, im2, im1, i0, ip1, ip2, ip3]],
+                                               rhocpg=rhocpg, rhocpd=rhocpd)
+                # On commence par interpoler Ti sur Tj avec TI et lda_gradTi
+                # On calcule notre pas de temps avec lda_gradTj entre j et jp1 (à l'interface)
+                # On interpole Tj sur la grille i
+
+                # Correction des cellules
+                ind_to_change = [im1, i0, ip1]
+                ind_flux = [im1, i0, ip1, ip2]
+                self.flux_conv[ind_flux] = np.nan
+                self.flux_diff[ind_flux] = np.nan
+
+                cells_ft.timestep(self.dt, self.num_prop.diff)
+                self.T[ind_to_change] = cells_ft.interp_T_from_j_to_i()
+
+                # post-traitements
+
+                self.bulles.T[i_int, ist] = cells_ft.Ti
+                self.bulles.lda_grad_T[i_int, ist] = cells_ft.lda_gradTi
+
+        self.T_old = self.T.copy()
+
+    def euler_timestep(self, debug=None, bool_debug=False):
+        super().euler_timestep(debug=debug, bool_debug=bool_debug)
+        self.corrige_interface_ft()
+
+

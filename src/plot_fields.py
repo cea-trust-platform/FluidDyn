@@ -82,7 +82,12 @@ def plot_classic(problem, fig=None, ax=None, ax2=None):
     return fig, ax, ax2
 
 
-def plot_temperature_bulles(problem, x0=0., ax=None, col=None, ax2=None):
+def plot_temperature_bulles(problem, x0=None, ax=None, col=None, ax2=None):
+    if x0 is None:
+        x0 = 0.
+        decale = False
+    else:
+        decale = True
     n = len(problem.num_prop.x)
     Delta = problem.phy_prop.Delta
     while x0 > Delta:
@@ -128,8 +133,11 @@ def plot_temperature_bulles(problem, x0=0., ax=None, col=None, ax2=None):
         ax.plot(xil, Ti, 'k+')
         ax.plot(x0l, Tig, '+', label=r'$T_g$')
         ax.plot(x0l, Tid, '+', label=r'$T_d$')
-    xf_dec, lda_grad_T_dec = decale_perio(problem.num_prop.x_f, problem.flux_diff, x0=x0)
-    ax2.plot(xf_dec, lda_grad_T_dec, label='lda grad T')
+    if decale:
+        xf_dec, lda_grad_T_dec = decale_perio(problem.num_prop.x_f, problem.flux_diff, x0=x0)
+        ax2.plot(xf_dec, lda_grad_T_dec, label='lda grad T')
+    else:
+        ax2.plot(problem.num_prop.x_f, problem.flux_diff, label='lda grad T')
     ax2.plot(problem.bulles.markers.flatten() - x0, problem.bulles.lda_grad_T.flatten(), '+', label='lda grad Ti')
     ax2.legend()
     ax2.set_xticks(problem.num_prop.x_f)

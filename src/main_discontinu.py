@@ -28,6 +28,7 @@ class BulleTemperature(Bulles):
         self.xg = np.zeros_like(self.markers)
         self.xd = np.zeros_like(self.markers)
         self.lda_grad_T = np.zeros_like(self.markers)
+        self.cells = np.zeros_like(self.markers, dtype=CellsInterface)
         self.ind = None
         if x is not None:
             self.x = x
@@ -308,6 +309,7 @@ def cl_perio(n, i):
 
 class ProblemDiscontinuFT(Problem):
     T: np.ndarray
+    T_old: np.ndarray
     I: np.ndarray
     bulles: BulleTemperature
 
@@ -358,10 +360,6 @@ class ProblemDiscontinuFT(Problem):
             Rien, mais met à jour T en le remplaçant par les nouvelles valeurs à proximité de l'interface, puis met à
             jour T_old
         """
-        bulles_np1 = self.bulles.copy()
-        bulles_np1.shift(self.phy_prop.v*self.dt)
-        Inp1 = bulles_np1.indicatrice_liquide(self.num_prop.x)
-        rhocp_np1 = self.phy_prop.rho_cp1 * Inp1 + self.phy_prop.rho_cp2 * (1.-Inp1)
         dx = self.num_prop.dx
 
         for i_int, (i1, i2) in enumerate(self.bulles.ind):
@@ -379,7 +377,8 @@ class ProblemDiscontinuFT(Problem):
 
                 ldag, rhocpg, ag, ldad, rhocpd, ad = get_prop(self, i, liqu_a_gauche=from_liqu_to_vap)
                 cells_ft = CellsSuiviInterface(ldag, ldad, ag, dx, self.T_old[[im3, im2, im1, i0, ip1, ip2, ip3]],
-                                               rhocpg=rhocpg, rhocpd=rhocpd)
+                                               rhocpg=rhocpg, rhocpd=rhocpd, vdt=self.dt*self.phy_prop.v,
+                                               interp_type=self.interp_type)
                 # On commence par interpoler Ti sur Tj avec TI et lda_gradTi
                 # On calcule notre pas de temps avec lda_gradTj entre j et jp1 (à l'interface)
                 # On interpole Tj sur la grille i
@@ -390,13 +389,15 @@ class ProblemDiscontinuFT(Problem):
                 self.flux_conv[ind_flux] = np.nan
                 self.flux_diff[ind_flux] = np.nan
 
-                cells_ft.timestep(self.dt, self.num_prop.diff)
-                self.T[ind_to_change] = cells_ft.interp_T_from_j_to_i()
+                cells_ft.timestep(self.dt, self.phy_prop.diff)
+                T_i_np1_interp = cells_ft.interp_T_from_j_to_i()
+                self.T[ind_to_change] = T_i_np1_interp
 
                 # post-traitements
 
                 self.bulles.T[i_int, ist] = cells_ft.Ti
                 self.bulles.lda_grad_T[i_int, ist] = cells_ft.lda_gradTi
+                self.bulles.cells[i_int, ist] = cells_ft
 
         self.T_old = self.T.copy()
 

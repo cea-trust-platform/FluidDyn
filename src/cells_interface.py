@@ -240,7 +240,7 @@ class CellsInterface2eq(CellsInterface):
 
     @property
     def Ti(self):
-        if self.Ti is not None:
+        if self._Ti is not None:
             return self._Ti
         else:
             raise Exception('Ti n a pas encore été calculé')
@@ -390,12 +390,21 @@ class CellsSuiviInterface(CellsInterface):
 
     """
 
-    def __init__(self, ldag=1., ldad=1., ag=1., dx=1., T=None, rhocpg=1., rhocpd=1., vdt=None):
-        super().__init__(ldag=ldag, ldad=ldad, ag=ag, dx=dx, T=T, rhocpg=rhocpg, rhocpd=rhocpd, vdt=vdt)
+    def __init__(self, ldag=1., ldad=1., ag=1., dx=1., T=None, rhocpg=1., rhocpd=1., vdt=None, interp_type=None):
+        super().__init__(ldag=ldag, ldad=ldad, ag=ag, dx=dx, T=T, rhocpg=rhocpg, rhocpd=rhocpd, vdt=vdt,
+                         interp_type=interp_type)
         self.Tj = np.zeros((6,))
-        self.Tjnp1 = np.zeros((6,))
-        self.Tj[:4] = self._interp_from_i_to_j_g(self.Tg, self.ag, self.dx)
-        self.Tj[4:] = self._interp_from_i_to_j_d(self.Td, self.ag, self.dx)
+        self.Tjnp1 = np.zeros((4,))
+        # Ici on calcule Tg et Td pour ensuite interpoler les valeurs à proximité de l'interface
+        if self.interp_type == 'Ti':
+            self._compute_from_Ti()
+        elif self.interp_type == 'gradTi':
+            self._compute_from_ldagradTi()
+        else:
+            self._compute_from_ldagradTi_ordre2()
+
+        self.Tj[:3] = self._interp_from_i_to_j_g(self.Tg, self.ag, self.dx)
+        self.Tj[3:] = self._interp_from_i_to_j_d(self.Td, self.ag, self.dx)
         # self._lda_gradTj = None
         # self._Tj = None
 
@@ -416,7 +425,6 @@ class CellsSuiviInterface(CellsInterface):
         x_I = (ag - 1./2) * dx
         xj = np.linspace(-2, 0, 3)*dx + x_I - 1./2*dx
         xi = np.linspace(-3, 0, 4) * dx
-        print(xj/dx)
         for j in range(len(Tj)):
             i = j+1
             d_im1_j_i = np.abs(xi[[i-1, i]] - xj[j])
@@ -440,7 +448,6 @@ class CellsSuiviInterface(CellsInterface):
         x_I = (ag - 1./2) * dx
         xj = np.linspace(1, 3, 3)*dx + x_I - 1./2*dx
         xi = np.linspace(0, 3, 4) * dx
-        print(xj/dx)
         for j in range(len(Tj)):
             i = j+1
             d_im1_j_i = np.abs(xi[[i-1, i]] - xj[j])
@@ -448,11 +455,12 @@ class CellsSuiviInterface(CellsInterface):
         return Tj
 
     def timestep(self, diff, dt):
-        lda_grad_T = grad(self.Tj) * np.array([self.ldag, self.ldag, np.nan, self.ldad, self.ldad])  # taille 5
+        gradT = grad(self.Tj, self.dx)  # on se fiche
+        lda_grad_T = gradT[1:-1] * np.array([self.ldag, self.ldag, np.nan, self.ldad, self.ldad])  # taille 5
         lda_grad_T[2] = self.lda_gradTi
         rho_cp_center = np.array([self.rhocpg, self.rhocpg, self.rhocpd, self.rhocpd])  # taille 4
         # le pas de temps de diffusion
-        self.Tjnp1 = self.Tj + dt * 1/rho_cp_center * integrale_vol_div(lda_grad_T, self.dx) * diff
+        self.Tjnp1 = self.Tj[1:-1] + dt * 1/rho_cp_center * integrale_vol_div(lda_grad_T, self.dx) * diff
 
     def interp_T_from_j_to_i(self):
         """
@@ -464,12 +472,11 @@ class CellsSuiviInterface(CellsInterface):
         Returns:
 
         """
-        Tj = self.Tjnp1[1:-1]
+        Tj = self.Tjnp1
         Ti = np.empty((len(Tj) - 1,))
         xi = np.linspace(-1, 1, 3) * self.dx
         x_I = (self.ag - 1./2) * self.dx + self.vdt
         xj = np.linspace(-1, 2, 4)*self.dx + x_I - 1./2*self.dx
-        print(xj/self.dx)
         for i in range(len(Ti)):
             j = i+1
             d_jm1_i_j = np.abs(xj[[j-1, j]] - xi[i])

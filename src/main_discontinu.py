@@ -1,5 +1,3 @@
-import numpy as np
-
 from src.main import *
 from copy import deepcopy
 from src.cells_interface import *
@@ -153,8 +151,8 @@ class ProblemDiscontinuEnergieTemperature(Problem):
                 im3, im2, im1, i0, ip1, ip2, ip3 = cl_perio(len(self.T), i)
                 ldag, rhocpg, ag, ldad, rhocpd, ad = get_prop(self, i, liqu_a_gauche=from_liqu_to_vap)
 
-                cells = CellsInterface2eq(ldag, ldad, ag, self.num_prop.dx, self.T[[im3, im2, im1, i0, ip1, ip2, ip3]],
-                                          rhocpg=rhocpg, rhocpd=rhocpd, vdt=self.phy_prop.v*self.dt)
+                cells = CellsInterface(ldag, ldad, ag, self.num_prop.dx, self.T[[im3, im2, im1, i0, ip1, ip2, ip3]],
+                                       rhocpg=rhocpg, rhocpd=rhocpd, vdt=self.phy_prop.v*self.dt)
                 cells.compute_from_h_T(self.h[i0], self.T[i0])
 
                 # post-traitements
@@ -395,8 +393,8 @@ class ProblemDiscontinuFT(Problem):
 
                 # post-traitements
 
-                self.bulles.T[i_int, ist] = cells_ft.Ti
-                self.bulles.lda_grad_T[i_int, ist] = cells_ft.lda_gradTi
+                self.bulles.T[i_int, ist] = cells_ft.cells_fixe.Ti
+                self.bulles.lda_grad_T[i_int, ist] = cells_ft.cells_fixe.lda_gradTi
                 self.bulles.cells[i_int, ist] = cells_ft
 
         self.T_old = self.T.copy()
@@ -404,5 +402,3 @@ class ProblemDiscontinuFT(Problem):
     def euler_timestep(self, debug=None, bool_debug=False):
         super().euler_timestep(debug=debug, bool_debug=bool_debug)
         self.corrige_interface_ft()
-
-

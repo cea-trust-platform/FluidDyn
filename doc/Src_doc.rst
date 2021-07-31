@@ -12,7 +12,6 @@ Dans cette partie se trouve le coeur de la documentation du la librairie DynFlu1
    src.main
    src.main_discontinu
    src.cells_interface
-| 
 
 
 .. automodule:: src.main

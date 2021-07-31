@@ -26,7 +26,7 @@ class BulleTemperature(Bulles):
         self.xg = np.zeros_like(self.markers)
         self.xd = np.zeros_like(self.markers)
         self.lda_grad_T = np.zeros_like(self.markers)
-        self.cells = np.zeros_like(self.markers, dtype=CellsInterface)
+        self.cells = np.zeros_like(self.markers, dtype=CellsSuiviInterface)
         self.ind = None
         if x is not None:
             self.x = x
@@ -100,10 +100,10 @@ class ProblemDiscontinuEnergieTemperature(Problem):
     interne au niveau des interfaces.
     On a donc un tableau T et un tableau h
 
-    - on calcule dans les mailles diphasiques Tgc et Tdc les températures au centres de la partie remplie par la
-    phase à gauche et la partie remplie par la phase à droite.
-    - on en déduit en interpolant des flux aux faces
-    - on met à jour T et h avec des flux exprimés de manière monophasique.
+        - on calcule dans les mailles diphasiques Tgc et Tdc les températures au centres de la partie remplie par la
+        phase à gauche et la partie remplie par la phase à droite.
+        - on en déduit en interpolant des flux aux faces
+        - on met à jour T et h avec des flux exprimés de manière monophasique.
 
     Le problème de cette formulation est qu'elle fait intervenir l'équation sur la température alors qu'on sait
     que cette équation n'est pas terrible.
@@ -193,9 +193,9 @@ class ProblemDiscontinu(Problem):
     """
     Cette classe résout le problème en 3 étapes :
 
-    - on calcule le nouveau T comme avant (avec un stencil de 1 à proximité des interfaces par simplicité)
-    - on calcule précisemment T1 et T2 ansi que les bons flux aux faces, on met à jour T
-    - on met à jour T_i et lda_grad_T_i
+        - on calcule le nouveau T comme avant (avec un stencil de 1 à proximité des interfaces par simplicité)
+        - on calcule précisemment T1 et T2 ansi que les bons flux aux faces, on met à jour T
+        - on met à jour T_i et lda_grad_T_i
 
     Elle résout donc le problème de manière complètement monophasique et recolle à l'interface en imposant la
     continuité de lda_grad_T et T à l'interface.
@@ -213,9 +213,10 @@ class ProblemDiscontinu(Problem):
             raise Exception('Cette version ne marche que pour un schéma upwind')
         self.T_old = self.T.copy()
         if interp_type is None:
-            self.interp_type = 'gradTi'
+            self.interp_type = 'Ti'
         else:
             self.interp_type = interp_type
+        print(self.interp_type)
 
     def _init_bulles(self, markers=None):
         if markers is None:
@@ -314,9 +315,9 @@ class ProblemDiscontinuFT(Problem):
     """
     Cette classe résout le problème en 3 étapes :
 
-    - on calcule le nouveau T comme avant (avec un stencil de 1 à proximité des interfaces par simplicité)
-    - on calcule précisemment T1 et T2 ansi que les bons flux aux faces, on met à jour T
-    - on met à jour T_i et lda_grad_T_i
+        - on calcule le nouveau T comme avant (avec un stencil de 1 à proximité des interfaces par simplicité)
+        - on calcule précisemment T1 et T2 ansi que les bons flux aux faces, on met à jour T
+        - on met à jour T_i et lda_grad_T_i
 
     Elle résout donc le problème de manière complètement monophasique et recolle à l'interface en imposant la
     continuité de lda_grad_T et T à l'interface.
@@ -335,6 +336,7 @@ class ProblemDiscontinuFT(Problem):
         self.T_old = self.T.copy()
         if interp_type is None:
             self.interp_type = 'gradTi'
+            print('interp type is :', self.interp_type)
         else:
             self.interp_type = interp_type
 
@@ -395,7 +397,10 @@ class ProblemDiscontinuFT(Problem):
 
                 self.bulles.T[i_int, ist] = cells_ft.cells_fixe.Ti
                 self.bulles.lda_grad_T[i_int, ist] = cells_ft.cells_fixe.lda_gradTi
+                self.bulles.Tg[i_int, ist] = cells_ft.cells_fixe.Tg[-1]
+                self.bulles.Td[i_int, ist] = cells_ft.cells_fixe.Td[0]
                 self.bulles.cells[i_int, ist] = cells_ft
+                # print('cells :', self.bulles.cells[i_int, ist])
 
         self.T_old = self.T.copy()
 

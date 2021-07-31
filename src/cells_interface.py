@@ -1,10 +1,28 @@
 import numpy as np
-from src.main import grad, integrale_vol_div
+from src.main import integrale_vol_div
 from numba.experimental import jitclass
 from numba import float64    # import the types
+# from copy import copy
+# from functools import wraps
 
 
-@jitclass([('Td', float64[:]), ('Tg', float64[:]), ('_rhocp_f', float64[:]), ('lda_f', float64[:])])
+# def wjitclass(ags):
+#     def wrapper(cls):
+#         print(cls.__doc__)
+#
+#         class Shadow:
+#             pass
+#
+#         Shadow.__name__ = 'Test'
+#         Shadow.__doc__ = cls.__doc__
+#
+#         jitclass(ags)(cls)
+#         return Shadow
+#     return wrapper
+
+
+@jitclass([('Td', float64[:]), ('Tg', float64[:]), ('_rhocp_f', float64[:]), ('lda_f', float64[:]), ('_Ti', float64),
+           ('_lda_gradTi', float64)])
 class CellsInterface:
     ldag: float
     ldad: float
@@ -18,12 +36,9 @@ class CellsInterface:
     vdt: float
     Tgc: float
     Tdc: float
-    _Ti: float
-    _lda_gradTi: float
-    # Tg: np.ndarray((4,), dtype=float)
-    # Td: np.ndarray((4,), dtype=float)
-    # _rhocp_f: np.ndarray((6,), dtype=float)
-    # lda_f: np.ndarray((6,), dtype=float)
+    Tg: np.ndarray((4,), dtype=float)
+    Td: np.ndarray((4,), dtype=float)
+    lda_f: np.ndarray((6,), dtype=float)
 
     """
     Cellule type ::
@@ -79,7 +94,7 @@ class CellsInterface:
         self.Tdc = -1.
 
     @staticmethod
-    def pid_interp(T: float64[:], d: float64[:]) -> float64:
+    def pid_interp(T: float64[:], d: float64[:]) -> float:
         Tm = np.sum(T / d) / np.sum(1. / d)
         return Tm
 
@@ -168,12 +183,12 @@ class CellsInterface:
         """
         lda_gradTg, lda_gradTig, self._lda_gradTi, lda_gradTid, lda_gradTd = \
             self.get_lda_grad_T_i_from_ldagradT_continuity(self.Tg[1], self.Tg[2], self.Td[1], self.Td[2],
-                                                           (3./2. + self.ag)*self.dx, (3./2. + self.ad)*self.dx)
+                                                           (1. + self.ag)*self.dx, (1. + self.ad)*self.dx)
 
-        self._Ti = self.get_Ti_from_lda_grad_Ti(self.Tg[2], self.Td[1],
+        self._Ti = self.get_Ti_from_lda_grad_Ti(self.Tg[-2], self.Td[1],
                                                 (0.5+self.ag)*self.dx, (0.5+self.ad)*self.dx,
                                                 lda_gradTig, lda_gradTid)
-        self.Tg[-1] = self.Tg[2] + lda_gradTg/self.ldag * self.dx
+        self.Tg[-1] = self.Tg[-2] + lda_gradTg/self.ldag * self.dx
         self.Td[0] = self.Td[1] - lda_gradTd/self.ldad * self.dx
 
     def compute_from_ldagradTi_ordre2(self):
@@ -190,10 +205,10 @@ class CellsInterface:
                                                        self.Td[1], self.Td[2], self.Td[3],
                                                        self.ag, self.ad)
 
-        self._Ti = self.get_Ti_from_lda_grad_Ti(self.Tg[2], self.Td[1],
+        self._Ti = self.get_Ti_from_lda_grad_Ti(self.Tg[-2], self.Td[1],
                                                 (0.5+self.ag)*self.dx, (0.5+self.ad)*self.dx,
                                                 lda_gradTig, lda_gradTid)
-        self.Tg[-1] = self.Tg[2] + lda_gradTig/self.ldag * self.dx
+        self.Tg[-1] = self.Tg[-2] + lda_gradTig/self.ldag * self.dx
         self.Td[0] = self.Td[1] - lda_gradTid/self.ldad * self.dx
 
     def compute_from_Ti(self):
@@ -206,8 +221,8 @@ class CellsInterface:
             Calcule les gradients g, I, d, et Ti
         """
         self._Ti, self._lda_gradTi = self.get_T_i_and_lda_grad_T_i(self.Tg[-2], self.Td[1],
-                                                                   (1. + self.ag) / 2. * self.dx,
-                                                                   (1. + self.ad) / 2. * self.dx)
+                                                                   (1./2 + self.ag) * self.dx,
+                                                                   (1./2 + self.ad) * self.dx)
         grad_Tg = self.pid_interp(np.array([self.gradTg[1], self._lda_gradTi/self.ldag]),
                                   np.array([1., self.ag])*self.dx)
         grad_Td = self.pid_interp(np.array([self._lda_gradTi/self.ldad, self.gradTd[1]]),
@@ -226,7 +241,7 @@ class CellsInterface:
         """
         system = np.array([[self.ag*self.rhocpg, self.ad*self.rhocpd],
                            [self.ag, self.ad]])
-        self.Tgc, self.Tdc = np.dot(np.linalg.inv(system), np.array([h, T_mean])).squeeze()
+        self.Tgc, self.Tdc = np.dot(np.linalg.inv(system), np.array([h, T_mean]))
 
     def compute_from_h_T(self, h: float, T_mean: float):
         """
@@ -284,6 +299,21 @@ class CellsInterface:
         self.Td[0] = self.Td[1] - self.dx * gradTd
 
     def get_T_i_and_lda_grad_T_i(self, Tg: float, Td: float, dg: float, dd: float) -> (float, float):
+        """
+        On utilise la continuité de lad_grad_T pour interpoler linéairement à partir des valeurs en im32 et ip32
+        On retourne les gradients suivants ::
+
+                                 dg              dd
+                            |-----------|-------------------|
+                    +---------------+---------------+---------------+
+                    |               |   |           |               |
+                   -|>      +      -|>  |   +      -|>      +      -|>
+                    |               |   |           |               |
+                    +---------------+---------------+---------------+
+
+        Returns:
+            Calcule les gradients g, I, d, et Ti
+        """
         T_i = (self.ldag/dg*Tg + self.ldad/dd*Td) / (self.ldag/dg + self.ldad/dd)
         lda_grad_T_ig = self.ldag * (T_i - Tg)/dg
         lda_grad_T_id = self.ldad * (Td - T_i)/dd
@@ -374,11 +404,16 @@ class CellsSuiviInterface:
     """
     Cette classe contient des cellules j qui suivent l'interface ::
 
-           +----------+----------+---------+---------+---------+---------+---------+
-           |          |          |         |   |     |         |         |         |
-           |    +     |    +     |    +    |   |+    |    +    |    +    |    +    |
-           |    im3   |    im2   |    im1  |   |i    |    ip1  |    ip2  |    ip3  |
-           +---+----------+----------+---------+---------+---------+---------+-----+
+             Tg, gradTg                          Tghost
+            +---------+----------+---------+---------+
+            |         |          |         |   |     |
+            |    +   -|>   +    -|>   +   -|>  |+    |
+            |    0    |    1     |    2    |   |3    |
+            +---------+----------+---------+---------+---------+---------+---------+
+                                           |   |     |         |         |         |
+                              Td, gradTd   |   |+   -|>   +   -|>   +   -|>   +    |
+                                           |   |0    |    1    |    2    |    3    |
+               +----------+----------+-----+---+-----+---+-----+---+-----+---+-----+
                |          |          |         |         |         |         |
                |    +     |    +     |    +    |    +    |    +    |    +    |
                |    jm2   |    jm1   |    j    |    jp1  |    jp2  |    jp3  |
@@ -401,59 +436,57 @@ class CellsSuiviInterface:
         else:
             self.cells_fixe.compute_from_ldagradTi_ordre2()
 
-        self.Tj[:3] = self._interp_from_i_to_j_g(self.cells_fixe.Tg, self.cells_fixe.ag, self.cells_fixe.dx)
-        self.Tj[3:] = self._interp_from_i_to_j_d(self.cells_fixe.Td, self.cells_fixe.ag, self.cells_fixe.dx)
+        # le zéro correspond à la position du centre de la maille i
+        x_I = (ag - 1./2) * dx
+        self.xj = np.linspace(-2, 3, 6)*dx + x_I - 1./2*dx
+
+        self.Tj[:3] = self._interp_from_i_to_j_g(self.cells_fixe.Tg, self.cells_fixe.dx)
+        self.Tj[3:] = self._interp_from_i_to_j_d(self.cells_fixe.Td, self.cells_fixe.dx)
         # self._lda_gradTj = None
         # self._Tj = None
 
-    def _interp_from_i_to_j_g(self, Ti, ag, dx):
+    def _interp_from_i_to_j_g(self, Ti, dx):
         """
         On récupère un tableau de taille Ti - 1
 
         Args:
             Ti: la température à gauche
-            ag (float):
             dx (float):
 
         Returns:
 
         """
         Tj = np.empty((len(Ti) - 1,))
-        x_I = (ag - 1./2) * dx
-        xj = np.linspace(-2, 0, 3)*dx + x_I - 1./2*dx
         xi = np.linspace(-3, 0, 4) * dx
         for j in range(len(Tj)):
             i = j+1
-            d_im1_j_i = np.abs(xi[[i-1, i]] - xj[j])
+            d_im1_j_i = np.abs(xi[[i-1, i]] - self.xj[:3][j])
             Tj[j] = self.cells_fixe.pid_interp(Ti[[i-1, i]], d_im1_j_i)
         return Tj
 
-    def _interp_from_i_to_j_d(self, Ti, ag, dx):
+    def _interp_from_i_to_j_d(self, Ti, dx):
         """
         On récupère un tableau de taille Ti - 1
 
         Args:
             Ti: la température à droite
-            ag (float):
             dx (float):
 
         Returns:
 
         """
         Tj = np.empty((len(Ti) - 1,))
-        x_I = (ag - 1./2) * dx
-        xj = np.linspace(1, 3, 3)*dx + x_I - 1./2*dx
         xi = np.linspace(0, 3, 4) * dx
         for j in range(len(Tj)):
             i = j+1
-            d_im1_j_i = np.abs(xi[[i-1, i]] - xj[j])
+            d_im1_j_i = np.abs(xi[[i-1, i]] - self.xj[3:][j])
             Tj[j] = self.cells_fixe.pid_interp(Ti[[i-1, i]], d_im1_j_i)
         return Tj
 
     def timestep(self, diff, dt):
-        gradT = grad(self.Tj, self.cells_fixe.dx)  # on se fiche
-        lda_grad_T = gradT[1:-1] * np.array([self.cells_fixe.ldag, self.cells_fixe.ldag, np.nan, self.cells_fixe.ldad,
-                                             self.cells_fixe.ldad])  # taille 5
+        gradT = (self.Tj[1:] - self.Tj[:-1])/self.cells_fixe.dx
+        lda_grad_T = gradT * np.array([self.cells_fixe.ldag, self.cells_fixe.ldag, np.nan, self.cells_fixe.ldad,
+                                       self.cells_fixe.ldad])  # taille 5
         lda_grad_T[2] = self.cells_fixe.lda_gradTi
         rho_cp_center = np.array([self.cells_fixe.rhocpg, self.cells_fixe.rhocpg, self.cells_fixe.rhocpd,
                                   self.cells_fixe.rhocpd])  # taille 4

@@ -1,5 +1,5 @@
-Instalation
-===========
+Installation
+============
 
 Installation de l'environnement virtuel
 ---------------------------------------

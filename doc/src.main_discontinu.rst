@@ -27,6 +27,7 @@
       BulleTemperature
       ProblemDiscontinu
       ProblemDiscontinuEnergieTemperature
+      ProblemDiscontinuFT
    
    
 

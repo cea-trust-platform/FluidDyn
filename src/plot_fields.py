@@ -109,26 +109,20 @@ def plot_temperature_bulles(problem, x0=None, ax=None, col=None, ax2=None):
             Tid.append(problem.bulles.Td[i_int, j])
             ldag, rhocpg, ag, ldad, rhocpd, ad = get_prop(problem, i, liqu_a_gauche=(not j))
             if i > 1:
-                if problem.time > 0.:
-                    ax.plot([problem.num_prop.x[i-1]-x0, xi-x0], [problem.T[i-1], problem.bulles.T[i_int, j]], '--',
-                            c=col)
                 ax.quiver(problem.num_prop.x_f[i-1]-x0, (problem.T[i-2] + problem.T[i-1])/2., 1.,
                           (problem.T[i-1] - problem.T[i-2])/problem.num_prop.dx, angles='xy')
-                # ax.quiver(problem.num_prop.x_f[i]-x0, (problem.T[i-1] + problem.T[i])/2., 1.,
-                #           problem.bulles.gradTg[i_int, j], angles='xy')
             if problem.time > 0.:
                 ax.quiver(xi - x0, problem.bulles.T[i_int, j], 1., problem.bulles.lda_grad_T[i_int, j]/ldag,
                           0., angles='xy')
                 ax.quiver(xi - x0, problem.bulles.T[i_int, j], 1., problem.bulles.lda_grad_T[i_int, j]/ldad,
                           1., angles='xy')
             if i < n-1:
-                if problem.time > 0.:
-                    ax.plot([problem.num_prop.x[i+1]-x0, xi-x0], [problem.T[i+1], problem.bulles.T[i_int, j]],
-                            '--', c=col)
-                # ax.quiver(problem.num_prop.x_f[i+1]-x0, (problem.T[i] + problem.T[i+1])/2., 1.,
-                #           problem.bulles.gradTd[i_int, j], angles='xy')
                 ax.quiver(problem.num_prop.x_f[i+2]-x0, (problem.T[i+2] + problem.T[i+1])/2., 1.,
                           (problem.T[i+2] - problem.T[i+1])/problem.num_prop.dx, angles='xy')
+            cells_suivi = problem.bulles.cells[i_int, j]
+            if isinstance(cells_suivi, CellsSuiviInterface):
+                ax.plot(cells_suivi.xj + problem.num_prop.x[i], cells_suivi.Tj,
+                        '--', label='Tj interp', c=col)
     if problem.time > 0.:
         ax.plot(xil, Ti, 'k+')
         ax.plot(x0l, Tig, '+', label=r'$T_g$')

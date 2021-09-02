@@ -22,23 +22,11 @@ from numba import float64    # import the types
 
 
 @jitclass([('Td', float64[:]), ('Tg', float64[:]), ('_rhocp_f', float64[:]), ('lda_f', float64[:]), ('_Ti', float64),
-           ('_lda_gradTi', float64)])
+           ('_lda_gradTi', float64), ('ldag', float64), ('ldad', float64), ('rhocpg', float64), ('rhocpd', float64),
+           ('ag', float64), ('ad', float64), ('dx', float64), ('vdt', float64), ('Tgc', float64), ('Tdc', float64)])
 class CellsInterface:
-    ldag: float
-    ldad: float
-    rhocpg: float
-    rhocpd: float
-    ag: float
-    ad: float
-    dx: float
     schema_conv: str
     interp_type: str
-    vdt: float
-    Tgc: float
-    Tdc: float
-    Tg: np.ndarray((4,), dtype=float)
-    Td: np.ndarray((4,), dtype=float)
-    lda_f: np.ndarray((6,), dtype=float)
 
     """
     Cellule type ::
@@ -79,6 +67,8 @@ class CellsInterface:
         self.ag = ag
         self.ad = 1. - ag
         self.dx = dx
+        if len(T) < 7:
+            raise(Exception('T n est pas de taille 7'))
         self.Tg = T[:4].copy()
         self.Tg[-1] = np.nan
         self.Td = T[3:].copy()
@@ -92,28 +82,44 @@ class CellsInterface:
         self.interp_type = interp_type
         self.Tgc = -1.
         self.Tdc = -1.
+        # On fait tout de suite le calcul qui nous intéresse, il est nécessaire pour la suite
+        if self.interp_type == 'Ti':
+            self.compute_from_Ti()
+        elif self.interp_type == 'gradTi':
+            self.compute_from_ldagradTi()
+        elif self.interp_type == 'gradTi2':
+            self.compute_from_ldagradTi_ordre2()
+        if (np.any(np.isnan(self.Tg)) or np.any(np.isnan(self.Td))) and not (self.interp_type == 'energie_temperature'):
+            print('T : ', T)
+            print('Tg : ', self.Tg)
+            print('Td : ', self.Td)
+            raise(Exception('Le calcul n a pas marche comme prévu, il reste des nan'))
 
     @staticmethod
     def pid_interp(T: float64[:], d: float64[:]) -> float:
+        TH = 10**-15
+        inf_lim = d < TH
         Tm = np.sum(T / d) / np.sum(1. / d)
+        if np.any(inf_lim):
+            Tm = T[inf_lim][0]
         return Tm
 
     @property
     def T_f(self):
-        if self.vdt > 0.:
-            # on fait un calcul exacte pour la convection, cad qu'on calcule la température moyenne au centre du
-            # volume qui va passer pour chaque face.
-            # On fait une interpolation PID
-            coeffg = 1./(self.dx - self.vdt/2.)
-            coeffd = 1./(self.vdt/2.)
-            summ = coeffd + coeffg
-            coeffd /= summ
-            coeffg /= summ
-            T_intg = coeffg * self.Tg[:-1] + coeffd * self.Tg[1:]
-            T_intd = coeffg * self.Td[:-1] + coeffd * self.Td[1:]
-            return np.concatenate((T_intg, T_intd))
-        elif self.schema_conv == 'upwind':
+        if self.schema_conv == 'upwind':
             return np.concatenate((self.Tg[:-1], self.Td[:-1]))
+        # elif self.vdt > 0.:
+        #     # on fait un calcul exacte pour la convection, cad qu'on calcule la température moyenne au centre du
+        #     # volume qui va passer pour chaque face.
+        #     # On fait une interpolation PID
+        #     coeffg = 1./(self.dx - self.vdt/2.)
+        #     coeffd = 1./(self.vdt/2.)
+        #     summ = coeffd + coeffg
+        #     coeffd /= summ
+        #     coeffg /= summ
+        #     T_intg = coeffg * self.Tg[:-1] + coeffd * self.Tg[1:]
+        #     T_intd = coeffg * self.Td[:-1] + coeffd * self.Td[1:]
+        #     return np.concatenate((T_intg, T_intd))
         else:
             # schema centre
             return np.concatenate(((self.Tg[1:] + self.Tg[:-1])/2., (self.Td[1:] + self.Td[:-1])/2.))
@@ -125,6 +131,22 @@ class CellsInterface:
     @property
     def gradTd(self) -> np.ndarray((3,), dtype=float):
         return (self.Td[1:] - self.Td[:-1])/self.dx
+
+    @property
+    def grad_lda_gradT_n_g(self) -> float:
+        # remarque : cette valeur n'est pas calculée exactement à l'interface
+        # mais plutôt entre l'interface et la face 32, mais je pense pas que ce soit très grave
+        # et j'ai pas le courage de faire autre chose
+        d = self.dx * (1. + self.ag)
+        lda_gradT_32 = self.ldag * (self.Tg[-2] - self.Tg[-3]) / self.dx
+        return (self.lda_gradTi - lda_gradT_32)/d
+
+    @property
+    def grad_lda_gradT_n_d(self) -> float:
+        # remarque idem que au dessus
+        d = self.dx * (1. + self.ad)
+        lda_gradT_32 = self.ldad * (self.Td[2] - self.Td[1]) / self.dx
+        return (lda_gradT_32 - self.lda_gradTi)/d
 
     @property
     def gradT(self) -> np.ndarray((6,), dtype=float):
@@ -152,24 +174,24 @@ class CellsInterface:
 
     @property
     def Ti(self) -> float:
-        if self._Ti == -1.:
-            if self.interp_type == 'Ti':
-                self.compute_from_Ti()
-            elif self.interp_type == 'gradTi':
-                self.compute_from_ldagradTi()
-            else:
-                self.compute_from_ldagradTi_ordre2()
+        # if self._Ti == -1.:
+        #     if self.interp_type == 'Ti':
+        #         self.compute_from_Ti()
+        #     elif self.interp_type == 'gradTi':
+        #         self.compute_from_ldagradTi()
+        #     else:
+        #         self.compute_from_ldagradTi_ordre2()
         return self._Ti
 
     @property
     def lda_gradTi(self) -> float:
-        if self._Ti == -1.:
-            if self.interp_type == 'Ti':
-                self.compute_from_Ti()
-            elif self.interp_type == 'gradTi':
-                self.compute_from_ldagradTi()
-            else:
-                self.compute_from_ldagradTi_ordre2()
+        # if self._Ti == -1.:
+        #     if self.interp_type == 'Ti':
+        #         self.compute_from_Ti()
+        #     elif self.interp_type == 'gradTi':
+        #         self.compute_from_ldagradTi()
+        #     else:
+        #         self.compute_from_ldagradTi_ordre2()
         return self._lda_gradTi
 
     def compute_from_ldagradTi(self):
@@ -228,6 +250,11 @@ class CellsInterface:
         grad_Td = self.pid_interp(np.array([self._lda_gradTi/self.ldad, self.gradTd[1]]),
                                   np.array([self.ad, 1.])*self.dx)
         self.Tg[-1] = self.Tg[-2] + grad_Tg * self.dx
+        if np.isnan(self.Tg[-1]):
+            print('Tg2 : ', self.Tg[-2])
+            print('gradTg : ', grad_Tg)
+            print('array : ', np.array([self.gradTg[1], self._lda_gradTi/self.ldag]))
+            print('d : ', np.array([1., self.ag])*self.dx)
         self.Td[0] = self.Td[1] - grad_Td * self.dx
 
     def _compute_Tgc_Tdc(self, h: float, T_mean: float):

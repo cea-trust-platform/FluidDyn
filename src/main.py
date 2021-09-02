@@ -422,9 +422,9 @@ class NumericalProperties:
 
 
 class Problem:
-    T: np.ndarray
-    I: np.ndarray
     bulles: Bulles
+    num_prop: NumericalProperties
+    phy_prop: PhysicalProperties
 
     def __init__(self, T0, markers=None, num_prop=None, phy_prop=None):
         if phy_prop is None:
@@ -618,8 +618,8 @@ class Problem:
                     debug.grid(b=True, which='major')
                     debug.legend()
         coeff = np.array([1. / 6, 1 / 3., 1 / 3., 1. / 6])
-        self.flux_conv = np.sum(coeff * np.array(T_u_l), axis=-1)
-        self.flux_diff = np.sum(coeff * np.array(lda_gradT_l), axis=-1)
+        self.flux_conv = np.sum(coeff * np.array(T_u_l).T, axis=-1)
+        self.flux_diff = np.sum(coeff * np.array(lda_gradT_l).T, axis=-1)
         self.T += np.sum(self.dt * coeff * np.array(K[1:]).T, axis=-1)
 
 

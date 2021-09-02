@@ -17,10 +17,19 @@ import matplotlib.pyplot as plt
 
 class Plotter:
     def __init__(self, cas='classic'):
-        self.cas = cas
+        self._cas = cas
         self.fig = None
         self.ax = None
         self.ax2 = None
+
+    @property
+    def cas(self):
+        return self._cas
+
+    @cas.setter
+    def cas(self, value):
+        self._cas = value
+        print("plotter mode changed to %s" % value)
 
     def plot(self, problem):
         if self.cas is 'classic':
@@ -90,7 +99,7 @@ def plot_temperature_bulles(problem, x0=None, ax=None, col=None, ax2=None):
         decale = True
     n = len(problem.num_prop.x)
     Delta = problem.phy_prop.Delta
-    while x0 > Delta:
+    while x0 - Delta > -problem.num_prop.dx:
         x0 -= Delta
     # fig1, ax1 = plt.subplots(1)
     # lda_grad_T = interpolate_from_center_to_face_center(problem.Lda_h) * grad(problem.T, dx=problem.num_prop.dx)
@@ -99,11 +108,16 @@ def plot_temperature_bulles(problem, x0=None, ax=None, col=None, ax2=None):
     Ti = []
     Tig = []
     Tid = []
+    # print('x0 : %f' % x0)
     for i_int, x in enumerate(problem.bulles()):
         for j, xi in enumerate(x):
             i = problem.bulles.ind[i_int, j]
+            # print(problem.time)
+            # print('i : %d' % i)
             xil.append(xi - x0)
+            # print('xi dec : %f' % xil[-1])
             x0l.append(problem.num_prop.x[i] - x0)
+            # print('num_prop.x[i] : %f' % x0l[-1])
             Ti.append(problem.bulles.T[i_int, j])
             Tig.append(problem.bulles.Tg[i_int, j])
             Tid.append(problem.bulles.Td[i_int, j])

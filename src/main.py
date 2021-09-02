@@ -522,6 +522,8 @@ class Problem:
         self.I = self.update_I()
 
     def timestep(self, n=None, t_fin=None, plot_for_each=1, number_of_plots=None, plotter=None, debug=None):
+        if plotter is None:
+            raise(Exception('plotter is a mandatory argument'))
         if (n is None) and (t_fin is None):
             raise NotImplementedError
         elif (n is not None) and (t_fin is not None):
@@ -532,7 +534,11 @@ class Problem:
             plot_for_each = int((n - 1) / number_of_plots)
         if plot_for_each == 0:
             plot_for_each = 1
-        plotter.plot(self)
+        # if isinstance(plotter, list):
+        #     for plott in plotter:
+        #         plott.plot(self)
+        # else:
+        #     plotter.plot(self)
         energy = np.zeros((n + 1,))
         t = np.linspace(0, n * self.dt, n + 1)
         energy[0] = self.energy
@@ -542,12 +548,15 @@ class Problem:
             elif self.num_prop.time_scheme is 'rk4':
                 self.rk4_timestep(debug=debug, bool_debug=(i % plot_for_each == 0))
             self.update_markers()
-            # TODO: vérifier que le rho cp correspond au rho cp np1 utilisé dans ProblemDiscontinu
             self.time += self.dt
             self.iter += 1
             energy[i + 1] = self.energy
-            if (i % plot_for_each == 0) and (plotter is not None) and ((i != 0) or (n == 1)):
-                plotter.plot(self)
+            if (i % plot_for_each == 0) and ((i != 0) or (n == 1)):
+                if isinstance(plotter, list):
+                    for plott in plotter:
+                        plott.plot(self)
+                else:
+                    plotter.plot(self)
         return t, energy
 
     def euler_timestep(self, debug=None, bool_debug=False):

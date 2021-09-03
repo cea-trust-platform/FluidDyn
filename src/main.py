@@ -454,19 +454,27 @@ class Problem:
             raise NotImplementedError
 
     @property
+    def full_name(self):
+        return '%s, %s' % (self.name, self.char)
+
+    @property
     def name(self):
+        return 'Cas : %s' % self.phy_prop.cas
+
+    @property
+    def char(self):
         if self.phy_prop.v == 0.:
-            return 'Cas : %s, %s, %s, dx = %g, dt = %g' % (self.phy_prop.cas, self.num_prop.time_scheme,
-                                                           self.num_prop.schema, self.num_prop.dx,
-                                                           self.dt)
+            return '%s, %s, dx = %g, dt = %g' % (self.num_prop.time_scheme,
+                                                 self.num_prop.schema, self.num_prop.dx,
+                                                 self.dt)
         elif self.phy_prop.diff == 0.:
-            return 'Cas : %s, %s, %s, dx = %g, cfl = %g' % (self.phy_prop.cas, self.num_prop.time_scheme,
-                                                            self.num_prop.schema, self.num_prop.dx,
-                                                            self.cfl)
+            return '%s, %s, dx = %g, cfl = %g' % (self.num_prop.time_scheme,
+                                                  self.num_prop.schema, self.num_prop.dx,
+                                                  self.cfl)
         else:
-            return 'Cas : %s, %s, %s, dx = %g, dt = %g, cfl = %g' % (self.phy_prop.cas, self.num_prop.time_scheme,
-                                                                     self.num_prop.schema,
-                                                                     self.num_prop.dx, self.dt, self.cfl)
+            return '%s, %s, dx = %g, dt = %g, cfl = %g' % (self.num_prop.time_scheme,
+                                                           self.num_prop.schema,
+                                                           self.num_prop.dx, self.dt, self.cfl)
 
     @property
     def cfl(self):
@@ -629,7 +637,7 @@ class ProblemConserv2(Problem):
 
     @property
     def name(self):
-        return 'Forme conservative boniou, ' + super().name
+        return 'EC, ' + super().name
 
     def euler_timestep(self, debug=None, bool_debug=False):
         markers_np1 = self.bulles.copy()
@@ -694,8 +702,8 @@ class ProblemConserv2(Problem):
                                            self.phy_prop.diff * int_div_lda_grad_T))
 
         coeff = np.array([1. / 6, 1 / 3., 1 / 3., 1. / 6])
-        self.flux_conv = np.sum(coeff * np.array(rho_cp_T_u_l), axis=-1)
-        self.flux_diff = np.sum(coeff * np.array(lda_gradT_l), axis=-1)
+        self.flux_conv = np.sum(coeff * np.array(rho_cp_T_u_l).T, axis=-1)
+        self.flux_diff = np.sum(coeff * np.array(lda_gradT_l).T, axis=-1)
         d_rhocpT = np.sum(self.dt * coeff * np.array(K[1:]).T, axis=-1)
         self.T += d_rhocpT
 

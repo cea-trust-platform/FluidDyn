@@ -289,7 +289,7 @@ class ProblemDiscontinu(Problem):
 
     @property
     def name(self):
-        return 'CL energie ' + super().name
+        return 'EFC, ' + super().name
 
     def euler_timestep(self, debug=None, bool_debug=False):
         super().euler_timestep(debug=debug, bool_debug=bool_debug)
@@ -498,7 +498,7 @@ class ProblemDiscontinu2(Problem):
 
     @property
     def name(self):
-        return 'CL température ' + super().name
+        return 'TFC, ' + super().name
 
     def rk4_timestep(self, debug=None, bool_debug=False):
         T_int = self.T.copy()
@@ -723,7 +723,7 @@ class ProblemDiscontinuSautdTdt(Problem):
 
     @property
     def name(self):
-        return 'CL température saut dTdt ' + super().name
+        return 'SEFC ' + super().name
 
 
 class ProblemDiscontinuCoupleConserv(Problem):
@@ -994,4 +994,4 @@ class ProblemDiscontinuFT(Problem):
 
     @property
     def name(self):
-        return 'FT ' + super().name
+        return 'TFF ' + super().name  # température front-fitting

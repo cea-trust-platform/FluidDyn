@@ -607,7 +607,7 @@ class ProblemDiscontinuSautdTdt(Problem):
     """
 
     def __init__(self, T0, markers=None, num_prop=None, phy_prop=None, interp_type=None, deb=False, delta_diff=1.,
-                 delta_conv=1., int_Ti=1.):
+                 delta_conv=1., int_Ti=1., delta_conv2=0.):
         super().__init__(T0, markers, num_prop=num_prop, phy_prop=phy_prop)
         self.deb = deb
         if self.num_prop.schema != 'upwind':
@@ -620,6 +620,7 @@ class ProblemDiscontinuSautdTdt(Problem):
         print(self.interp_type)
         self.delta_diff = delta_diff
         self.delta_conv = delta_conv
+        self.delta_conv2 = delta_conv2
         self.int_Ti = int_Ti
 
     def _init_bulles(self, markers=None):
@@ -682,7 +683,8 @@ class ProblemDiscontinuSautdTdt(Problem):
 
                 # propre à cette version particulière, on calule le saut de dT/dt à l'interface et int_S_Ti_v_n2_dS
                 delta0 = self.delta_diff * (cells.grad_lda_gradT_n_d/rhocpd - cells.grad_lda_gradT_n_g/rhocpg) \
-                    - self.delta_conv * cells.lda_gradTi * (1/ldad - 1/ldag) * self.phy_prop.v
+                    - self.delta_conv * cells.lda_gradTi * (1/ldad - 1/ldag) * self.phy_prop.v \
+                    - self.delta_conv2 * cells.lda_gradTi * (1 / ldad + 1 / ldag) * self.phy_prop.v
 
                 # pour rappel, ici on a divisé l'intégrale par le volume de la cellule comme toutes les intégrales
                 # le signe - vient du fait qu'on calcule pour V2, avec le vecteur normal à I qui est donc dirigé en -x

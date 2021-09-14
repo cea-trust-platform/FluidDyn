@@ -25,7 +25,7 @@ from numba import float64    # import the types
            ('_lda_gradTi', float64), ('ldag', float64), ('ldad', float64), ('rhocpg', float64), ('rhocpd', float64),
            ('ag', float64), ('ad', float64), ('dx', float64), ('vdt', float64), ('Tgc', float64), ('Tdc', float64),
            ('_dTdxg', float64), ('_dTdxd', float64), ('_d2Tdx2g', float64), ('_d2Tdx2d', float64),
-           ('_d3Tdx3g', float64), ('_d3Tdx3d', float64)])
+           ('_d3Tdx3g', float64), ('_d3Tdx3d', float64), ('_T_f', float64[:]), ('_gradT_f', float64[:])])
 class CellsInterface:
     schema_conv: str
     interp_type: str
@@ -90,6 +90,8 @@ class CellsInterface:
         self.interp_type = interp_type
         self.Tgc = -1.
         self.Tdc = -1.
+        self._T_f = np.empty((6,), dtype=np.float_)
+        self._gradT_f = np.empty((6,), dtype=np.float_)
         # On fait tout de suite le calcul qui nous intéresse, il est nécessaire pour la suite
         if self.interp_type == 'Ti':
             self.compute_from_Ti()
@@ -106,6 +108,8 @@ class CellsInterface:
             print('Tg : ', self.Tg)
             print('Td : ', self.Td)
             raise(Exception('Le calcul n a pas marche comme prévu, il reste des nan'))
+        if self.schema_conv == 'weno':
+            self.compute_T_f_gradT_f()
 
     @staticmethod
     def pid_interp(T: float64[:], d: float64[:]) -> float:
@@ -120,6 +124,8 @@ class CellsInterface:
     def T_f(self):
         if self.schema_conv == 'upwind':
             return np.concatenate((self.Tg[:-1], self.Td[:-1]))
+        if self.schema_conv == 'DL':
+            return self._T_f
         # elif self.vdt > 0.:
         #     # on fait un calcul exacte pour la convection, cad qu'on calcule la température moyenne au centre du
         #     # volume qui va passer pour chaque face.
@@ -162,7 +168,10 @@ class CellsInterface:
 
     @property
     def gradT(self) -> np.ndarray((6,), dtype=float):
-        return np.concatenate((self.gradTg, self.gradTd))
+        if self.schema_conv == 'DL':
+            return self._gradT_f
+        else:
+            return np.concatenate((self.gradTg, self.gradTd))
 
     @property
     def rhocp_f(self) -> np.ndarray((6,), dtype=float):
@@ -206,6 +215,22 @@ class CellsInterface:
         #         self.compute_from_ldagradTi_ordre2()
         return self._lda_gradTi
 
+    def compute_T_f_gradT_f(self):
+        Tim52, dTdxim52, Tim32, dTdxim32 = self._interp_lagrange3(self.Tg[0], self.Tg[1], self.Tg[2])
+        Tip32, dTdxip32, Tip52, dTdxip52 = self._interp_lagrange3(self.Td[1], self.Td[2], self.Td[3])
+        self._T_f[0] = Tim52
+        self._T_f[1] = Tim32
+        self._T_f[4] = Tip32
+        self._T_f[5] = Tip52
+        self._T_f[2] = self._T_dlg(0.)
+        self._T_f[3] = self._T_dld(self.dx)
+        self._gradT_f[0] = dTdxim52
+        self._gradT_f[1] = dTdxim32
+        self._gradT_f[4] = dTdxip32
+        self._gradT_f[5] = dTdxip52
+        self._gradT_f[2] = self._gradT_dlg(0.)
+        self._gradT_f[3] = self._gradT_dld(self.dx)
+
     def compute_from_ldagradTi(self):
         """
         Deprecated !!!
@@ -217,12 +242,12 @@ class CellsInterface:
             et Tip1
         """
         lda_gradTg, lda_gradTig, self._lda_gradTi, lda_gradTid, lda_gradTd = \
-            self.get_lda_grad_T_i_from_ldagradT_continuity(self.Tg[1], self.Tg[2], self.Td[1], self.Td[2],
-                                                           (1. + self.ag)*self.dx, (1. + self.ad)*self.dx)
+            self._get_lda_grad_T_i_from_ldagradT_continuity(self.Tg[1], self.Tg[2], self.Td[1], self.Td[2],
+                                                            (1. + self.ag) * self.dx, (1. + self.ad) * self.dx)
 
-        self._Ti = self.get_Ti_from_lda_grad_Ti(self.Tg[-2], self.Td[1],
-                                                (0.5+self.ag)*self.dx, (0.5+self.ad)*self.dx,
-                                                lda_gradTig, lda_gradTid)
+        self._Ti = self._get_Ti_from_lda_grad_Ti(self.Tg[-2], self.Td[1],
+                                                 (0.5+self.ag) * self.dx, (0.5+self.ad) * self.dx,
+                                                 lda_gradTig, lda_gradTid)
         self.Tg[-1] = self.Tg[-2] + lda_gradTg/self.ldag * self.dx
         self.Td[0] = self.Td[1] - lda_gradTd/self.ldad * self.dx
 
@@ -237,13 +262,13 @@ class CellsInterface:
             Calcule les gradients g, I, d, et Ti
         """
         lda_gradTg, lda_gradTig, self._lda_gradTi, lda_gradTid, lda_gradTd = \
-            self.get_lda_grad_T_i_from_ldagradT_interp(self.Tg[0], self.Tg[1], self.Tg[2],
-                                                       self.Td[1], self.Td[2], self.Td[3],
-                                                       self.ag, self.ad)
+            self._get_lda_grad_T_i_from_ldagradT_interp(self.Tg[0], self.Tg[1], self.Tg[2],
+                                                        self.Td[1], self.Td[2], self.Td[3],
+                                                        self.ag, self.ad)
 
-        self._Ti = self.get_Ti_from_lda_grad_Ti(self.Tg[-2], self.Td[1],
-                                                (0.5+self.ag)*self.dx, (0.5+self.ad)*self.dx,
-                                                lda_gradTig, lda_gradTid)
+        self._Ti = self._get_Ti_from_lda_grad_Ti(self.Tg[-2], self.Td[1],
+                                                 (0.5+self.ag) * self.dx, (0.5+self.ad) * self.dx,
+                                                 lda_gradTig, lda_gradTid)
         self.Tg[-1] = self.Tg[-2] + lda_gradTig/self.ldag * self.dx
         self.Td[0] = self.Td[1] - lda_gradTid/self.ldad * self.dx
 
@@ -256,9 +281,9 @@ class CellsInterface:
         Returns:
             Calcule les gradients g, I, d, et Ti
         """
-        self._Ti, self._lda_gradTi = self.get_T_i_and_lda_grad_T_i(self.Tg[-2], self.Td[1],
-                                                                   (1./2 + self.ag) * self.dx,
-                                                                   (1./2 + self.ad) * self.dx)
+        self._Ti, self._lda_gradTi = self._get_T_i_and_lda_grad_T_i(self.Tg[-2], self.Td[1],
+                                                                    (1./2 + self.ag) * self.dx,
+                                                                    (1./2 + self.ad) * self.dx)
         self._dTdxg = self._lda_gradTi/self.ldag
         self._dTdxd = self._lda_gradTi/self.ldad
         grad_Tg = self.pid_interp(np.array([self.gradTg[1], self._lda_gradTi/self.ldag]),
@@ -283,10 +308,10 @@ class CellsInterface:
             Calcule les gradients g, I, d, et Ti
         """
         self._Ti, self._lda_gradTi, self._d2Tdx2g, self._d2Tdx2d = \
-            self.get_T_i_and_lda_grad_T_i2(self.Tg[-2], self.Td[1], self.Tg[-3], self.Td[2],
-                                           (1./2 + self.ag) * self.dx, (1./2 + self.ad) * self.dx)
-        self.Tg[-1] = self.T_dlg(0.5*self.dx)
-        self.Td[0] = self.T_dld(0.5*self.dx)
+            self._get_T_i_and_lda_grad_T_i2(self.Tg[-2], self.Td[1], self.Tg[-3], self.Td[2],
+                                            (1./2 + self.ag) * self.dx, (1./2 + self.ad) * self.dx)
+        self.Tg[-1] = self._T_dlg(0.5 * self.dx)
+        self.Td[0] = self._T_dld(0.5 * self.dx)
 
     def compute_from_Ti3(self):
         """
@@ -298,10 +323,10 @@ class CellsInterface:
             Calcule les gradients g, I, d, et Ti
         """
         self._Ti, self._lda_gradTi, self._d2Tdx2g, self._d2Tdx2d, self._d3Tdx3g, self._d3Tdx3d = \
-            self.get_T_i_and_lda_grad_T_i3(self.Tg[-2], self.Td[1], self.Tg[-3], self.Td[2], self.Tg[-4], self.Td[3],
-                                           (1./2 + self.ag) * self.dx, (1./2 + self.ad) * self.dx)
-        self.Tg[-1] = self.T_dlg(0.5*self.dx)
-        self.Td[0] = self.T_dld(0.5*self.dx)
+            self._get_T_i_and_lda_grad_T_i3(self.Tg[-2], self.Td[1], self.Tg[-3], self.Td[2], self.Tg[-4], self.Td[3],
+                                            (1./2 + self.ag) * self.dx, (1./2 + self.ad) * self.dx)
+        self.Tg[-1] = self._T_dlg(0.5 * self.dx)
+        self.Td[0] = self._T_dld(0.5 * self.dx)
 
     def _compute_Tgc_Tdc(self, h: float, T_mean: float):
         """
@@ -350,8 +375,8 @@ class CellsInterface:
     """
         self._compute_Tgc_Tdc(h, T_mean)
         # On commence par calculer T_I et lda_grad_Ti en fonction de Tgc et Tdc :
-        self._Ti, self._lda_gradTi = self.get_T_i_and_lda_grad_T_i(self.Tgc, self.Tdc, self.ag / 2. * self.dx,
-                                                                   self.ad / 2. * self.dx)
+        self._Ti, self._lda_gradTi = self._get_T_i_and_lda_grad_T_i(self.Tgc, self.Tdc, self.ag / 2. * self.dx,
+                                                                    self.ad / 2. * self.dx)
 
         # Calcul des gradient aux faces
 
@@ -371,7 +396,7 @@ class CellsInterface:
         gradTd = self.pid_interp(gradTd_v, dist)
         self.Td[0] = self.Td[1] - self.dx * gradTd
 
-    def get_T_i_and_lda_grad_T_i(self, Tg: float, Td: float, dg: float, dd: float) -> (float, float):
+    def _get_T_i_and_lda_grad_T_i(self, Tg: float, Td: float, dg: float, dd: float) -> (float, float):
         """
         On utilise la continuité de lad_grad_T pour interpoler linéairement à partir des valeurs en im32 et ip32
         On retourne les gradients suivants ::
@@ -392,8 +417,8 @@ class CellsInterface:
         lda_grad_T_id = self.ldad * (Td - T_i)/dd
         return T_i, (lda_grad_T_ig + lda_grad_T_id)/2.
 
-    def get_T_i_and_lda_grad_T_i2(self, Tg: float, Td: float, Tgg: float, Tdd: float, dg: float,
-                                  dd: float) -> (float, float, float, float):
+    def _get_T_i_and_lda_grad_T_i2(self, Tg: float, Td: float, Tgg: float, Tdd: float, dg: float,
+                                   dd: float) -> (float, float, float, float):
         """
         On utilise la continuité de lad_grad_T pour interpoler linéairement à partir des valeurs en im32 et ip32
         On retourne les gradients suivants ::
@@ -421,8 +446,8 @@ class CellsInterface:
         lda_grad_T = self.ldag * dTdxg
         return T_i, lda_grad_T, d2Tdx2g, d2Tdx2d
 
-    def get_T_i_and_lda_grad_T_i3(self, Tg: float, Td: float, Tgg: float, Tdd: float, Tggg: float, Tddd: float,
-                                  dg: float, dd: float) -> (float, float, float, float, float, float):
+    def _get_T_i_and_lda_grad_T_i3(self, Tg: float, Td: float, Tgg: float, Tdd: float, Tggg: float, Tddd: float,
+                                   dg: float, dd: float) -> (float, float, float, float, float, float):
         """
         On utilise la continuité de lad_grad_T et on écrit un DL à l'ordre 3 à droite et à gauche.
         On retourne les gradients suivants ::
@@ -454,16 +479,38 @@ class CellsInterface:
         lda_grad_T = self.ldag * dTdxg
         return T_i, lda_grad_T, d2Tdx2g, d2Tdx2d, d3Tdx3g, d3Tdx3d
 
-    def T_dlg(self, x: float) -> float:
+    def _T_dlg(self, x: float) -> float:
         xi = self.ag*self.dx
         return self.Ti + (x - xi) * self._dTdxg + (x - xi)**2/2. * self._d2Tdx2g + (x - xi)**3/6. * self._d3Tdx3g
 
-    def T_dld(self, x: float) -> float:
+    def _T_dld(self, x: float) -> float:
         xi = self.ag*self.dx
         return self.Ti + (x - xi) * self._dTdxd + (x - xi)**2/2. * self._d2Tdx2d + (x - xi)**3/6. * self._d3Tdx3d
 
-    def get_lda_grad_T_i_from_ldagradT_continuity(self, Tim2: float, Tim1: float, Tip1: float,
-                                                  Tip2: float, dg: float, dd: float) -> (float, float, float,
+    def _gradT_dlg(self, x: float) -> float:
+        xi = self.ag*self.dx
+        return self._dTdxg + (x - xi) * self._d2Tdx2g + (x - xi)**2/2. * self._d3Tdx3g
+
+    def _gradT_dld(self, x: float) -> float:
+        xi = self.ag*self.dx
+        return self._dTdxd + (x - xi) * self._d2Tdx2d + (x - xi)**2/2. * self._d3Tdx3d
+
+    def _interp_lagrange3(self, T0: float, T1: float, T2: float) -> (float, float, float, float):
+        d12 = self.dx/2
+        d32 = self.dx * 3/2.
+        d0, d1, d2 = 0., self.dx, 2.*self.dx
+        mat12 = np.array([[1., (d0 - d12), (d0 - d12)**2/2],
+                          [1., (d1 - d12), (d1 - d12)**2/2],
+                          [1., (d2 - d12), (d2 - d12)**2/2]], dtype=np.float_)
+        T12, dTdx12, _ = np.dot(np.linalg.inv(mat12), np.array([T0, T1, T2]))
+        mat32 = np.array([[1., (d0 - d32), (d0 - d32)**2/2],
+                          [1., (d1 - d32), (d1 - d32)**2/2],
+                          [1., (d2 - d32), (d2 - d32)**2/2]], dtype=np.float_)
+        T32, dTdx32, _ = np.dot(np.linalg.inv(mat32), np.array([T0, T1, T2]))
+        return T12, dTdx12, T32, dTdx32
+
+    def _get_lda_grad_T_i_from_ldagradT_continuity(self, Tim2: float, Tim1: float, Tip1: float,
+                                                   Tip2: float, dg: float, dd: float) -> (float, float, float,
                                                                                          float, float):
         """
         On utilise la continuité de lad_grad_T pour interpoler linéairement à partir des valeurs en im32 et ip32
@@ -493,9 +540,9 @@ class CellsInterface:
         lda_gradTd = self.pid_interp(np.array([ldagradTgg, ldagradTdd]), np.array([2.*self.dx, self.dx]))
         return lda_gradTg, lda_gradTgi, lda_gradTi, lda_gradTdi, lda_gradTd
 
-    def get_lda_grad_T_i_from_ldagradT_interp(self, Tim3: float, Tim2: float, Tim1: float,
-                                              Tip1: float, Tip2: float, Tip3: float,
-                                              ag: float, ad: float) -> (float, float, float, float, float):
+    def _get_lda_grad_T_i_from_ldagradT_interp(self, Tim3: float, Tim2: float, Tim1: float,
+                                               Tip1: float, Tip2: float, Tip3: float,
+                                               ag: float, ad: float) -> (float, float, float, float, float):
         """
         On utilise la continuité de lad_grad_T pour extrapoler linéairement par morceau à partir des valeurs en im52,
         im32, ip32 et ip52. On fait ensuite la moyenne des deux valeurs trouvées.
@@ -534,8 +581,8 @@ class CellsInterface:
         lda_gradTdi = self.pid_interp(np.array([lda_gradTi, lda_gradTip32]), np.array([ddi/2., self.dx/2 + ddi/2.]))
         return lda_gradTg, lda_gradTgi, lda_gradTi, lda_gradTdi, lda_gradTd
 
-    def get_Ti_from_lda_grad_Ti(self, Tim1: float, Tip1: float, dg: float, dd: float,
-                                lda_gradTgi: float, lda_gradTdi: float) -> float:
+    def _get_Ti_from_lda_grad_Ti(self, Tim1: float, Tip1: float, dg: float, dd: float,
+                                 lda_gradTgi: float, lda_gradTdi: float) -> float:
         if self.ldag > self.ldad:
             Ti = Tim1 + lda_gradTgi/self.ldag * dg
         else:
@@ -695,6 +742,6 @@ class CellsSuiviInterface:
     #     Returns:
     #         Calcule les gradients g, I, d, et Ti
     #     """
-    #     self._Tj, self._lda_gradTj = get_T_i_and_lda_grad_T_i(self.ldag, self.ldad, self.Tj[2], self.Tj[3],
+    #     self._Tj, self._lda_gradTj = _get_T_i_and_lda_grad_T_i(self.ldag, self.ldad, self.Tj[2], self.Tj[3],
     #                                                           (1. + self.ag) / 2. * self.dx,
     #                                                           (1. + self.ad) / 2. * self.dx)

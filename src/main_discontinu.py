@@ -610,8 +610,8 @@ class ProblemDiscontinuSautdTdt(Problem):
                  delta_conv=1., int_Ti=1., delta_conv2=0.):
         super().__init__(T0, markers, num_prop=num_prop, phy_prop=phy_prop)
         self.deb = deb
-        if self.num_prop.schema != 'upwind':
-            raise Exception('Cette version ne marche que pour un schéma upwind')
+        # if self.num_prop.schema != 'upwind':
+        #     raise Exception('Cette version ne marche que pour un schéma upwind')
         self.T_old = self.T.copy()
         if interp_type is None:
             self.interp_type = 'Ti'

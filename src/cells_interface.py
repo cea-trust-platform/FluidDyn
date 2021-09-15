@@ -511,7 +511,7 @@ class CellsInterface:
 
     def _get_lda_grad_T_i_from_ldagradT_continuity(self, Tim2: float, Tim1: float, Tip1: float,
                                                    Tip2: float, dg: float, dd: float) -> (float, float, float,
-                                                                                         float, float):
+                                                                                          float, float):
         """
         On utilise la continuité de lad_grad_T pour interpoler linéairement à partir des valeurs en im32 et ip32
         On retourne les gradients suivants ::

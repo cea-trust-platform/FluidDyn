@@ -206,8 +206,8 @@ class ProblemDiscontinu(Problem):
 
     def __init__(self, T0, markers=None, num_prop=None, phy_prop=None, interp_type=None):
         super().__init__(T0, markers, num_prop=num_prop, phy_prop=phy_prop)
-        if self.num_prop.schema != 'upwind':
-            raise Exception('Cette version ne marche que pour un schéma upwind')
+        # if self.num_prop.schema != 'upwind':
+        #     raise Exception('Cette version ne marche que pour un schéma upwind')
         self.T_old = self.T.copy()
         if interp_type is None:
             self.interp_type = 'Ti'
@@ -319,7 +319,7 @@ class ProblemDiscontinu(Problem):
 
             rho_cp_f = interpolate(self.rho_cp_a, schema=self.num_prop.schema)
             int_div_rho_cp_u = integrale_vol_div(rho_cp_f, self.num_prop.dx)
-            rho_cp_etoile = self.rho_cp_a - h * self.dt * int_div_rho_cp_u
+            # rho_cp_etoile = self.rho_cp_a - h * self.dt * int_div_rho_cp_u
             rho_cp_inv_h = temp_I / self.phy_prop.rho_cp1 + (1. - temp_I) / self.phy_prop.rho_cp2
             rho_cp_inv_int_div_lda_grad_T = self.phy_prop.diff * rho_cp_inv_h * div_lda_grad_T
 
@@ -728,6 +728,133 @@ class ProblemDiscontinuSautdTdt(Problem):
         return 'SEFC ' + super().name
 
 
+class ProblemDiscontinuSepIntT(Problem):
+    T: np.ndarray
+    I: np.ndarray
+    bulles: BulleTemperature
+
+    """
+    Cette classe résout le problème en 3 étapes :
+
+        - on calcule le nouveau T comme avant 
+        - on met à jour T_i et lda_grad_T_i avec l'ancienne température
+        - on calcule précisemment selon la méthode choisie les flux à l'interface et les moyennes des propriétés 
+          diphasiques à prendre ou non (on se base dans tous les cas sur les propriétés interfaciales
+        - 
+
+    Elle résout donc le problème de manière complètement monophasique et recolle à l'interface en imposant la
+    continuité de lda_grad_T et T à l'interface.
+
+    Args:
+        T0: la fonction initiale de température
+        markers: les bulles
+        num_prop: les propriétés numériques du calcul
+        phy_prop: les propriétés physiques du calcul
+    """
+
+    def __init__(self, T0, markers=None, num_prop=None, phy_prop=None, interp_type=None, deb=False, delta_diff=1.,
+                 delta_conv=1., int_Ti=1., delta_conv2=0.):
+        super().__init__(T0, markers, num_prop=num_prop, phy_prop=phy_prop)
+        self.deb = deb
+        # if self.num_prop.schema != 'upwind':
+        #     raise Exception('Cette version ne marche que pour un schéma upwind')
+        self.T_old = self.T.copy()
+        if interp_type is None:
+            self.interp_type = 'Ti'
+        else:
+            self.interp_type = interp_type
+        print(self.interp_type)
+        self.delta_diff = delta_diff
+        self.delta_conv = delta_conv
+        self.delta_conv2 = delta_conv2
+        self.int_Ti = int_Ti
+
+    def _init_bulles(self, markers=None):
+        if markers is None:
+            return BulleTemperature(markers=markers, phy_prop=self.phy_prop, x=self.num_prop.x)
+        elif isinstance(markers, BulleTemperature):
+            return markers.copy()
+        elif isinstance(markers, Bulles):
+            return BulleTemperature(markers=markers.markers, phy_prop=self.phy_prop, x=self.num_prop.x)
+        else:
+            print(markers)
+            raise NotImplementedError
+
+    def _corrige_interface(self):
+        """
+        Dans cette approche on calclue Ti et lda_gradTi soit en utilisant la continuité avec Tim1 et Tip1, soit en
+        utilisant la continuité des lda_grad_T calculés avec Tim2, Tim1, Tip1 et Tip2.
+        Dans les deux cas il est à noter que l'on utilise pas les valeurs présentes dans la cellule de l'interface.
+        On en déduit ensuite les gradients de température aux faces, et les températures aux faces.
+
+        Returns:
+            Rien, mais met à jour T en le remplaçant par les nouvelles valeurs à proximité de l'interface, puis met à
+            jour T_old
+        """
+        dx = self.num_prop.dx
+
+        for i_int, (i1, i2) in enumerate(self.bulles.ind):
+            # i_int sert à aller chercher les valeurs aux interfaces, i1 et i2 servent à aller chercher les valeurs sur
+            # le maillage cartésien
+
+            for ist, i in enumerate((i1, i2)):
+                if i == i1:
+                    from_liqu_to_vap = True
+                else:
+                    from_liqu_to_vap = False
+                im3, im2, im1, i0, ip1, ip2, ip3 = cl_perio(len(self.T), i)
+
+                # On calcule gradTg, gradTi, Ti, gradTd
+
+                ldag, rhocpg, ag, ldad, rhocpd, ad = get_prop(self, i, liqu_a_gauche=from_liqu_to_vap)
+                cells = CellsInterface(ldag, ldad, ag, dx, self.T_old[[im3, im2, im1, i0, ip1, ip2, ip3]],
+                                       rhocpg=rhocpg, rhocpd=rhocpd, interp_type=self.interp_type)
+                rhocp = np.array([rhocpg, rhocpg, np.nan, rhocpd, rhocpd])  # le coeff du milieu est mis à nan pour
+                # éviter de faire l'erreur de prendre en compte les valeurs intégrées dans la cellule diphasique.
+
+                # post-traitements
+
+                self.bulles.T[i_int, ist] = cells.Ti
+                self.bulles.lda_grad_T[i_int, ist] = cells.lda_gradTi
+                self.bulles.Tg[i_int, ist] = cells.Tg[-1]
+                self.bulles.Td[i_int, ist] = cells.Td[0]
+                self.bulles.gradTg[i_int, ist] = cells.gradTg[-1]
+                self.bulles.gradTd[i_int, ist] = cells.gradTd[0]
+
+                # Correction des cellules i0 - 1 à i0 + 1 inclue
+                # DONE: l'écrire en version flux pour être sûr de la conservation
+                dx = self.num_prop.dx
+                T_u = cells.T_f * self.phy_prop.v
+                int_div_T_u = integrale_vol_div(T_u, dx)
+                lda_grad_T = cells.lda_f * cells.gradT
+                rhocp_inv_int_div_lda_grad_T = integrale_vol_div(lda_grad_T, dx) / rhocp
+                rhocp_inv_int_div_lda_grad_T[2] = 1/dx * (-1./rhocpg*lda_grad_T[2] + 1./rhocpd*lda_grad_T[3]
+                                                          + (1./rhocpd - 1./rhocpg)*cells.lda_gradTi)
+
+                # Correction des cellules
+                ind_to_change = [im2, im1, i0, ip1, ip2]
+                ind_flux = [im2, im1, i0, ip1, ip2, ip3]
+                self.flux_conv[ind_flux] = T_u
+                self.flux_diff[ind_flux] = lda_grad_T
+                if self.deb:
+                    pass
+
+                # on écrit l'équation en température, ça me semble peut être mieux ?
+                # Tnp1 = Tn + dt (- int_S_rho_cp_T_u + int_S_lda_grad_T
+                #                 - delta * I2 * (rhocp2 - rhocpa) - [rhocp] * int_S_Ti_v_n2_dS) / rhocpa
+                self.T[ind_to_change] = self.T_old[ind_to_change] \
+                    + self.dt * (-int_div_T_u + self.phy_prop.diff * rhocp_inv_int_div_lda_grad_T)
+        self.T_old = self.T.copy()
+
+    def euler_timestep(self, debug=None, bool_debug=False):
+        super().euler_timestep(debug=debug, bool_debug=bool_debug)
+        self._corrige_interface()
+
+    @property
+    def name(self):
+        return 'SEFC ' + super().name
+
+
 class ProblemDiscontinuCoupleConserv(Problem):
     T: np.ndarray
     I: np.ndarray
@@ -825,7 +952,7 @@ class ProblemDiscontinuCoupleConserv(Problem):
 
                 # propre à cette version particulière, on calule le saut de dT/dt à l'interface et int_S_Ti_v_n2_dS
                 delta0 = (cells.grad_lda_gradT_n_d/rhocpd - cells.grad_lda_gradT_n_g/rhocpg) \
-                         - cells.lda_gradTi * (1/ldad - 1/ldag) * self.phy_prop.v
+                    - cells.lda_gradTi * (1/ldad - 1/ldag) * self.phy_prop.v
 
                 # pour rappel, ici on a divisé l'intégrale par le volume de la cellule comme toutes les intégrales
                 # le signe - vient du fait qu'on calcule pour V2, avec le vecteur normal à I qui est donc dirigé en -x
@@ -881,6 +1008,7 @@ class ProblemDiscontinuCoupleConserv(Problem):
     @property
     def name(self):
         return 'CL température saut dTdt ' + super().name
+
 
 def cl_perio(n, i):
     im1 = (i - 1) % n

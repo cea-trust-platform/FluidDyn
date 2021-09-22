@@ -199,25 +199,29 @@ def grad(center_value, dx=1., cl=1):
     return gradient
 
 
-def grad_center(center_value, dx=1., cl=1):
+def grad_center4(center_value, dx=1., cl=1):
     """
-    Ce schéma calcule les gradients aux éléments, c'est expérimental pour avoir un lda_grad_T plus continu
+    Calcule le gradient aux faces
 
     Args:
-        center_value:
-        dx:
-        cl:
+        center_value: globalement lambda
+        cl: si cl = 1 les gradients aux bords sont périodiques
+        dx: le delta x
 
     Returns:
-        les gradients au centres des cellules
+        le gradient aux faces
     """
     if len(center_value.shape) != 1:
         raise NotImplementedError
+    gradient = np.zeros(center_value.shape[0] + 1)
+    gradient[2:-2] = (9./8*(center_value[2:-1] - center_value[1:-2]) - 1./24*(center_value[3:] - center_value[:-4])) / dx
     if cl == 1:
-        center_extended = np.r_[center_value[-1], center_value, center_value[0]]
+        gradient[0] = (9./8*(center_value[0] - center_value[-1]) - 1/24*(center_value[1] - center_value[-2])) / dx
+        gradient[-1] = gradient[0]  # periodicity
+        gradient[1] = (9./8*(center_value[1] - center_value[0]) - 1/24*(center_value[2] - center_value[-1])) / dx
+        gradient[-2] = (9./8*(center_value[-1] - center_value[-2]) - 1/24*(center_value[0] - center_value[-3])) / dx
     else:
         raise NotImplementedError
-    gradient = (center_extended[2:] - center_extended[:-2]) / (2. * dx)
     return gradient
 
 
@@ -555,6 +559,8 @@ class Problem:
                 self.euler_timestep(debug=debug, bool_debug=(i % plot_for_each == 0))
             elif self.num_prop.time_scheme is 'rk4':
                 self.rk4_timestep(debug=debug, bool_debug=(i % plot_for_each == 0))
+            elif self.num_prop.time_scheme is 'rk3':
+                self.rk3_timestep(debug=debug, bool_debug=(i % plot_for_each == 0))
             self.update_markers()
             self.time += self.dt
             self.iter += 1
@@ -586,6 +592,62 @@ class Problem:
             debug.legend()
         rho_cp_inv_h = 1. / self.rho_cp_h
         self.T += self.dt * (-int_div_T_u + self.phy_prop.diff * rho_cp_inv_h * int_div_lda_grad_T)
+
+    def compute_dT_dt(self, T, bulles, bool_debug=False, debug=None):
+        indic = bulles.indicatrice_liquide(self.num_prop.x)
+        T_u = interpolate(T, I=indic, schema=self.num_prop.schema) * self.phy_prop.v
+        int_div_T_u = integrale_vol_div(T_u, self.num_prop.dx)
+
+        Lda_h = 1. / (indic / self.phy_prop.lda1 + (1. - indic) / self.phy_prop.lda2)
+        lda_grad_T = interpolate(Lda_h, I=indic, schema=self.num_prop.schema) * grad(T, self.num_prop.dx)
+        div_lda_grad_T = integrale_vol_div(lda_grad_T, self.num_prop.dx)
+
+        rho_cp_inv_h = indic / self.phy_prop.rho_cp1 + (1. - indic) / self.phy_prop.rho_cp2
+        rho_cp_inv_int_div_lda_grad_T = self.phy_prop.diff * rho_cp_inv_h * div_lda_grad_T
+        dTdt = - int_div_T_u + rho_cp_inv_int_div_lda_grad_T
+        if (debug is not None) and bool_debug:
+            # debug.set_title('sous-pas de temps %f' % (len(K) - 2))
+            debug.plot(self.num_prop.x_f,
+                       lda_grad_T,
+                       label='lda_h grad T, time = %f' % self.time)
+            debug.plot(self.num_prop.x, rho_cp_inv_h, label='rho_cp_inv_h, time = %f' % self.time)
+            debug.plot(self.num_prop.x, div_lda_grad_T, label='div_lda_grad_T, time = %f' % self.time)
+            maxi = max(np.max(div_lda_grad_T), np.max(rho_cp_inv_int_div_lda_grad_T), np.max(rho_cp_inv_h))
+            mini = min(np.min(div_lda_grad_T), np.min(rho_cp_inv_int_div_lda_grad_T), np.min(rho_cp_inv_h))
+            for markers in bulles():
+                debug.plot([markers[0]] * 2, [mini, maxi], '--')
+                debug.plot([markers[1]] * 2, [mini, maxi], '--')
+                debug.set_xticks(self.num_prop.x_f)
+                debug.grid(b=True, which='major')
+                debug.legend()
+        return T_u, lda_grad_T, dTdt
+
+    def rk3_timestep(self, debug=None, bool_debug=False):
+        T_int = self.T.copy()
+        markers_int = self.bulles.copy()
+        K = 0.
+        # convection_l = []
+        # conduction_l = []
+        # pas_de_temps = np.array([0, 1/3., 3./4])
+        coeff_h = np.array([1./3, 5./12, 1./4])
+        coeff_dTdtm1 = np.array([0., -5./9, -153./128])
+        coeff_dTdt = np.array([1., 4./9, 15./32])
+        for step, h in enumerate(coeff_h):
+            convection, conduction, dTdt = self.compute_dT_dt(T_int, markers_int, bool_debug, debug)
+            K = K * coeff_dTdtm1[step] + dTdt
+            if bool_debug and (debug is not None):
+                print('step : ', step)
+                print('dTdt : ', dTdt)
+                print('K    : ', K)
+            T_int += h * self.dt * K / coeff_dTdt[step]  # coeff_dTdt est calculé de
+            # sorte à ce que le coefficient total devant les dérviées vale 1.
+            # convection_l.append(convection)
+            # conduction_l.append(conduction)
+            markers_int.shift(self.phy_prop.v * h * self.dt)
+        # coeff = np.array([1./6, 3./10, 8/15.])
+        # self.flux_conv = np.sum(coeff * np.array(convection_l).T, axis=-1)
+        # self.flux_diff = np.sum(coeff * np.array(conduction_l).T, axis=-1)
+        self.T = T_int
 
     def rk4_timestep(self, debug=None, bool_debug=False):
         T_int = self.T.copy()

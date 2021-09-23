@@ -31,6 +31,10 @@ def interpolate(center_value, I=None, cl=1, schema='weno', cv_0=0., cv_n=0.):
         interpolated_value = interpolate_from_center_to_face_upwind(center_value, cl=cl, cv_0=cv_0)
     elif schema is 'center':
         interpolated_value = interpolate_from_center_to_face_center(center_value, cl=cl, cv_0=cv_0, cv_n=cv_n)
+    elif schema is 'center_h':
+        interpolated_value = interpolate_from_center_to_face_center_h(center_value, cl=cl, cv_0=cv_0, cv_n=cv_n)
+    elif schema is 'quick':
+        interpolated_value = interpolate_from_center_to_face_quick(center_value, cl=cl, cv_0=cv_0, cv_n=cv_n)
     elif schema is 'weno':
         interpolated_value = interpolate_from_center_to_face_weno(center_value, cl=cl, cv_0=cv_0, cv_n=cv_n)
     elif schema == 'weno upwind':
@@ -57,6 +61,21 @@ def interpolate_from_center_to_face_center(center_value, cl=1, cv_0=0., cv_n=0.)
         interpolated_value[-1] = (center_value[-1] + cv_n) / 2.
     else:
         raise NotImplementedError
+    return interpolated_value
+
+
+def interpolate_from_center_to_face_center_h(center_value, cl=1, cv_0=0., cv_n=0.):
+    ext_center = np.zeros((center_value.shape[0] + 2,))
+    ext_center[1:-1] = center_value
+
+    if cl == 1:
+        ext_center[0] = center_value[-1]
+        ext_center[-1] = center_value[0]
+    else:
+        raise NotImplementedError
+    cent0 = ext_center[:-1]
+    cent1 = ext_center[1:]
+    interpolated_value = cent0*cent1 / (cent1 + cent0) * 2.
     return interpolated_value
 
 
@@ -120,6 +139,64 @@ def interpolate_from_center_to_face_weno(a, cl=1, cv_0=0., cv_n=0.):
     w2 /= sum_w
     w3 /= sum_w
     interpolated_value = f1 * w1 + f2 * w2 + f3 * w3
+    return interpolated_value
+
+
+def interpolate_from_center_to_face_quick(a, cl=1, cv_0=0., cv_n=0.):
+    """
+    Quick scheme, in this case upwind is always on the left side.
+
+    Args:
+        cv_n: center value at n+1
+        cv_0: center value at -1
+        a: the scalar value at the center of the cell
+        cl: conditions aux limites, cl = 1: périodicité, cl=0 valeurs imposées aux bords à cv_0 et cv_n avec gradients
+            nuls
+
+    Returns:
+        les valeurs interpolées aux faces de la face -1/2 à la face n+1/2
+    """
+    center_values = np.empty(a.size + 4)
+    if cl == 1:
+        center_values[:2] = a[-2:]
+        center_values[2:-2] = a
+        center_values[-2:] = a[:2]
+    elif cl == 0:
+        center_values[:2] = cv_0
+        center_values[2:-2] = a
+        center_values[-2:] = cv_n
+    else:
+        raise NotImplementedError
+    t0 = center_values[:-2]
+    t1 = center_values[1:-1]
+    t2 = center_values[2:]
+    curv = (t2 - t1) - (t1 - t0)  # curv est trop long de 1 devant et derrière
+    curv = curv[:-1]  # selection du curv amont, curv commence donc à -1 et finit à n
+
+    smax = np.where(t2 > t0, t2, t0)
+    smin = np.where(t2 < t0, t2, t0)
+    dmax = smax - smin
+    DMINFLOAT = 10.**-30
+    ds = np.where(np.abs(dmax) > DMINFLOAT, dmax, 1.)
+    fram = np.where(np.abs(dmax) > DMINFLOAT, ((t1 - smin) / ds * 2. - 1.)**3, 0.)
+    fram = np.where(fram < 1., fram, 1.)  # idem fram est trop long de 1 devant et derrière
+    fram = np.where(fram[1:] > fram[:-1], fram[1:], fram[:-1])  # selection du max entre fram(i-1) et fram(i), fram est
+    # de taille n+1
+    # print('t1 : ')
+    # print(t1)
+    # print('curv, fram : ')
+    # print(curv)
+    # print(fram)
+    # print('center interp : ')
+    tamont = t1[:-1]
+    taval = t1[1:]
+    # print((tamont + taval)/2.)
+    interp_1 = (tamont + taval)/2. - 1./8. * curv #+ 1/4. * tamont
+    # print('flux, interp_value : ')
+    # print(interp_1)
+    interpolated_value = (1. - fram) * interp_1 + fram * tamont
+    # interpolated_value = interp_1
+    # print(interpolated_value)
     return interpolated_value
 
 
@@ -576,7 +653,8 @@ class Problem:
     def euler_timestep(self, debug=None, bool_debug=False):
         self.flux_conv = interpolate(self.T, I=self.I, schema=self.num_prop.schema) * self.phy_prop.v
         int_div_T_u = integrale_vol_div(self.flux_conv, self.num_prop.dx)
-        self.flux_diff = interpolate(self.Lda_h, I=self.I, schema=self.num_prop.schema) * grad(self.T, self.num_prop.dx)
+        # self.flux_diff = interpolate(self.Lda_h, I=self.I, schema=self.num_prop.schema) * grad(self.T, self.num_prop.dx)
+        self.flux_diff = interpolate(self.Lda_h, I=self.I, schema='center_h') * grad(self.T, self.num_prop.dx)
         int_div_lda_grad_T = integrale_vol_div(self.flux_diff, self.num_prop.dx)
 
         if (debug is not None) and bool_debug:
@@ -599,7 +677,8 @@ class Problem:
         int_div_T_u = integrale_vol_div(T_u, self.num_prop.dx)
 
         Lda_h = 1. / (indic / self.phy_prop.lda1 + (1. - indic) / self.phy_prop.lda2)
-        lda_grad_T = interpolate(Lda_h, I=indic, schema=self.num_prop.schema) * grad(T, self.num_prop.dx)
+        # lda_grad_T = interpolate(Lda_h, I=indic, schema=self.num_prop.schema) * grad(T, self.num_prop.dx)
+        lda_grad_T = interpolate(Lda_h, I=indic, schema='center_h') * grad(T, self.num_prop.dx)
         div_lda_grad_T = integrale_vol_div(lda_grad_T, self.num_prop.dx)
 
         rho_cp_inv_h = indic / self.phy_prop.rho_cp1 + (1. - indic) / self.phy_prop.rho_cp2
@@ -665,7 +744,8 @@ class Problem:
             int_div_T_u = integrale_vol_div(T_u, self.num_prop.dx)
 
             Lda_h = 1. / (temp_I / self.phy_prop.lda1 + (1. - temp_I) / self.phy_prop.lda2)
-            lda_grad_T = interpolate(Lda_h, I=temp_I, schema=self.num_prop.schema) * grad(T, self.num_prop.dx)
+            # lda_grad_T = interpolate(Lda_h, I=temp_I, schema=self.num_prop.schema) * grad(T, self.num_prop.dx)
+            lda_grad_T = interpolate(Lda_h, I=temp_I, schema='center_h') * grad(T, self.num_prop.dx)
             lda_gradT_l.append(lda_grad_T)
             div_lda_grad_T = integrale_vol_div(lda_grad_T, self.num_prop.dx)
 
@@ -711,7 +791,8 @@ class ProblemConserv2(Problem):
         self.flux_conv = interpolate(self.rho_cp_a * self.T, I=self.I, schema=self.num_prop.schema) * self.phy_prop.v
         int_div_rho_cp_T_u = integrale_vol_div(self.flux_conv, self.num_prop.dx)
 
-        self.flux_diff = interpolate(self.Lda_h, I=self.I, schema=self.num_prop.schema) * grad(self.T, self.num_prop.dx)
+        # self.flux_diff = interpolate(self.Lda_h, I=self.I, schema=self.num_prop.schema) * grad(self.T, self.num_prop.dx)
+        self.flux_diff = interpolate(self.Lda_h, I=self.I, schema='center_h') * grad(self.T, self.num_prop.dx)
         int_div_lda_grad_T = integrale_vol_div(self.flux_diff, self.num_prop.dx)
 
         if (debug is not None) and bool_debug:
@@ -756,7 +837,8 @@ class ProblemConserv2(Problem):
             int_div_rho_cp_T_u = integrale_vol_div(rho_cp_T_u, self.num_prop.dx)
 
             Lda_h = 1. / (temp_I / self.phy_prop.lda1 + (1. - temp_I) / self.phy_prop.lda2)
-            lda_grad_T = interpolate(Lda_h, I=temp_I, schema=self.num_prop.schema) * grad(T, self.num_prop.dx)
+            # lda_grad_T = interpolate(Lda_h, I=temp_I, schema=self.num_prop.schema) * grad(T, self.num_prop.dx)
+            lda_grad_T = interpolate(Lda_h, I=temp_I, schema='center_h') * grad(T, self.num_prop.dx)
             lda_gradT_l.append(lda_grad_T)
             int_div_lda_grad_T = integrale_vol_div(lda_grad_T, self.num_prop.dx)
 

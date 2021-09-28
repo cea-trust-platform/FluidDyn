@@ -128,7 +128,7 @@ class ProblemDiscontinuEnergieTemperature(Problem):
             print(markers)
             raise NotImplementedError
 
-    def euler_timestep(self, debug=None, bool_debug=False):
+    def _euler_timestep(self, debug=None, bool_debug=False):
         # on devrait plutôt calculer les flux, les stocker
         self.flux_conv = interpolate(self.T, cl=1, schema='weno') * self.phy_prop.v
         self.flux_conv_energie = interpolate(self.rho_cp_a*self.T, cl=1, schema='weno') * self.phy_prop.v

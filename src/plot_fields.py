@@ -16,12 +16,14 @@ import matplotlib.pyplot as plt
 
 
 class Plotter:
-    def __init__(self, cas='classic', lda_gradT=False):
+    def __init__(self, cas='classic', lda_gradT=False, flux_conv=False):
         self._cas = cas
         self.fig = None
         self.ax = None
         self.ax2 = None
+        self.ax3 = None
         self.lda_gradT = lda_gradT
+        self.flux_conv = flux_conv
 
     @property
     def cas(self):
@@ -33,26 +35,31 @@ class Plotter:
         print("plotter mode changed to %s" % value)
 
     def plot(self, problem):
+        if (self.fig is None) or (self.ax is None):
+            if isinstance(problem.bulles, BulleTemperature) and (self.lda_gradT or self.flux_conv):
+                self.fig, (self.ax, self.ax2) = plt.subplots(2, sharex='all')
+            else:
+                self.fig, self.ax = plt.subplots(1)
+            if isinstance(problem.bulles, BulleTemperature) and self.lda_gradT and self.flux_conv:
+                self.ax3 = self.ax2.twinx()
+            elif isinstance(problem.bulles, BulleTemperature) and (not self.lda_gradT) and self.flux_conv:
+                self.ax3 = self.ax2
+                self.ax2 = None
         if self.cas is 'classic':
-            self.fig, self.ax, self.ax2 = plot_classic(problem, self.fig, self.ax, ax2=self.ax2,
-                                                       lda_gradT=self.lda_gradT)
+            self.fig, self.ax, self.ax2, self.ax3 = plot_classic(problem, self.fig, self.ax, ax2=self.ax2, ax3=self.ax3,
+                                                                 lda_gradT=self.lda_gradT, flux_conv=self.flux_conv)
         elif self.cas is 'decale':
-            self.fig, self.ax, self.ax2 = plot_decale(problem, self.fig, self.ax, ax2=self.ax2,
-                                                      lda_gradT=self.lda_gradT)
+            self.fig, self.ax, self.ax2, self.ax3 = plot_decale(problem, self.fig, self.ax, ax2=self.ax2, ax3=self.ax3,
+                                                                lda_gradT=self.lda_gradT, flux_conv=self.flux_conv)
         else:
             raise NotImplementedError
 
 
-def plot_decale(problem, fig=None, ax=None, ax2=None, lda_gradT=False):
-    if (fig is None) or (ax is None):
-        if isinstance(problem.bulles, BulleTemperature) and lda_gradT:
-            fig, (ax, ax2) = plt.subplots(2, sharex='all')
-        else:
-            fig, ax = plt.subplots(1)
-    fig.suptitle(problem.name)
+def plot_decale(problem, fig=None, ax=None, ax2=None, ax3=None, lda_gradT=False, flux_conv=False):
+    fig.suptitle(problem.name.replace('_', ' '))
     x0 = problem.time*problem.phy_prop.v
     x_dec, T_dec = decale_perio(problem.num_prop.x, problem.T, x0, problem.bulles)
-    c = ax.plot(x_dec, T_dec, label='%s, time %g' % (problem.name, problem.time))
+    c = ax.plot(x_dec, T_dec, label='%s, time %g' % (problem.name.replace('_', ' '), problem.time))
     col = c[-1].get_color()
     maxi = max(np.max(problem.T), np.max(problem.I))
     mini = min(np.min(problem.T), np.min(problem.I))
@@ -62,23 +69,19 @@ def plot_decale(problem, fig=None, ax=None, ax2=None, lda_gradT=False):
         ax.plot([decale_positif(markers[0] - x0, problem.phy_prop.Delta)]*2, [mini, maxi], '--', c=col)
         ax.plot([decale_positif(markers[1] - x0, problem.phy_prop.Delta)]*2, [mini, maxi], '--', c=col)
     if isinstance(problem.bulles, BulleTemperature):
-        plot_temperature_bulles(problem, x0=x0, ax=ax, col=col, ax2=ax2, lda_gradT=lda_gradT)
+        plot_temperature_bulles(problem, x0=x0, ax=ax, col=col, ax2=ax2, ax3=ax3,
+                                lda_gradT=lda_gradT, flux_conv=flux_conv)
     ax.set_xticks(problem.num_prop.x_f)
     ax.set_xticklabels([])
     ax.grid(b=True, which='major')
     ax.legend()
-    return fig, ax, ax2
+    return fig, ax, ax2, ax3
 
 
-def plot_classic(problem, fig=None, ax=None, ax2=None, lda_gradT=False):
-    if (fig is None) or (ax is None):
-        if isinstance(problem.bulles, BulleTemperature) and lda_gradT:
-            fig, (ax, ax2) = plt.subplots(2, sharex='all')
-        else:
-            fig, ax = plt.subplots(1)
-    fig.suptitle(problem.name)
+def plot_classic(problem, fig=None, ax=None, ax2=None, ax3=None, lda_gradT=False, flux_conv=False):
+    fig.suptitle(problem.name.replace('_', '-'))
     # c = ax.plot(problem.num_prop.x, problem.I, '+')
-    c = ax.plot(problem.num_prop.x, problem.T, label='%s, time %g' % (problem.name, problem.time))
+    c = ax.plot(problem.num_prop.x, problem.T, label='%s, time %g' % (problem.name.replace('_', ' '), problem.time))
     col = c[-1].get_color()
     maxi = max(np.max(problem.T), np.max(problem.I))
     mini = min(np.min(problem.T), np.min(problem.I))
@@ -86,20 +89,26 @@ def plot_classic(problem, fig=None, ax=None, ax2=None, lda_gradT=False):
         ax.plot([markers[0]]*2, [mini, maxi], '--', c=col)
         ax.plot([markers[1]]*2, [mini, maxi], '--', c=col)
     if isinstance(problem.bulles, BulleTemperature):
-        plot_temperature_bulles(problem, ax=ax, col=col, ax2=ax2, lda_gradT=lda_gradT)
+        plot_temperature_bulles(problem, ax=ax, col=col, ax2=ax2, ax3=ax3,
+                                lda_gradT=lda_gradT, flux_conv=flux_conv)
     ax.set_xticks(problem.num_prop.x_f)
     ax.set_xticklabels([])
     ax.grid(b=True, which='major')
     ax.legend()
-    return fig, ax, ax2
+    return fig, ax, ax2, ax3
 
 
-def plot_temperature_bulles(problem, x0=None, ax=None, col=None, ax2=None, quiver=False, lda_gradT=False):
+def plot_temperature_bulles(problem, x0=None, ax=None, col=None, ax2=None, ax3=None, quiver=False,
+                            lda_gradT=False, flux_conv=False):
     if x0 is None:
         x0 = 0.
         decale = False
     else:
         decale = True
+    if flux_conv is True:
+        label_conv = r'Flux convectif'
+    else:
+        label_conv = flux_conv
     n = len(problem.num_prop.x)
     Delta = problem.phy_prop.Delta
     while x0 - Delta > -problem.num_prop.dx:
@@ -115,17 +124,13 @@ def plot_temperature_bulles(problem, x0=None, ax=None, col=None, ax2=None, quive
     for i_int, x in enumerate(problem.bulles()):
         for j, xi in enumerate(x):
             i = problem.bulles.ind[i_int, j]
-            # print(problem.time)
-            # print('i : %d' % i)
             xil.append(xi - x0)
-            # print('xi dec : %f' % xil[-1])
             x0l.append(problem.num_prop.x[i] - x0)
-            # print('num_prop.x[i] : %f' % x0l[-1])
             Ti.append(problem.bulles.T[i_int, j])
             Tig.append(problem.bulles.Tg[i_int, j])
             Tid.append(problem.bulles.Td[i_int, j])
             ldag, rhocpg, ag, ldad, rhocpd, ad = get_prop(problem, i, liqu_a_gauche=(not j))
-            if quiver:
+            if quiver and (ax is not None):
                 if i > 1:
                     ax.quiver(problem.num_prop.x_f[i-1]-x0, (problem.T[i-2] + problem.T[i-1])/2., 1.,
                               (problem.T[i-1] - problem.T[i-2])/problem.num_prop.dx, angles='xy')
@@ -137,28 +142,66 @@ def plot_temperature_bulles(problem, x0=None, ax=None, col=None, ax2=None, quive
                 if i < n-1:
                     ax.quiver(problem.num_prop.x_f[i+2]-x0, (problem.T[i+2] + problem.T[i+1])/2., 1.,
                               (problem.T[i+2] - problem.T[i+1])/problem.num_prop.dx, angles='xy')
-            cells_suivi = problem.bulles.cells[i_int, j]
-            if isinstance(cells_suivi, CellsSuiviInterface):
+            cells_suivi = problem.bulles.cells[2*i_int+j]
+            if isinstance(cells_suivi, CellsSuiviInterface) and (ax is not None):
                 ax.plot(cells_suivi.xj + problem.num_prop.x[i], cells_suivi.Tj,
                         '--', label='Tj interp', c=col)
-    if problem.time > 0. and quiver:
+    if problem.time > 0. and quiver and (ax is not None):
         ax.plot(xil, Ti, 'k+')
         ax.plot(x0l, Tig, '+', label=r'$T_g$')
         ax.plot(x0l, Tid, '+', label=r'$T_d$')
     if decale:
-        xf_dec, lda_grad_T_dec = decale_perio(problem.num_prop.x_f, problem.flux_diff, x0=x0)
-        if lda_gradT:
+        if lda_gradT and (ax2 is not None):
+            xf_dec, lda_grad_T_dec = decale_perio(problem.num_prop.x_f, problem.flux_diff, x0=x0)
             ax2.plot(xf_dec, lda_grad_T_dec, label=r'$\lambda \nabla T$')
+        if flux_conv and (ax3 is not None):
+            xf_dec, flux_conv_dec = decale_perio(problem.num_prop.x_f, problem.flux_conv, x0=x0)
+            ax3.plot(xf_dec, flux_conv_dec, '--', label=label_conv)
     else:
-        if lda_gradT:
+        if lda_gradT and (ax2 is not None):
             ax2.plot(problem.num_prop.x_f, problem.flux_diff, label=r'$\lambda \nabla T$')
             ax2.plot(problem.bulles.markers.flatten() - x0, problem.bulles.lda_grad_T.flatten(),
                      '+', label=r'$\lambda \nabla T_I$')
-    if lda_gradT:
+        if flux_conv and (ax3 is not None):
+            ax3.plot(problem.num_prop.x_f, problem.flux_conv, '--', label=label_conv)
+    # if (ax2 is not None) and (ax3 is not None):
+    #     align_y_axis(ax2, ax3)
+    if lda_gradT and (ax2 is not None):
         ax2.legend()
         ax2.set_xticks(problem.num_prop.x_f)
         ax2.set_xticklabels([])
         ax2.grid(b=True, which='both')
+    if flux_conv and (ax3 is not None):
+        ax3.legend()
+
+
+def align_y_axis(ax1, ax2):
+    ylim1 = ax1.axes.get_ylim()
+    ylim2 = ax2.axes.get_ylim()
+    coeff1 = - ylim1[0] / (ylim1[1] - ylim1[0])
+    coeff2 = - ylim2[0] / (ylim2[1] - ylim2[0])
+    coeff = (coeff1 + coeff2)/2.
+    print('coeff : ', coeff)
+    if np.abs(coeff - 0.5) > 0.5:
+        print('La situation n est pas adaptée à l alignement des zéros')
+        return
+    # coeff prend ses valeurs entre 0 et 1
+    if coeff > coeff1:
+        # On veut monter le zéro relatif en diminuant la valeur de y1[0]
+        new_y0 = coeff / (coeff - 1.) * ylim1[1]
+        ax1.set_ylim(new_y0, ylim1[1])
+    else:
+        # On veut descendre le zéro relatif en augmentant la valeur de y1[1]
+        new_y1 = (coeff - 1.)/coeff * ylim1[0]
+        ax1.set_ylim(ylim1[0], new_y1)
+    if coeff > coeff2:
+        # On veut monter le zéro relatif en diminuant la valeur de y2[0]
+        new_y0 = coeff / (coeff - 1.) * ylim2[1]
+        ax2.set_ylim(new_y0, ylim2[1])
+    else:
+        # On veut descendre le zéro relatif en augmentant la valeur de y2[1]
+        new_y1 = (coeff - 1.)/coeff * ylim2[0]
+        ax2.set_ylim(ylim2[0], new_y1)
 
 
 def decale_perio(x, T, x0=0., markers=None, plot=False):
@@ -188,7 +231,7 @@ def decale_perio(x, T, x0=0., markers=None, plot=False):
         plt.plot(x, T_decale, label='Tn')
         T_np1 = np.r_[T[n + 1:], T[:n + 1]]
         plt.plot(x, T_np1, label='Tnp1')
-        plt.plot(x_decale, T_decale, label='T_decale')
+        plt.plot(x_decale, T_decale, label='T decale')
 
         if markers is not None:
             mini = np.min(T_decale)

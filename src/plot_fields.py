@@ -3,13 +3,14 @@ from src.main import *
 
 from matplotlib import rc
 rc('text', usetex=True)
-rc('font', size=14)
+rc('font', size=18)
 rc('font', family='serif')
-rc('legend', fontsize=13)
+rc('legend', fontsize=16)
 rc('figure', max_open_warning=50)
 rc('figure', figsize=(19, 8))
 rc('figure', dpi=200)
 rc('savefig', dpi=300)
+rc('legend', loc='upper right')
 
 
 import matplotlib.pyplot as plt
@@ -143,9 +144,12 @@ def plot_temperature_bulles(problem, x0=None, ax=None, col=None, ax2=None, ax3=N
                     ax.quiver(problem.num_prop.x_f[i+2]-x0, (problem.T[i+2] + problem.T[i+1])/2., 1.,
                               (problem.T[i+2] - problem.T[i+1])/problem.num_prop.dx, angles='xy')
             cells_suivi = problem.bulles.cells[2*i_int+j]
-            if isinstance(cells_suivi, CellsSuiviInterface) and (ax is not None):
-                ax.plot(cells_suivi.xj + problem.num_prop.x[i], cells_suivi.Tj,
-                        '--', label='Tj interp', c=col)
+            # if isinstance(cells_suivi, CellsSuiviInterface) and (ax is not None):
+            #     ax.plot(cells_suivi.xj + problem.num_prop.x[i], cells_suivi.Tj,
+            #             '--', label='Tj interp', c=col)
+            if ax is not None:
+                ax.plot(problem.bulles.markers.flatten() - x0, problem.bulles.Ti.flatten(),
+                        '+')  # , label=r'$T_I$')
     if problem.time > 0. and quiver and (ax is not None):
         ax.plot(xil, Ti, 'k+')
         ax.plot(x0l, Tig, '+', label=r'$T_g$')
@@ -160,19 +164,19 @@ def plot_temperature_bulles(problem, x0=None, ax=None, col=None, ax2=None, ax3=N
     else:
         if lda_gradT and (ax2 is not None):
             ax2.plot(problem.num_prop.x_f, problem.flux_diff, label=r'$\lambda \nabla T$')
-            ax2.plot(problem.bulles.markers.flatten() - x0, problem.bulles.lda_grad_T.flatten(),
-                     '+', label=r'$\lambda \nabla T_I$')
         if flux_conv and (ax3 is not None):
             ax3.plot(problem.num_prop.x_f, problem.flux_conv, '--', label=label_conv)
     # if (ax2 is not None) and (ax3 is not None):
     #     align_y_axis(ax2, ax3)
     if lda_gradT and (ax2 is not None):
+        ax2.plot(problem.bulles.markers.flatten() - x0, problem.bulles.lda_grad_T.flatten(),
+                 '+')  # , label=r'$\lambda \nabla T_I$')
         ax2.legend()
         ax2.set_xticks(problem.num_prop.x_f)
         ax2.set_xticklabels([])
         ax2.grid(b=True, which='both')
     if flux_conv and (ax3 is not None):
-        ax3.legend()
+        ax3.legend(loc='lower right')
 
 
 def align_y_axis(ax1, ax2):

@@ -119,6 +119,8 @@ class CellsInterface:
                 self.compute_T_f_gradT_f_quick()
             if self.schema_conv == 'quick':
                 self.compute_T_f_gradT_f_quick()
+            if self.schema_conv == 'upwind':
+                self.compute_T_f_gradT_f_upwind()
 
     @staticmethod
     def pid_interp(T: float64[:], d: float64[:]) -> float:
@@ -289,21 +291,16 @@ class CellsInterface:
         Returns:
 
         """
-        Tim32, dTdxim32, _ = self._interp_lagrange_upwind(self.Tg[1], self.Tg[2],
-                                                             -1. * self.dx, 0. * self.dx,
-                                                             -0.5 * self.dx)
-        Tim12, dTdxim12, _ = self._interp_lagrange_upwind(self.Tg[2], self._Ti,
-                                                             -1. * self.dx, (self.ag - 0.5) * self.dx,
-                                                             -0.5 * self.dx)
-        Tip12, dTdxip12, _ = self._interp_lagrange_upwind_grad(self._Ti, self.Td[1], self._dTdxd,
-                                                                  (0.5 - self.ad) * self.dx, 1. * self.dx,
-                                                                  0.5 * self.dx)
-        Tip32, dTdxip32, _ = self._interp_lagrange_upwind(self.Td[1], self.Td[2],
-                                                             1. * self.dx, 2. * self.dx,
-                                                             1.5 * self.dx)
-        Tip52, dTdxip52, _ = self._interp_lagrange_upwind(self.Td[2], self.Td[3],
-                                                             2. * self.dx, 3. * self.dx,
-                                                             2.5 * self.dx)
+        Tim32, dTdxim32, _ = self._interp_upwind(self.Tg[1], self.Tg[2],
+                                                 -1. * self.dx, 0. * self.dx)
+        Tim12, dTdxim12, _ = self._interp_upwind(self.Tg[-1], self.Tg[0],
+                                                 -1. * self.dx, 0. * self.dx)
+        Tip12, dTdxip12, _ = self._interp_upwind(self.Td[0], self.Td[1],
+                                                 0. * self.dx, 1. * self.dx)
+        Tip32, dTdxip32, _ = self._interp_upwind(self.Td[1], self.Td[2],
+                                                 1. * self.dx, 2. * self.dx)
+        Tip52, dTdxip52, _ = self._interp_upwind(self.Td[2], self.Td[3],
+                                                 2. * self.dx, 3. * self.dx)
         self._T_f[0] = np.nan  # on ne veut pas se servir de cette valeur, on veut utiliser la version weno / quick
         self._T_f[1] = Tim32
         self._T_f[2] = Tim12  # self._T_dlg(0.)
@@ -424,22 +421,14 @@ class CellsInterface:
         self._Ti, self._lda_gradTi = self._get_T_i_and_lda_grad_T_i(self.Tg[-2], self.Td[1],
                                                                     (1./2 + self.ag) * self.dx,
                                                                     (1./2 + self.ad) * self.dx)
-        # self._Ti, self._lda_gradTi, _, _, _, _ = \
-        #     self._get_T_i_and_lda_grad_T_i3(self.Tg[-2], self.Td[1], self.Tg[-3], self.Td[2], self.Tg[-4], self.Td[3],
-        #                                     (1./2 + self.ag) * self.dx, (1./2 + self.ad) * self.dx)
         self._dTdxg = self._lda_gradTi/self.ldag
         self._dTdxd = self._lda_gradTi/self.ldad
-        # grad_Tg = self.pid_interp(np.array([self.gradTg[1], self._lda_gradTi/self.ldag]),
-        #                           np.array([1., self.ag])*self.dx)
-        # grad_Td = self.pid_interp(np.array([self._lda_gradTi/self.ldad, self.gradTd[1]]),
-        #                           np.array([self.ad, 1.])*self.dx)
-        # self.Tg[-1] = self.Tg[-2] + grad_Tg * self.dx
-        # if np.isnan(self.Tg[-1]):
-        #     print('Tg2 : ', self.Tg[-2])
-        #     print('gradTg : ', grad_Tg)
-        #     print('array : ', np.array([self.gradTg[1], self._lda_gradTi/self.ldag]))
-        #     print('d : ', np.array([1., self.ag])*self.dx)
-        # self.Td[0] = self.Td[1] - grad_Td * self.dx
+        grad_Tg = self.pid_interp(np.array([self.gradTg[1], self._lda_gradTi/self.ldag]),
+                                  np.array([1., self.ag])*self.dx)
+        grad_Td = self.pid_interp(np.array([self._lda_gradTi/self.ldad, self.gradTd[1]]),
+                                  np.array([self.ad, 1.])*self.dx)
+        self.Tg[-1] = self.Tg[-2] + grad_Tg * self.dx
+        self.Td[0] = self.Td[1] - grad_Td * self.dx
 
     def compute_from_Ti2(self):
         """
@@ -455,8 +444,8 @@ class CellsInterface:
                                             (1./2 + self.ag) * self.dx, (1./2 + self.ad) * self.dx)
         self._dTdxg = self._lda_gradTi/self.ldag
         self._dTdxd = self._lda_gradTi/self.ldad
-        # self.Tg[-1] = self._T_dlg(0.5 * self.dx)
-        # self.Td[0] = self._T_dld(0.5 * self.dx)
+        self.Tg[-1] = self._T_dlg(0.5 * self.dx)
+        self.Td[0] = self._T_dld(0.5 * self.dx)
 
     def compute_from_Ti2_vol(self):
         """
@@ -472,6 +461,8 @@ class CellsInterface:
                                                 (1./2 + self.ag) * self.dx, (1./2 + self.ad) * self.dx)
         self._dTdxg = self._lda_gradTi/self.ldag
         self._dTdxd = self._lda_gradTi/self.ldad
+        self.Tg[-1] = self._T_dlg(0.5 * self.dx)
+        self.Td[0] = self._T_dld(0.5 * self.dx)
 
     def compute_from_Ti3(self):
         """
@@ -487,8 +478,8 @@ class CellsInterface:
                                             (1./2 + self.ag) * self.dx, (1./2 + self.ad) * self.dx)
         self._dTdxg = self._lda_gradTi/self.ldag
         self._dTdxd = self._lda_gradTi/self.ldad
-        # self.Tg[-1] = self._T_dlg(0.5 * self.dx)
-        # self.Td[0] = self._T_dld(0.5 * self.dx)
+        self.Tg[-1] = self._T_dlg(0.5 * self.dx)
+        self.Td[0] = self._T_dld(0.5 * self.dx)
 
     def compute_from_Ti3_vol(self):
         """
@@ -504,6 +495,8 @@ class CellsInterface:
                                                 (1./2 + self.ag) * self.dx, (1./2 + self.ad) * self.dx)
         self._dTdxg = self._lda_gradTi/self.ldag
         self._dTdxd = self._lda_gradTi/self.ldad
+        self.Tg[-1] = self._T_dlg(0.5 * self.dx)
+        self.Td[0] = self._T_dld(0.5 * self.dx)
 
     def compute_from_Ti3_1_vol(self):
         """
@@ -519,6 +512,8 @@ class CellsInterface:
                                                   (1./2 + self.ag) * self.dx, (1./2 + self.ad) * self.dx)
         self._dTdxg = self._lda_gradTi/self.ldag
         self._dTdxd = self._lda_gradTi/self.ldad
+        self.Tg[-1] = self._T_dlg(0.5 * self.dx)
+        self.Td[0] = self._T_dld(0.5 * self.dx)
 
     def _compute_Tgc_Tdc(self, h: float, T_mean: float):
         """
@@ -628,10 +623,10 @@ class CellsInterface:
         """
         dgg = dg + self.dx
         ddd = dd + self.dx
-        mat = np.array([[1., dg,                        dg**2/2.,   0.],
-                        [1., dgg,                       dgg**2/2.,  0.],
-                        [1., dd*self.ldag/self.ldad,    0.,         dd**2/2.],
-                        [1., ddd*self.ldag/self.ldad,   0.,         ddd**2/2.]], dtype=np.float_)
+        mat = np.array([[1., -dg,                     dg**2/2.,  0.],
+                        [1., -dgg,                    dgg**2/2., 0.],
+                        [1., dd*self.ldag/self.ldad,  0.,        dd**2/2.],
+                        [1., ddd*self.ldag/self.ldad, 0.,        ddd**2/2.]], dtype=np.float_)
         temp = np.array([Tg, Tgg, Td, Tdd], dtype=np.float_).T
         inv_mat = np.linalg.inv(mat)
         T_i, dTdxg, d2Tdx2g, d2Tdx2d = np.dot(inv_mat, temp)
@@ -752,10 +747,10 @@ class CellsInterface:
         """
         dgg = dg + self.dx
         dggg = dg + 2.*self.dx
-        mat = np.array([[1., -dg,                        dg**2 * 2./3.,   0.],
-                        [1., -dgg,                       dgg**2 * 2./3.,  0.],
-                        [1., -dggg,                      dggg**2 * 2./3., 0.],
-                        [1., dd*self.ldag/self.ldad,     0.,              dd**2 * 2./3.]], dtype=np.float_)
+        mat = np.array([[1., -dg,                    dg**2 * 2./3.,   0.],
+                        [1., -dgg,                   dgg**2 * 2./3.,  0.],
+                        [1., -dggg,                  dggg**2 * 2./3., 0.],
+                        [1., dd*self.ldag/self.ldad, 0.,              dd**2 * 2./3.]], dtype=np.float_)
         temp = np.array([Tg, Tgg, Tggg, Td], dtype=np.float_).T
         inv_mat = np.linalg.inv(mat)
         T_i, dTdxg, d2Tdx2g, d2Tdx2d = np.dot(inv_mat, temp)
@@ -920,6 +915,40 @@ class CellsInterface:
                         [1., d1, d1**2 / 2.],
                         [0., 1., d0]], dtype=np.float_)
         Tint, dTdx_int, d2Tdx2_int = np.dot(np.linalg.inv(mat), np.array([T0, T1, gradT0]))
+        return Tint, dTdx_int, d2Tdx2_int
+
+    @staticmethod
+    def _interp_lagrange_centre_grad(Tgg: float, Tg: float, Ti: float, gradTi: float, xgg: float, xg: float, xi: float, x_face: float) \
+            -> (float, float, float):
+        """
+        On utilise la continuité de lad_grad_T et on écrit un DL à l'ordre 3 avec les points Tgg, Tg et Ti.
+        On peut appliquer la méthode aussi bien à droite qu'à gauche.
+        On résout l'inconnue en trop avec un DL 2 sur dTdx
+        On retourne les gradients suivants ::
+
+                                  dgg    dg     I
+                    |---------------|-----------|
+            +---------------+---------------+----
+            |               |               |   |
+            |       +      -|>      +      -|>  |
+            |               |               |   |
+            +---------------+---------------+----
+
+        Args:
+
+        Returns:
+
+        """
+        d0 = xgg - x_face
+        d1 = xg - x_face
+        d2 = xi - x_face
+        # print('d : ', d0, d1, d2)
+
+        mat = np.array([[1., d0, d0**2 / 2., d0**3/6.],
+                        [1., d1, d1**2 / 2., d1**3/6.],
+                        [1., d2, d2**2 / 2., d2**3/6.],
+                        [0., 1., d1,         d1**2/2.]], dtype=np.float_)
+        Tint, dTdx_int, d2Tdx2_int = np.dot(np.linalg.inv(mat), np.array([Tgg, Tg, Ti, gradTi]))
         return Tint, dTdx_int, d2Tdx2_int
 
     def _get_lda_grad_T_i_from_ldagradT_continuity(self, Tim2: float, Tim1: float, Tip1: float,

@@ -768,8 +768,8 @@ class ProblemConserv2(Problem):
         return 'EC, ' + super().name
 
     def _euler_timestep(self, debug=None, bool_debug=False):
-        markers_np1 = self.bulles.copy()
-        markers_np1.shift(self.phy_prop.v * self.dt)
+        # markers_np1 = self.bulles.copy()
+        # markers_np1.shift(self.phy_prop.v * self.dt)
         rho_cp_u = interpolate(self.rho_cp_a, I=self.I, schema=self.num_prop.schema) * self.phy_prop.v
         int_div_rho_cp_u = integrale_vol_div(rho_cp_u, self.num_prop.dx)
         rho_cp_etoile = self.rho_cp_a + self.dt * int_div_rho_cp_u
@@ -777,8 +777,8 @@ class ProblemConserv2(Problem):
         self.flux_conv = interpolate(self.rho_cp_a * self.T, I=self.I, schema=self.num_prop.schema) * self.phy_prop.v
         int_div_rho_cp_T_u = integrale_vol_div(self.flux_conv, self.num_prop.dx)
 
-        # self.flux_diff = interpolate(self.Lda_h, I=self.I, schema=self.num_prop.schema) * grad(self.T, self.num_prop.dx)
-        self.flux_diff = interpolate(self.Lda_h, I=self.I, schema='center_h') * grad(self.T, self.num_prop.dx)
+        self.flux_diff = interpolate(self.Lda_h, I=self.I, schema=self.num_prop.schema) * grad(self.T, self.num_prop.dx)
+        # self.flux_diff = interpolate(self.Lda_h, I=self.I, schema='center') * grad(self.T, self.num_prop.dx)
         int_div_lda_grad_T = integrale_vol_div(self.flux_diff, self.num_prop.dx)
 
         if (debug is not None) and bool_debug:

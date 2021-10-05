@@ -25,6 +25,7 @@ class BulleTemperature(Bulles):
         self.xg = np.zeros_like(self.markers)
         self.xd = np.zeros_like(self.markers)
         self.lda_grad_T = np.zeros_like(self.markers)
+        self.Ti = np.zeros_like(self.markers)
         self.cells = [0.]*(2*len(self.markers))  # type: list
         self.ind = None
         if x is not None:
@@ -154,8 +155,8 @@ class ProblemDiscontinuEnergieTemperature(Problem):
 
                 self.bulles.Tg[i_int, ist] = cells.Tg[-1]
                 self.bulles.Td[i_int, ist] = cells.Td[0]
-                self.bulles.gradTg[i_int, ist] = cells.gradTg[-1]
-                self.bulles.gradTd[i_int, ist] = cells.gradTd[0]
+                self.bulles.gradTg[i_int, ist] = cells.gradT[3]
+                self.bulles.gradTd[i_int, ist] = cells.gradT[4]
 
                 # Correction des flux entrant et sortant de la maille diphasique
                 ind_flux_to_change = [im1, i0, ip1, ip2]
@@ -176,7 +177,7 @@ class ProblemDiscontinuEnergieTemperature(Problem):
         return 'Energie température ' + super().name
 
 
-class ProblemDiscontinu(Problem):
+class ProblemDiscontinuE(Problem):
     T: np.ndarray
     I: np.ndarray
     bulles: BulleTemperature
@@ -199,7 +200,7 @@ class ProblemDiscontinu(Problem):
         phy_prop: les propriétés physiques du calcul
     """
 
-    def __init__(self, T0, markers=None, num_prop=None, phy_prop=None, interp_type=None):
+    def __init__(self, T0, markers=None, num_prop=None, phy_prop=None, interp_type=None, conv_interf=None):
         super().__init__(T0, markers, num_prop=num_prop, phy_prop=phy_prop)
         # if self.num_prop.schema != 'upwind':
         #     raise Exception('Cette version ne marche que pour un schéma upwind')
@@ -212,6 +213,9 @@ class ProblemDiscontinu(Problem):
         else:
             self.interp_type = interp_type
         print(self.interp_type)
+        if conv_interf is None:
+            conv_interf = self.num_prop.schema
+        self.conv_interf = conv_interf
 
     def _init_bulles(self, markers=None):
         if markers is None:
@@ -254,7 +258,7 @@ class ProblemDiscontinu(Problem):
                 ldag, rhocpg, ag, ldad, rhocpd, ad = get_prop(self, i, liqu_a_gauche=from_liqu_to_vap)
                 cells = CellsInterface(ldag, ldad, ag, dx, T[[im3, im2, im1, i0, ip1, ip2, ip3]],
                                        rhocpg=rhocpg, rhocpd=rhocpd, interp_type=self.interp_type,
-                                       schema_conv=self.num_prop.schema)
+                                       schema_conv=self.conv_interf)
                 self.bulles.cells[2*i_int + ist] = cells
 
                 # Correction des cellules i0 - 1 à i0 + 1 inclue
@@ -262,6 +266,10 @@ class ProblemDiscontinu(Problem):
 
                 rhocpT_u = cells.rhocp_f * cells.T_f * self.phy_prop.v
                 lda_grad_T = cells.lda_f * cells.gradT
+                # self.bulles.gradTg[i_int, ist] = cells.gradT[3]
+                # self.bulles.gradTd[i_int, ist] = cells.gradT[4]
+                self.bulles.lda_grad_T[i_int, ist] = cells.lda_gradTi
+                self.bulles.Ti[i_int, ist] = cells.Ti
 
                 # print('rhocpTu : ', rhocpT_u)
                 # print('lda_graT : ', lda_grad_T)
@@ -509,7 +517,7 @@ class ProblemDiscontinu(Problem):
     #     self.T += np.sum(self.dt * coeff * np.array(K[1:]).T, axis=-1)
 
 
-class ProblemDiscontinu2(Problem):
+class ProblemDiscontinuT(Problem):
     T: np.ndarray
     I: np.ndarray
     bulles: BulleTemperature
@@ -531,7 +539,7 @@ class ProblemDiscontinu2(Problem):
         phy_prop: les propriétés physiques du calcul
     """
 
-    def __init__(self, T0, markers=None, num_prop=None, phy_prop=None, interp_type=None):
+    def __init__(self, T0, markers=None, num_prop=None, phy_prop=None, interp_type=None, conv_interf=None):
         super().__init__(T0, markers, num_prop=num_prop, phy_prop=phy_prop)
         # if self.num_prop.schema != 'upwind':
         #     raise Exception('Cette version ne marche que pour un schéma upwind')
@@ -541,6 +549,9 @@ class ProblemDiscontinu2(Problem):
         else:
             self.interp_type = interp_type
         print(self.interp_type)
+        if conv_interf is None:
+            conv_interf = self.num_prop.schema
+        self.conv_interf = conv_interf
 
     def _init_bulles(self, markers=None):
         if markers is None:
@@ -584,13 +595,15 @@ class ProblemDiscontinu2(Problem):
                 ldag, rhocpg, ag, ldad, rhocpd, ad = get_prop(self, i, liqu_a_gauche=from_liqu_to_vap)
                 cells = CellsInterface(ldag, ldad, ag, dx, T[[im3, im2, im1, i0, ip1, ip2, ip3]],
                                        rhocpg=rhocpg, rhocpd=rhocpd, interp_type=self.interp_type,
-                                       schema_conv=self.num_prop.schema)
+                                       schema_conv=self.conv_interf)
 
                 # Correction des cellules i0 - 1 à i0 + 1 inclue
                 # DONE: l'écrire en version flux pour être sûr de la conservation
                 dx = self.num_prop.dx
                 T_u = cells.T_f * self.phy_prop.v
                 lda_grad_T = cells.lda_f * cells.gradT
+                self.bulles.lda_grad_T[i_int, ist] = cells.lda_gradTi
+                self.bulles.Ti[i_int, ist] = cells.Ti
 
                 # Correction des cellules
                 # ind_to_change = [im2, im1, i0, ip1, ip2]

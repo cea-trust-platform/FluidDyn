@@ -17,7 +17,7 @@ import matplotlib.pyplot as plt
 
 
 class Plotter:
-    def __init__(self, cas='classic', lda_gradT=False, flux_conv=False):
+    def __init__(self, cas='classic', lda_gradT=False, flux_conv=False, **kwargs):
         self._cas = cas
         self.fig = None
         self.ax = None
@@ -25,6 +25,7 @@ class Plotter:
         self.ax3 = None
         self.lda_gradT = lda_gradT
         self.flux_conv = flux_conv
+        self.kwargs = kwargs
 
     @property
     def cas(self):
@@ -38,7 +39,7 @@ class Plotter:
     def plot(self, problem):
         if (self.fig is None) or (self.ax is None):
             if isinstance(problem.bulles, BulleTemperature) and (self.lda_gradT or self.flux_conv):
-                self.fig, (self.ax, self.ax2) = plt.subplots(2, sharex='all')
+                self.fig, (self.ax, self.ax2) = plt.subplots(2, sharex='all', **self.kwargs)
             else:
                 self.fig, self.ax = plt.subplots(1)
             if isinstance(problem.bulles, BulleTemperature) and self.lda_gradT and self.flux_conv:

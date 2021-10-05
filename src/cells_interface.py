@@ -196,6 +196,11 @@ class CellsInterface:
 
     @property
     def Ti(self) -> float:
+        """
+
+        Returns:
+            La température interfaciale calculée à l'initialisation
+        """
         return self._Ti
 
     @property
@@ -245,12 +250,18 @@ class CellsInterface:
         Tim32, dTdxim32, _ = self._interp_lagrange_amont(self.Tg[0], self.Tg[1], self.Tg[2],
                                                          -2 * self.dx, -1. * self.dx, 0. * self.dx,
                                                          -0.5 * self.dx)
-        Tim12, dTdxim12, _ = self._interp_lagrange_amont(self.Tg[1], self.Tg[2], self._Ti,
-                                                         -2. * self.dx, -1. * self.dx, (self.ag - 0.5) * self.dx,
-                                                         -0.5 * self.dx)
-        Tip12, dTdxip12, _ = self._interp_lagrange_amont_grad(self._Ti, self.Td[1], self._dTdxd,
-                                                              (0.5 - self.ad) * self.dx, 1. * self.dx,
-                                                              0.5 * self.dx)
+        Tim12, _, _ = self._interp_lagrange_amont(self.Tg[1], self.Tg[2], self._Ti,
+                                                  -2. * self.dx, -1. * self.dx, (self.ag - 0.5) * self.dx,
+                                                  -0.5 * self.dx)
+        _, dTdxim12, _ = self._interp_lagrange_centre_grad(self.Tg[-3], self.Tg[-2], self.Ti, self._dTdxg,
+                                                           -2*self.dx, -1*self.dx, (self.ag - 0.5)*self.dx,
+                                                           -0.5*self.dx)
+        Tip12, _, _ = self._interp_lagrange_amont_grad(self._Ti, self.Td[1], self._dTdxd,
+                                                       (0.5 - self.ad) * self.dx, 1. * self.dx,
+                                                       0.5 * self.dx)
+        _, dTdxip12, _ = self._interp_lagrange_centre_grad(self.Td[2], self.Td[1], self.Ti, self._dTdxd,
+                                                           2. * self.dx, 1.*self.dx, (0.5 - self.ad) * self.dx,
+                                                           0.5 * self.dx)
         Tip32, dTdxip32, _ = self._interp_lagrange_amont(self._Ti, self.Td[1], self.Td[2],
                                                          (0.5 - self.ad) * self.dx, 1. * self.dx, 2. * self.dx,
                                                          1.5 * self.dx)
@@ -947,8 +958,8 @@ class CellsInterface:
         mat = np.array([[1., d0, d0**2 / 2., d0**3/6.],
                         [1., d1, d1**2 / 2., d1**3/6.],
                         [1., d2, d2**2 / 2., d2**3/6.],
-                        [0., 1., d1,         d1**2/2.]], dtype=np.float_)
-        Tint, dTdx_int, d2Tdx2_int = np.dot(np.linalg.inv(mat), np.array([Tgg, Tg, Ti, gradTi]))
+                        [0., 1., d2,         d2**2/2.]], dtype=np.float_)
+        Tint, dTdx_int, d2Tdx2_int, _ = np.dot(np.linalg.inv(mat), np.array([Tgg, Tg, Ti, gradTi]))
         return Tint, dTdx_int, d2Tdx2_int
 
     def _get_lda_grad_T_i_from_ldagradT_continuity(self, Tim2: float, Tim1: float, Tip1: float,

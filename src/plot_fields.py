@@ -47,6 +47,7 @@ class Plotter:
             elif isinstance(problem.bulles, BulleTemperature) and (not self.lda_gradT) and self.flux_conv:
                 self.ax3 = self.ax2
                 self.ax2 = None
+        self.ax.minorticks_on()
         if self.cas is 'classic':
             self.fig, self.ax, self.ax2, self.ax3 = plot_classic(problem, self.fig, self.ax, ax2=self.ax2, ax3=self.ax3,
                                                                  lda_gradT=self.lda_gradT, flux_conv=self.flux_conv)
@@ -55,6 +56,25 @@ class Plotter:
                                                                 lda_gradT=self.lda_gradT, flux_conv=self.flux_conv)
         else:
             raise NotImplementedError
+        # self.ax.set_xticks(problem.num_prop.x_f, minor=True)
+        # self.ax.set_xticklabels([], minor=True)
+
+        # calcul des positions des markers
+        # self.ax.tick_params(axis='both', which='minor')
+        self.ax.grid(b=True, which='major')
+        self.ax.grid(b=True, which='minor', alpha=0.2)
+        # labels = self.ax.get_xticklabels()
+        # labels[0].set_text('%g' % problem.num_prop.x_f[0])
+        # labels[-1].set_text('%g' % problem.num_prop.x_f[-1])
+        # for lab in labels[1:-1]:
+        #     lab.set_text(None)
+        # self.ax.set_xticklabels([])
+        self.ax.set_xlabel(r'$x / D_b$')
+        self.ax.set_ylabel(r'$T$')
+        # self.ax.set_xticks(problem.num_prop.x_f[[0, -1]])
+        # self.ax.set_xticklabels(('%g' % problem.num_prop.x_f[0], '%g' % problem.num_prop.x_f[-1]))
+        self.ax.legend()
+        self.fig.tight_layout()
 
 
 def plot_decale(problem, fig=None, ax=None, ax2=None, ax3=None, lda_gradT=False, flux_conv=False):
@@ -73,10 +93,10 @@ def plot_decale(problem, fig=None, ax=None, ax2=None, ax3=None, lda_gradT=False,
     if isinstance(problem.bulles, BulleTemperature):
         plot_temperature_bulles(problem, x0=x0, ax=ax, col=col, ax2=ax2, ax3=ax3,
                                 lda_gradT=lda_gradT, flux_conv=flux_conv)
-    ax.set_xticks(problem.num_prop.x_f)
-    ax.set_xticklabels([])
-    ax.grid(b=True, which='major')
-    ax.legend()
+    ticks_major, ticks_minor, M1, Dx = get_ticks(problem, decale=x0)
+    ax.set_xticks(ticks_major, minor=False)
+    ax.set_xticklabels(np.rint((ticks_major - M1) / Dx).astype(int), minor=False)
+    ax.set_xticks(ticks_minor, minor=True)
     return fig, ax, ax2, ax3
 
 
@@ -93,10 +113,10 @@ def plot_classic(problem, fig=None, ax=None, ax2=None, ax3=None, lda_gradT=False
     if isinstance(problem.bulles, BulleTemperature):
         plot_temperature_bulles(problem, ax=ax, col=col, ax2=ax2, ax3=ax3,
                                 lda_gradT=lda_gradT, flux_conv=flux_conv)
-    ax.set_xticks(problem.num_prop.x_f)
-    ax.set_xticklabels([])
-    ax.grid(b=True, which='major')
-    ax.legend()
+    ticks_major, ticks_minor, M1, Dx = get_ticks(problem)
+    ax.set_xticks(ticks_major, minor=False)
+    ax.set_xticklabels((ticks_major - M1) / Dx, minor=False)
+    ax.set_xticks(ticks_minor, minor=True)
     return fig, ax, ax2, ax3
 
 
@@ -173,9 +193,10 @@ def plot_temperature_bulles(problem, x0=None, ax=None, col=None, ax2=None, ax3=N
         ax2.plot(problem.bulles.markers.flatten() - x0, problem.bulles.lda_grad_T.flatten(),
                  '+')  # , label=r'$\lambda \nabla T_I$')
         ax2.legend()
-        ax2.set_xticks(problem.num_prop.x_f)
-        ax2.set_xticklabels([])
-        ax2.grid(b=True, which='both')
+        # ax2.set_xticks(problem.num_prop.x_f)
+        # ax2.set_xticklabels([])
+        ax2.grid(b=True, which='major')
+        ax2.grid(b=True, which='minor', alpha=0.2)
     if flux_conv and (ax3 is not None):
         ax3.legend(loc='lower right')
 
@@ -207,6 +228,38 @@ def align_y_axis(ax1, ax2):
         # On veut descendre le zéro relatif en augmentant la valeur de y2[1]
         new_y1 = (coeff - 1.)/coeff * ylim2[0]
         ax2.set_ylim(ylim2[0], new_y1)
+
+
+def get_ticks(problem, decale=0.):
+    M1, M2 = problem.bulles.markers[0] - decale
+    if M2 > M1:
+        Dx_minor = (M2 - M1) / 4.
+        Dx_major = M2 - M1
+    else:
+        Dx_minor = (M2 + problem.phy_prop.Delta - M1) / 4.
+        Dx_major = (M2 + problem.phy_prop.Delta - M1)
+    ticks_major = []
+    ticks_minor = []
+    mark = M1
+    while mark > 0.:
+        ticks_minor = [mark] + ticks_minor
+        mark -= Dx_minor
+    mark = M1 + Dx_minor
+    while mark < problem.phy_prop.Delta:
+        ticks_minor = ticks_minor + [mark]
+        mark += Dx_minor
+    mark = M1
+    while mark > 0.:
+        ticks_major = [mark] + ticks_major
+        mark -= Dx_major
+    mark = M1 + Dx_major
+    while mark < problem.phy_prop.Delta:
+        ticks_major = ticks_major + [mark]
+        mark += Dx_major
+    ticks_minor = np.array(ticks_minor)
+    ticks_major = np.array(ticks_major)
+    # print('ticks ', ticks_major)
+    return ticks_major, ticks_minor, M1, Dx_major
 
 
 def decale_perio(x, T, x0=0., markers=None, plot=False):

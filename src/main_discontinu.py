@@ -729,7 +729,7 @@ class ProblemDiscontinuT2(Problem):
 
     @property
     def name(self):
-        return 'TFC, ' + super().name + ', ' + self.interp_type.replace('_', '-')
+        return 'TFC2, ' + super().name + ', ' + self.interp_type.replace('_', '-')
 
 
 class ProblemDiscontinuSautdTdt(Problem):

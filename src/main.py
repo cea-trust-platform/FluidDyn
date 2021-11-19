@@ -541,7 +541,7 @@ class Problem:
 
     @property
     def name(self):
-        return 'Cas : %s' % self.phy_prop.cas
+        return '%s' % self.phy_prop.cas
 
     @property
     def char(self):

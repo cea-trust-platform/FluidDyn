@@ -123,14 +123,65 @@ class ProblemDiscontinuEnergieTemperature(Problem):
             print(markers)
             raise NotImplementedError
 
-    def _euler_timestep(self, debug=None, bool_debug=False):
-        # on devrait plutôt calculer les flux, les stocker
-        self.flux_conv = interpolate(self.T, cl=1, schema='weno') * self.phy_prop.v
-        self.flux_conv_energie = interpolate(self.rho_cp_a*self.T, cl=1, schema='weno') * self.phy_prop.v
-        self.flux_diff = interpolate(self.Lda_h, cl=1, schema='weno') * grad(self.T, self.num_prop.dx)
-        # Est ce qu'on fait entièrement en monofluide pour la température moyenne ou est-ce qu'on s'amuse à faire les
-        # choses bien comme il faut au moins pour la diffusion ? (Avec des ldas*gradT purement monophasiques)
-        # Faisons les choses bien
+    # def _euler_timestep(self, debug=None, bool_debug=False):
+    #     # on devrait plutôt calculer les flux, les stocker
+    #     self.flux_conv = interpolate(self.T, cl=1, schema='weno') * self.phy_prop.v
+    #     self.flux_conv_energie = interpolate(self.rho_cp_a*self.T, cl=1, schema='weno') * self.phy_prop.v
+    #     self.flux_diff = interpolate(self.Lda_h, cl=1, schema='weno') * grad(self.T, self.num_prop.dx)
+    #     # Est ce qu'on fait entièrement en monofluide pour la température moyenne ou est-ce qu'on s'amuse à faire les
+    #     # choses bien comme il faut au moins pour la diffusion ? (Avec des ldas*gradT purement monophasiques)
+    #     # Faisons les choses bien
+    #     for i_int, (i1, i2) in enumerate(self.bulles.ind):
+    #         # i_int sert à aller chercher les valeurs aux interfaces, i1 et i2 servent à aller chercher les valeurs sur
+    #         # le maillage cartésien
+    #
+    #         for ist, i in enumerate((i1, i2)):
+    #             if i == i1:
+    #                 from_liqu_to_vap = True
+    #             else:
+    #                 from_liqu_to_vap = False
+    #             im3, im2, im1, i0, ip1, ip2, ip3 = cl_perio(len(self.T), i)
+    #             ldag, rhocpg, ag, ldad, rhocpd, ad = get_prop(self, i, liqu_a_gauche=from_liqu_to_vap)
+    #
+    #             cells = CellsInterface(ldag, ldad, ag, self.num_prop.dx, self.T[[im3, im2, im1, i0, ip1, ip2, ip3]],
+    #                                    rhocpg=rhocpg, rhocpd=rhocpd, vdt=self.phy_prop.v*self.dt,
+    #                                    interp_type='energie_temperature', schema_conv=self.num_prop.schema)
+    #             cells.compute_from_h_T(self.h[i0], self.T[i0])
+    #
+    #             # post-traitements
+    #
+    #             self.bulles.T[i_int, ist] = cells.Ti
+    #             self.bulles.lda_grad_T[i_int, ist] = cells.lda_gradTi
+    #
+    #             self.bulles.Tg[i_int, ist] = cells.Tg[-1]
+    #             self.bulles.Td[i_int, ist] = cells.Td[0]
+    #             self.bulles.gradTg[i_int, ist] = cells.gradT[3]
+    #             self.bulles.gradTd[i_int, ist] = cells.gradT[4]
+    #
+    #             # Correction des flux entrant et sortant de la maille diphasique
+    #             ind_flux_to_change = [im1, i0, ip1, ip2]
+    #             self.flux_conv[ind_flux_to_change] = self.phy_prop.v * cells.T_f[1:-1]
+    #             self.flux_conv_energie[ind_flux_to_change] = self.phy_prop.v * cells.rhocp_f[1:-1] * cells.T_f[1:-1]
+    #             self.flux_diff[ind_flux_to_change] = cells.lda_f[1:-1] * cells.gradT[1:-1]
+    #
+    #     dx = self.num_prop.dx
+    #     int_div_T_u = integrale_vol_div(self.flux_conv, dx)
+    #     int_div_rho_cp_T_u = integrale_vol_div(self.flux_conv_energie, dx)
+    #     int_div_lda_grad_T = integrale_vol_div(self.flux_diff, dx)
+    #     rho_cp_inv_h = 1. / self.rho_cp_h
+    #     self.T += self.dt * (-int_div_T_u + self.phy_prop.diff * rho_cp_inv_h * int_div_lda_grad_T)
+    #     self.h += self.dt * (-int_div_rho_cp_T_u + self.phy_prop.diff * int_div_lda_grad_T)
+
+    def _corrige_interface(self):
+        """
+        Dans cette approche on calclue Ti et lda_gradTi à partir du système énergie température
+
+        Returns:
+            Rien, mais met à jour T en le remplaçant par les nouvelles valeurs à proximité de l'interface, puis met à
+            jour T_old
+        """
+        dx = self.num_prop.dx
+
         for i_int, (i1, i2) in enumerate(self.bulles.ind):
             # i_int sert à aller chercher les valeurs aux interfaces, i1 et i2 servent à aller chercher les valeurs sur
             # le maillage cartésien
@@ -141,36 +192,69 @@ class ProblemDiscontinuEnergieTemperature(Problem):
                 else:
                     from_liqu_to_vap = False
                 im3, im2, im1, i0, ip1, ip2, ip3 = cl_perio(len(self.T), i)
-                ldag, rhocpg, ag, ldad, rhocpd, ad = get_prop(self, i, liqu_a_gauche=from_liqu_to_vap)
 
-                cells = CellsInterface(ldag, ldad, ag, self.num_prop.dx, self.T[[im3, im2, im1, i0, ip1, ip2, ip3]],
-                                       rhocpg=rhocpg, rhocpd=rhocpd, vdt=self.phy_prop.v*self.dt,
-                                       interp_type='energie_temperature', schema_conv=self.num_prop.schema)
+                # On calcule gradTg, gradTi, Ti, gradTd
+
+                ldag, rhocpg, ag, ldad, rhocpd, ad = get_prop(self, i, liqu_a_gauche=from_liqu_to_vap)
+                cells = CellsInterface(ldag, ldad, ag, dx, self.T[[im3, im2, im1, i0, ip1, ip2, ip3]],
+                                       rhocpg=rhocpg, rhocpd=rhocpd, interp_type='energie_temperature',
+                                       schema_conv='quick', vdt=self.phy_prop.v*self.dt)
                 cells.compute_from_h_T(self.h[i0], self.T[i0])
+                cells.compute_T_f_gradT_f_quick()
+                # print(cells.rhocp_f)
 
                 # post-traitements
 
                 self.bulles.T[i_int, ist] = cells.Ti
                 self.bulles.lda_grad_T[i_int, ist] = cells.lda_gradTi
-
                 self.bulles.Tg[i_int, ist] = cells.Tg[-1]
                 self.bulles.Td[i_int, ist] = cells.Td[0]
-                self.bulles.gradTg[i_int, ist] = cells.gradT[3]
-                self.bulles.gradTd[i_int, ist] = cells.gradT[4]
+                self.bulles.gradTg[i_int, ist] = cells.gradTg[-1]
+                self.bulles.gradTd[i_int, ist] = cells.gradTd[0]
 
-                # Correction des flux entrant et sortant de la maille diphasique
-                ind_flux_to_change = [im1, i0, ip1, ip2]
-                self.flux_conv[ind_flux_to_change] = self.phy_prop.v * cells.T_f[1:-1]
-                self.flux_conv_energie[ind_flux_to_change] = self.phy_prop.v * cells.rhocp_f[1:-1] * cells.T_f[1:-1]
-                self.flux_diff[ind_flux_to_change] = cells.lda_f[1:-1] * cells.gradT[1:-1]
+                # Correction des cellules i0 - 1 à i0 + 1 inclue
+                # DONE: l'écrire en version flux pour être sûr de la conservation
+                dx = self.num_prop.dx
+                rhocp_T_u = cells.rhocp_f * cells.T_f * self.phy_prop.v
+                # int_div_rhocp_T_u = integrale_vol_div(rhocp_T_u, dx)
+                lda_grad_T = cells.lda_f * cells.gradT
+                # int_div_lda_grad_T = integrale_vol_div(lda_grad_T, dx)
 
-        dx = self.num_prop.dx
-        int_div_T_u = integrale_vol_div(self.flux_conv, dx)
-        int_div_rho_cp_T_u = integrale_vol_div(self.flux_conv_energie, dx)
-        int_div_lda_grad_T = integrale_vol_div(self.flux_diff, dx)
+                # Correction des cellules
+                # ind_to_change = [im2, im1, i0, ip1, ip2]
+                # ind_flux = [im2, im1, i0, ip1, ip2, ip3]
+                ind_flux = [im1, i0, ip1, ip2, ip3]
+                self.flux_conv[ind_flux] = cells.T_f[1:] * self.phy_prop.v
+                self.flux_conv_ener[ind_flux] = rhocp_T_u[1:]
+                self.flux_diff[ind_flux] = lda_grad_T[1:]
+                # on écrit l'équation en température, et en energie
+                # Tnp1 = Tn + dt (- int_S_rho_cp_T_u + int_S_lda_grad_T
+                #                 - delta * I2 * (rhocp2 - rhocpa) - [rhocp] * int_S_Ti_v_n2_dS) / rhocpa
+
+    def _euler_timestep(self, debug=None, bool_debug=False):
+        self.flux_conv = interpolate(self.T, I=self.I, schema=self.num_prop.schema) * self.phy_prop.v
+        self.flux_conv_ener = interpolate(self.h, I=self.I, schema=self.num_prop.schema) * self.phy_prop.v
+        self.flux_diff = interpolate(self.Lda_h, I=self.I, schema=self.num_prop.schema) * grad(self.T, self.num_prop.dx)
+        self._corrige_interface()
+        int_div_T_u = integrale_vol_div(self.flux_conv, self.num_prop.dx)
+        int_div_rho_cp_T_u = integrale_vol_div(self.flux_conv_ener, self.num_prop.dx)
+        int_div_lda_grad_T = integrale_vol_div(self.flux_diff, self.num_prop.dx)
+
+        if (debug is not None) and bool_debug:
+            debug.plot(self.num_prop.x, 1. / self.rho_cp_h, label='rho_cp_inv_h, time = %f' % self.time)
+            debug.plot(self.num_prop.x, int_div_lda_grad_T, label='div_lda_grad_T, time = %f' % self.time)
+            debug.xticks(self.num_prop.x_f)
+            debug.grid(which='major')
+            maxi = max(np.max(int_div_lda_grad_T), np.max(1. / self.rho_cp_h))
+            mini = min(np.min(int_div_lda_grad_T), np.min(1. / self.rho_cp_h))
+            for markers in self.bulles():
+                debug.plot([markers[0]] * 2, [mini, maxi], '--')
+                debug.plot([markers[1]] * 2, [mini, maxi], '--')
+            debug.legend()
         rho_cp_inv_h = 1. / self.rho_cp_h
         self.T += self.dt * (-int_div_T_u + self.phy_prop.diff * rho_cp_inv_h * int_div_lda_grad_T)
         self.h += self.dt * (-int_div_rho_cp_T_u + self.phy_prop.diff * int_div_lda_grad_T)
+
 
     @property
     def name(self):
@@ -1014,14 +1098,7 @@ class ProblemDiscontinuCoupleConserv(Problem):
     bulles: BulleTemperature
 
     """
-    Cette classe résout le problème en 3 étapes :
-
-        - on calcule le nouveau T comme avant (avec un stencil de 1 à proximité des interfaces par simplicité)
-        - on calcule précisemment T1 et T2 ansi que les bons flux aux faces, on met à jour T
-        - on met à jour T_i et lda_grad_T_i
-
-    Elle résout donc le problème de manière complètement monophasique et recolle à l'interface en imposant la
-    continuité de lda_grad_T et T à l'interface.
+    Attention cette classe n'est probablement pas finalisée
 
     Args:
         T0: la fonction initiale de température
@@ -1032,8 +1109,8 @@ class ProblemDiscontinuCoupleConserv(Problem):
 
     def __init__(self, T0, markers=None, num_prop=None, phy_prop=None, interp_type=None):
         super().__init__(T0, markers, num_prop=num_prop, phy_prop=phy_prop)
-        if self.num_prop.schema != 'upwind':
-            raise Exception('Cette version ne marche que pour un schéma upwind')
+        # if self.num_prop.schema != 'upwind':
+        #     raise Exception('Cette version ne marche que pour un schéma upwind')
         self.T_old = self.T.copy()
         self.flux_conv_ener = self.flux_conv.copy()
         self.h = self.rho_cp_a * self.T
@@ -1057,10 +1134,7 @@ class ProblemDiscontinuCoupleConserv(Problem):
 
     def _corrige_interface(self):
         """
-        Dans cette approche on calclue Ti et lda_gradTi soit en utilisant la continuité avec Tim1 et Tip1, soit en
-        utilisant la continuité des lda_grad_T calculés avec Tim2, Tim1, Tip1 et Tip2.
-        Dans les deux cas il est à noter que l'on utilise pas les valeurs présentes dans la cellule de l'interface.
-        On en déduit ensuite les gradients de température aux faces, et les températures aux faces.
+        Dans cette approche on calclue Ti et lda_gradTi à partir du système énergie température
 
         Returns:
             Rien, mais met à jour T en le remplaçant par les nouvelles valeurs à proximité de l'interface, puis met à
@@ -1084,8 +1158,9 @@ class ProblemDiscontinuCoupleConserv(Problem):
                 ldag, rhocpg, ag, ldad, rhocpd, ad = get_prop(self, i, liqu_a_gauche=from_liqu_to_vap)
                 cells = CellsInterface(ldag, ldad, ag, dx, self.T_old[[im3, im2, im1, i0, ip1, ip2, ip3]],
                                        rhocpg=rhocpg, rhocpd=rhocpd, interp_type='energie_temperature',
-                                       schema_conv=self.num_prop.schema)
+                                       schema_conv='quick', vdt=self.phy_prop.v*self.dt)
                 cells.compute_from_h_T(self.h_old[i0], self.T_old[i0])
+                cells.compute_T_f_gradT_f_quick()
 
                 # post-traitements
 
@@ -1117,10 +1192,11 @@ class ProblemDiscontinuCoupleConserv(Problem):
 
                 # Correction des cellules
                 ind_to_change = [im2, im1, i0, ip1, ip2]
-                ind_flux = [im2, im1, i0, ip1, ip2, ip3]
-                self.flux_conv[ind_flux] = cells.T_f * self.phy_prop.v
-                self.flux_conv_ener[ind_flux] = rhocp_T_u
-                self.flux_diff[ind_flux] = lda_grad_T
+                # ind_flux = [im2, im1, i0, ip1, ip2, ip3]
+                ind_flux = [im1, i0, ip1, ip2, ip3]
+                self.flux_conv[ind_flux] = cells.T_f[1:] * self.phy_prop.v
+                self.flux_conv_ener[ind_flux] = rhocp_T_u[1:]
+                self.flux_diff[ind_flux] = lda_grad_T[1:]
                 # on écrit l'équation en température, et en energie
                 # Tnp1 = Tn + dt (- int_S_rho_cp_T_u + int_S_lda_grad_T
                 #                 - delta * I2 * (rhocp2 - rhocpa) - [rhocp] * int_S_Ti_v_n2_dS) / rhocpa

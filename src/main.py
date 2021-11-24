@@ -28,15 +28,15 @@ def interpolate(center_value, I=None, cl=1, schema='weno', cv_0=0., cv_n=0.):
     """
     if len(center_value.shape) != 1:
         raise NotImplementedError
-    if schema is 'upwind':
+    if schema == 'upwind':
         interpolated_value = interpolate_from_center_to_face_upwind(center_value, cl=cl, cv_0=cv_0)
-    elif schema is 'center':
+    elif schema == 'center':
         interpolated_value = interpolate_from_center_to_face_center(center_value, cl=cl, cv_0=cv_0, cv_n=cv_n)
-    elif schema is 'center_h':
+    elif schema == 'center_h':
         interpolated_value = interpolate_from_center_to_face_center_h(center_value, cl=cl, cv_0=cv_0, cv_n=cv_n)
-    elif schema is 'quick':
+    elif schema == 'quick':
         interpolated_value = interpolate_from_center_to_face_quick(center_value, cl=cl, cv_0=cv_0, cv_n=cv_n)
-    elif schema is 'weno':
+    elif schema == 'weno':
         interpolated_value = interpolate_from_center_to_face_weno(center_value, cl=cl, cv_0=cv_0, cv_n=cv_n)
     elif schema == 'weno upwind':
         if I is None:
@@ -633,11 +633,11 @@ class Problem:
         t = np.linspace(0, n * self.dt, n + 1)
         energy[0] = self.energy
         for i in range(n):
-            if self.num_prop.time_scheme is 'euler':
+            if self.num_prop.time_scheme == 'euler':
                 self._euler_timestep(debug=debug, bool_debug=(i % plot_for_each == 0))
-            elif self.num_prop.time_scheme is 'rk4':
+            elif self.num_prop.time_scheme == 'rk4':
                 self._rk4_timestep(debug=debug, bool_debug=(i % plot_for_each == 0))
-            elif self.num_prop.time_scheme is 'rk3':
+            elif self.num_prop.time_scheme == 'rk3':
                 self._rk3_timestep(debug=debug, bool_debug=(i % plot_for_each == 0))
             self.update_markers()
             self.time += self.dt

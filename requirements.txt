@@ -6,4 +6,6 @@ sympy~=1.8
 sphinx
 nbsphinx
 jupyter_sphinx
+jupyter-contrib-nbextensions
 numba
+line-profiler

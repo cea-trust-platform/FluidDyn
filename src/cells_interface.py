@@ -195,8 +195,9 @@ class CellsInterface:
     @property
     def lda_f(self) -> np.ndarray((6,), dtype=float):
         if self.vdt > 0.:
-            coeff_d = min(self.vdt, self.ad*self.dx)/self.vdt
-            self._lda_f[3] = coeff_d * self.ldad + (1. - coeff_d) * self.ldag
+            # coeff_d = min(self.vdt, self.ad*self.dx)/self.vdt
+            # self._lda_f[3] = coeff_d * self.ldad + (1. - coeff_d) * self.ldag
+            self._lda_f[3] = self.ldad
             return self._lda_f
         else:
             self._lda_f[3] = self.ldad

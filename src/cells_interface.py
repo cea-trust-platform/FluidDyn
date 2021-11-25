@@ -89,8 +89,6 @@ class CellsInterface:
         self.schema_conv = schema_conv
         self.schema_diff = schema_diff
         self.vdt = vdt
-        if vdt == 0.:
-            print('Attention, vdt est nulle')
         self.interp_type = interp_type
         self.Tgc = -1.
         self.Tdc = -1.

@@ -688,8 +688,7 @@ class ProblemRhoCpDiscontinuE(Problem):
                 # Correction des cellules i0 - 1 à i0 + 1 inclue
                 # DONE: l'écrire en version flux pour être sûr de la conservation
 
-                T_f = interpolate(T[[im3, im2, im1, i0, ip1, ip2, ip3]], I=None, schema=self.num_prop.schema) \
-                    * self.phy_prop.v
+                T_f = interpolate(T, I=None, schema=self.num_prop.schema)[[im2, im1, i0, ip1, ip2, ip3]]
                 rhocpT_u = cells.rhocp_f * T_f * self.phy_prop.v
                 # lda_grad_T = cells.lda_f * cells.gradT
                 # self.bulles.lda_grad_T[i_int, ist] = cells.lda_gradTi

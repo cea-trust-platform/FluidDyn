@@ -89,6 +89,8 @@ class CellsInterface:
         self.schema_conv = schema_conv
         self.schema_diff = schema_diff
         self.vdt = vdt
+        if vdt == 0.:
+            print('Attention, vdt est nulle')
         self.interp_type = interp_type
         self.Tgc = -1.
         self.Tdc = -1.
@@ -195,10 +197,10 @@ class CellsInterface:
         if self.vdt > 0.:
             coeff_d = min(self.vdt, self.ad*self.dx)/self.vdt
             self._lda_f[3] = coeff_d * self.ldad + (1. - coeff_d) * self.ldag
-            return self._rhocp_f
+            return self._lda_f
         else:
-            self._rhocp_f[3] = self.rhocpd
-            return self._rhocp_f
+            self._lda_f[3] = self.ldad
+            return self._lda_f
 
     @property
     def rhocpT_f(self) -> np.ndarray((6,), dtype=float):

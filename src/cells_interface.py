@@ -1216,3 +1216,4 @@ class CellsSuiviInterface:
             d = np.abs(np.array([x_I, xj[3]]) - xi[2])
             Ti[2] = self.cells_fixe.pid_interp(np.array([self.cells_fixe.Ti, Tj[3]]), d)
         return Ti
+

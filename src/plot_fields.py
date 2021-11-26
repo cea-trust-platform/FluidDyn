@@ -60,19 +60,10 @@ class Plotter:
         # self.ax.set_xticklabels([], minor=True)
 
         # calcul des positions des markers
-        # self.ax.tick_params(axis='both', which='minor')
         self.ax.grid(b=True, which='major')
         self.ax.grid(b=True, which='minor', alpha=0.2)
-        # labels = self.ax.get_xticklabels()
-        # labels[0].set_text('%g' % problem.num_prop.x_f[0])
-        # labels[-1].set_text('%g' % problem.num_prop.x_f[-1])
-        # for lab in labels[1:-1]:
-        #     lab.set_text(None)
-        # self.ax.set_xticklabels([])
         self.ax.set_xlabel(r'$x / D_b$')
         self.ax.set_ylabel(r'$T$')
-        # self.ax.set_xticks(problem.num_prop.x_f[[0, -1]])
-        # self.ax.set_xticklabels(('%g' % problem.num_prop.x_f[0], '%g' % problem.num_prop.x_f[-1]))
         self.ax.legend()
         self.fig.tight_layout()
 
@@ -135,14 +126,11 @@ def plot_temperature_bulles(problem, x0=None, ax=None, col=None, ax2=None, ax3=N
     Delta = problem.phy_prop.Delta
     while x0 - Delta > -problem.num_prop.dx:
         x0 -= Delta
-    # fig1, ax1 = plt.subplots(1)
-    # lda_grad_T = interpolate_from_center_to_face_center(problem.Lda_h) * grad(problem.T, dx=problem.num_prop.dx)
     xil = []
     x0l = []
     Ti = []
     Tig = []
     Tid = []
-    # print('x0 : %f' % x0)
     for i_int, x in enumerate(problem.bulles()):
         for j, xi in enumerate(x):
             i = problem.bulles.ind[i_int, j]
@@ -187,8 +175,6 @@ def plot_temperature_bulles(problem, x0=None, ax=None, col=None, ax2=None, ax3=N
             ax2.plot(problem.num_prop.x_f, problem.flux_diff, label=r'$\lambda \nabla T$')
         if flux_conv and (ax3 is not None):
             ax3.plot(problem.num_prop.x_f, problem.flux_conv, '--', label=label_conv)
-    # if (ax2 is not None) and (ax3 is not None):
-    #     align_y_axis(ax2, ax3)
     if lda_gradT and (ax2 is not None):
         ax2.plot(problem.bulles.markers.flatten() - x0, problem.bulles.lda_grad_T.flatten(),
                  '+')  # , label=r'$\lambda \nabla T_I$')

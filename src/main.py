@@ -3,10 +3,6 @@ from scipy import optimize as opt
 from copy import deepcopy
 
 
-# Press Maj+F10 to execute it or replace it with your code.
-# Press Double Shift to search everywhere for classes, files, tool windows, actions, and settings.
-
-
 def integrale_vol_div(flux, dx):
     return 1/dx * (flux[1:] - flux[:-1])
 
@@ -183,21 +179,10 @@ def interpolate_from_center_to_face_quick(a, cl=1, cv_0=0., cv_n=0.):
     fram = np.where(fram < 1., fram, 1.)  # idem fram est trop long de 1 devant et derrière
     fram = np.where(fram[1:] > fram[:-1], fram[1:], fram[:-1])  # selection du max entre fram(i-1) et fram(i), fram est
     # de taille n+1
-    # print('t1 : ')
-    # print(t1)
-    # print('curv, fram : ')
-    # print(curv)
-    # print(fram)
-    # print('center interp : ')
     tamont = t1[:-1]
     taval = t1[1:]
-    # print((tamont + taval)/2.)
-    interp_1 = (tamont + taval)/2. - 1./8. * curv #+ 1/4. * tamont
-    # print('flux, interp_value : ')
-    # print(interp_1)
+    interp_1 = (tamont + taval)/2. - 1./8. * curv  # + 1/4. * tamont
     interpolated_value = (1. - fram) * interp_1 + fram * tamont
-    # interpolated_value = interp_1
-    # print(interpolated_value)
     return interpolated_value
 
 
@@ -216,8 +201,6 @@ def interpolate_center_value_weno_to_face_upwind_interface(a, I, cl=1, cv_0=0., 
         res
     """
     res = interpolate_from_center_to_face_weno(a, cl)
-    # print('a : ', a.shape)
-    # print('res : ', res.shape)
     center_values = np.empty(a.size + 5)
     phase_indicator = np.empty(I.size + 5)
     if cl == 1:
@@ -564,8 +547,6 @@ class Problem:
 
     @property
     def Lda_h(self):
-        # lda = np.ones_like(self.num_prop.x)*self.phy_prop.lda1
-        # lda[(self.num_prop.x > self.markers[0]) & (self.num_prop.x < self.markers[1])] = self.phy_prop.lda2
         return 1. / (self.I / self.phy_prop.lda1 + (1. - self.I) / self.phy_prop.lda2)
 
     @property
@@ -675,7 +656,6 @@ class Problem:
         indic = bulles.indicatrice_liquide(self.num_prop.x)
 
         Lda_h = 1. / (indic / self.phy_prop.lda1 + (1. - indic) / self.phy_prop.lda2)
-        # lda_grad_T = interpolate(Lda_h, I=indic, schema=self.num_prop.schema) * grad(T, self.num_prop.dx)
         lda_grad_T = interpolate(Lda_h, I=indic, schema='center_h') * grad(T, self.num_prop.dx)
 
         if (debug is not None) and bool_debug:
@@ -702,9 +682,6 @@ class Problem:
         T_int = self.T.copy()
         markers_int = self.bulles.copy()
         K = 0.
-        # convection_l = []
-        # conduction_l = []
-        # pas_de_temps = np.array([0, 1/3., 3./4])
         coeff_h = np.array([1./3, 5./12, 1./4])
         coeff_dTdtm1 = np.array([0., -5./9, -153./128])
         coeff_dTdt = np.array([1., 4./9, 15./32])
@@ -727,12 +704,9 @@ class Problem:
             # conduction_l.append(conduction)
             markers_int.shift(self.phy_prop.v * h * self.dt)
         # coeff = np.array([1./6, 3./10, 8/15.])
-        # self.flux_conv = np.sum(coeff * np.array(convection_l).T, axis=-1)
-        # self.flux_diff = np.sum(coeff * np.array(conduction_l).T, axis=-1)
         self.T = T_int
 
     def _rk4_timestep(self, debug=None, bool_debug=False):
-        # T_int = self.T.copy()
         K = [0.]
         T_u_l = []
         lda_gradT_l = []
@@ -768,8 +742,6 @@ class ProblemConserv2(Problem):
         return 'EC, ' + super().name
 
     def _euler_timestep(self, debug=None, bool_debug=False):
-        # markers_np1 = self.bulles.copy()
-        # markers_np1.shift(self.phy_prop.v * self.dt)
         rho_cp_u = interpolate(self.rho_cp_a, I=self.I, schema=self.num_prop.schema) * self.phy_prop.v
         int_div_rho_cp_u = integrale_vol_div(rho_cp_u, self.num_prop.dx)
         rho_cp_etoile = self.rho_cp_a + self.dt * int_div_rho_cp_u
@@ -778,7 +750,6 @@ class ProblemConserv2(Problem):
         int_div_rho_cp_T_u = integrale_vol_div(self.flux_conv, self.num_prop.dx)
 
         self.flux_diff = interpolate(self.Lda_h, I=self.I, schema=self.num_prop.schema) * grad(self.T, self.num_prop.dx)
-        # self.flux_diff = interpolate(self.Lda_h, I=self.I, schema='center') * grad(self.T, self.num_prop.dx)
         int_div_lda_grad_T = integrale_vol_div(self.flux_diff, self.num_prop.dx)
 
         if (debug is not None) and bool_debug:
@@ -808,7 +779,6 @@ class ProblemConserv2(Problem):
 
             # On s'occupe de calculer d_rho_cp
 
-            # rho_cp_markers = self.phy_prop.rho_cp1 * temp_I + self.phy_prop.rho_cp2 * (1. - temp_I)
             rho_cp = self.rho_cp_a + h * self.dt * K_rhocp[-1]
             rho_cp_u = interpolate(rho_cp, I=temp_I, schema=self.num_prop.schema) * self.phy_prop.v
             int_div_rho_cp_u = integrale_vol_div(rho_cp_u, self.num_prop.dx)
@@ -823,7 +793,6 @@ class ProblemConserv2(Problem):
             int_div_rho_cp_T_u = integrale_vol_div(rho_cp_T_u, self.num_prop.dx)
 
             Lda_h = 1. / (temp_I / self.phy_prop.lda1 + (1. - temp_I) / self.phy_prop.lda2)
-            # lda_grad_T = interpolate(Lda_h, I=temp_I, schema=self.num_prop.schema) * grad(T, self.num_prop.dx)
             lda_grad_T = interpolate(Lda_h, I=temp_I, schema='center_h') * grad(T, self.num_prop.dx)
             lda_gradT_l.append(lda_grad_T)
             int_div_lda_grad_T = integrale_vol_div(lda_grad_T, self.num_prop.dx)

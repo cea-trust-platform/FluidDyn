@@ -226,20 +226,6 @@ class CellsInterface:
     def compute_T_f_gradT_f_weno(self):
         # TODO: il faut changer de manière à toujours faire une interpolation amont de la température et centrée des
         #  gradients
-        # Tim52, dTdxim52, Tim32, dTdxim32 = self._interp_lagrange3(self.Tg[0], self.Tg[1], self.Tg[2])
-        # Tip32, dTdxip32, Tip52, dTdxip52 = self._interp_lagrange3(self.Td[1], self.Td[2], self.Td[3])
-        # self._T_f[0] = Tim52
-        # self._T_f[1] = Tim32
-        # self._T_f[4] = Tip32
-        # self._T_f[5] = Tip52
-        # self._T_f[2] = self._T_dlg(0.)
-        # self._T_f[3] = self._T_dld(self.dx)
-        # self._gradT_f[0] = dTdxim52
-        # self._gradT_f[1] = dTdxim32
-        # self._gradT_f[4] = dTdxip32
-        # self._gradT_f[5] = dTdxip52
-        # self._gradT_f[2] = self._gradT_dlg(0.)
-        # self._gradT_f[3] = self._gradT_dld(self.dx)
         raise NotImplemented
 
     def compute_T_f_gradT_f_quick(self):
@@ -296,8 +282,6 @@ class CellsInterface:
         self._gradT_f[3] = dTdxip12
         self._gradT_f[4] = dTdxip32
         self._gradT_f[5] = dTdxip52
-        # print('T', self._T_f)
-        # print('gradT', self._gradT_f)
 
     def compute_T_f_gradT_f_upwind(self):
         """
@@ -610,7 +594,6 @@ class CellsInterface:
                                   np.array([self.ad, 1.])*self.dx)
         self.Tg[-1] = self.Tg[-2] + grad_Tg * self.dx
         self.Td[0] = self.Td[1] - grad_Td * self.dx
-        # print(self.Tg, self.Td)
         # Calcul des gradient aux faces
 
         # À gauche :
@@ -868,13 +851,11 @@ class CellsInterface:
         d11 = x1 - x_int + 0.5 * self.dx
         d20 = x2 - x_int - 0.5 * self.dx
         d21 = x2 - x_int + 0.5 * self.dx
-        # print('d : ', d0, d1, d2)
 
         mat = np.array([[1., (d01**2 - d00**2) / 2. / self.dx, (d01**3 - d00**3) / 6. / self.dx],
                         [1., (d11**2 - d10**2) / 2. / self.dx, (d11**3 - d10**3) / 6. / self.dx],
                         [1., (d21**2 - d20**2) / 2. / self.dx, (d21**3 - d20**3) / 6. / self.dx]], dtype=np.float_)
         inv_mat = np.linalg.inv(mat)
-        # print(inv_mat)
         Tint, dTdx_int, d2Tdx2_int = np.dot(inv_mat, np.array([T0, T1, T2]))
         return Tint, dTdx_int, d2Tdx2_int
 
@@ -928,7 +909,6 @@ class CellsInterface:
         d0 = x0 - x_int
         d1 = x1 - x_int
         d2 = x2 - x_int
-        # print('d : ', d0, d1, d2)
 
         mat = np.array([[1., d0, d0**2 / 2.],
                         [1., d1, d1**2 / 2.],
@@ -988,7 +968,6 @@ class CellsInterface:
         d0 = xgg - x_face
         d1 = xg - x_face
         d2 = xi - x_face
-        # print('d : ', d0, d1, d2)
 
         mat = np.array([[1., d0, d0**2 / 2., d0**3/6.],
                         [1., d1, d1**2 / 2., d1**3/6.],
@@ -1150,8 +1129,6 @@ class CellsSuiviInterface:
 
         self.Tj[:3] = self._interp_from_i_to_j_g(self.cells_fixe.Tg, self.cells_fixe.dx)
         self.Tj[3:] = self._interp_from_i_to_j_d(self.cells_fixe.Td, self.cells_fixe.dx)
-        # self._lda_gradTj = None
-        # self._Tj = None
 
     def _interp_from_i_to_j_g(self, Ti, dx):
         """
@@ -1239,23 +1216,3 @@ class CellsSuiviInterface:
             d = np.abs(np.array([x_I, xj[3]]) - xi[2])
             Ti[2] = self.cells_fixe.pid_interp(np.array([self.cells_fixe.Ti, Tj[3]]), d)
         return Ti
-
-    # @property
-    # def lda_gradTj(self):
-    #     if self._lda_gradTj is None:
-    #         if self.interp_type == 'Ti':
-    #             self._compute_from_Tj()
-    #         else:
-    #             raise NotImplementedError
-    #     return self._lda_gradTj
-    #
-    # def _compute_from_Tj(self):
-    #     """
-    #     On calcule TIj et lda_gradTIj à partir de Tj et Tjp1
-    #
-    #     Returns:
-    #         Calcule les gradients g, I, d, et Ti
-    #     """
-    #     self._Tj, self._lda_gradTj = _get_T_i_and_lda_grad_T_i(self.ldag, self.ldad, self.Tj[2], self.Tj[3],
-    #                                                           (1. + self.ag) / 2. * self.dx,
-    #                                                           (1. + self.ad) / 2. * self.dx)

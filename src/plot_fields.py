@@ -115,7 +115,7 @@ def plot_classic(problem, fig=None, ax=None, ax2=None, ax3=None, lda_gradT=False
                                 lda_gradT=lda_gradT, flux_conv=flux_conv)
     ticks_major, ticks_minor, M1, Dx = get_ticks(problem)
     ax.set_xticks(ticks_major, minor=False)
-    ax.set_xticklabels((ticks_major - M1) / Dx, minor=False)
+    ax.set_xticklabels(np.rint((ticks_major - M1) / Dx).astype(int), minor=False)
     ax.set_xticks(ticks_minor, minor=True)
     return fig, ax, ax2, ax3
 

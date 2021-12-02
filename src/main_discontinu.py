@@ -202,6 +202,8 @@ class ProblemDiscontinuEnergieTemperature(Problem):
         rho_cp_inv_h = 1. / self.rho_cp_h
         self.T += self.dt * (-int_div_T_u + self.phy_prop.diff * rho_cp_inv_h * int_div_lda_grad_T)
         self.h += self.dt * (-int_div_rho_cp_T_u + self.phy_prop.diff * int_div_lda_grad_T)
+        # dT/dt = -inv_rho_cp * div_rho_cp_T_u + corr + rho_cp_inv * div_lda_grad_T
+        # self.T += self.dt * (-inv_rho_cp_h * int_div_rho_cp_T_u + self.phy_prop.diff * rho_cp_inv_h * int_div_lda_grad_T)
 
 
     @property
@@ -395,14 +397,8 @@ class ProblemRhoCpDiscontinuE(Problem):
 
     """
     Résolution en énergie.
-    Cette classe résout le problème en 3 étapes :
-
-        - on calcule le nouveau T comme avant (avec un stencil de 1 à proximité des interfaces par simplicité)
-        - on calcule précisemment T1 et T2 ansi que les bons flux aux faces, on met à jour T
-        - on met à jour T_i et lda_grad_T_i
-
-    Elle résout donc le problème de manière complètement monophasique et recolle à l'interface en imposant la
-    continuité de lda_grad_T et T à l'interface.
+    Dans cette résolution on ne corrige pas la température et le gradient pour les flux, on corrige seulement les 
+    valeurs des propriétés discontinues à l'interface.
 
     Args:
         T0: la fonction initiale de température
@@ -450,7 +446,7 @@ class ProblemRhoCpDiscontinuE(Problem):
         Returns:
 
         """
-        flux_conv, flux_diff = args
+        flux_conv, flux_diff, T_f = args
         dx = self.num_prop.dx
 
         for i_int, (i1, i2) in enumerate(bulles.ind):
@@ -467,7 +463,8 @@ class ProblemRhoCpDiscontinuE(Problem):
                 # On calcule gradTg, gradTi, Ti, gradTd
 
                 ldag, rhocpg, ag, ldad, rhocpd, ad = get_prop(self, i, liqu_a_gauche=from_liqu_to_vap)
-                cells = CellsInterface(ldag, ldad, ag, dx, T[[im3, im2, im1, i0, ip1, ip2, ip3]],
+                # Ici on ne prend pas en compte la température, seule la correction des coefficients nous intéresse
+                cells = CellsInterface(ldag, ldad, ag, dx, np.empty((7,)),
                                        rhocpg=rhocpg, rhocpd=rhocpd, interp_type=self.interp_type,
                                        schema_conv=self.conv_interf, vdt=self.dt*self.phy_prop.v)
                 self.bulles.cells[2*i_int + ist] = cells
@@ -475,8 +472,8 @@ class ProblemRhoCpDiscontinuE(Problem):
                 # Correction des cellules i0 - 1 à i0 + 1 inclue
                 # DONE: l'écrire en version flux pour être sûr de la conservation
 
-                T_f = interpolate(T, I=None, schema=self.num_prop.schema)[[im2, im1, i0, ip1, ip2, ip3]]
-                rhocpT_u = cells.rhocp_f * T_f * self.phy_prop.v
+                T_f_ = T_f[[im2, im1, i0, ip1, ip2, ip3]]
+                rhocpT_u = cells.rhocp_f * T_f_ * self.phy_prop.v
                 self.bulles.Ti[i_int, ist] = cells.Ti
 
                 # Correction des flux cellules
@@ -490,8 +487,9 @@ class ProblemRhoCpDiscontinuE(Problem):
         I_np1 = bulles_np1.indicatrice_liquide(self.num_prop.x)
         rho_cp_a_np1 = I_np1 * self.phy_prop.rho_cp1 + (1.-I_np1) * self.phy_prop.rho_cp2
         self.flux_conv = self._compute_convection_flux(self.rho_cp_a * self.T, self.bulles, bool_debug, debug)
+        T_f = self._compute_convection_flux(self.T, self.bulles, bool_debug, debug)
         self.flux_diff = self._compute_diffusion_flux(self.T, self.bulles, bool_debug, debug)
-        self._corrige_flux_coeff_interface(self.T, self.bulles, self.flux_conv, self.flux_diff)
+        self._corrige_flux_coeff_interface(self.T, self.bulles, self.flux_conv, self.flux_diff, T_f)
         drhocpTdt = - integrale_vol_div(self.flux_conv, dx) \
             + self.phy_prop.diff * integrale_vol_div(self.flux_diff, dx)
         self.T = (self.T * self.rho_cp_a + self.dt * drhocpTdt) / rho_cp_a_np1

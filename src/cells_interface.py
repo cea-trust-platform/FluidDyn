@@ -147,7 +147,8 @@ class CellsInterface:
             return self._T_f
         else:
             # schema centre
-            return np.concatenate(((self.Tg[1:] + self.Tg[:-1])/2., (self.Td[1:] + self.Td[:-1])/2.))
+            raise Exception('Le schema n est pas implémenté')
+            # return np.concatenate(((self.Tg[1:] + self.Tg[:-1])/2., (self.Td[1:] + self.Td[:-1])/2.))
 
     @property
     def gradTg(self) -> np.ndarray((3,), dtype=float):
@@ -588,29 +589,14 @@ class CellsInterface:
 
         self._dTdxg = self._lda_gradTi/self.ldag
         self._dTdxd = self._lda_gradTi/self.ldad
-        grad_Tg = self.pid_interp(np.array([self.gradTg[1], self._lda_gradTi/self.ldag]),
-                                  np.array([1., self.ag])*self.dx)
-        grad_Td = self.pid_interp(np.array([self._lda_gradTi/self.ldad, self.gradTd[1]]),
-                                  np.array([self.ad, 1.])*self.dx)
-        self.Tg[-1] = self.Tg[-2] + grad_Tg * self.dx
-        self.Td[0] = self.Td[1] - grad_Td * self.dx
-        # Calcul des gradient aux faces
-
-        # À gauche :
-        # aim1_gc = 0.5 + self.ag/2.
-        # gradTim1_gc = (self.Tgc - self.Tg[-2])/(aim1_gc*self.dx)
-        # gradTg_v = np.array([self.gradTg[-2], gradTim1_gc, self.lda_gradTi/self.ldag])
-        # dist = np.array([1., np.abs(0.5 - aim1_gc/2.), self.ag])*self.dx
-        # gradTg = self.pid_interp(gradTg_v, dist)
-        # self.Tg[-1] = self.Tg[-2] + self.dx * gradTg
-        #
-        # # À droite :
-        # aip1_dc = 0.5 + self.ad/2.
-        # gradTip1_dc = (self.Td[1] - self.Tdc)/(aip1_dc*self.dx)
-        # gradTd_v = np.array([self.lda_gradTi/self.ldad, gradTip1_dc, self.gradTd[1]])
-        # dist = np.array([self.ad, np.abs(0.5 - aip1_dc/2.), 1.])*self.dx
-        # gradTd = self.pid_interp(gradTd_v, dist)
-        # self.Td[0] = self.Td[1] - self.dx * gradTd
+        self.Tg[-1] = self._T_dlg(0.5 * self.dx)
+        self.Td[0] = self._T_dld(0.5 * self.dx)
+        # grad_Tg = self.pid_interp(np.array([self.gradTg[1], self._lda_gradTi/self.ldag]),
+        #                           np.array([1., self.ag])*self.dx)
+        # grad_Td = self.pid_interp(np.array([self._lda_gradTi/self.ldad, self.gradTd[1]]),
+        #                           np.array([self.ad, 1.])*self.dx)
+        # self.Tg[-1] = self.Tg[-2] + grad_Tg * self.dx
+        # self.Td[0] = self.Td[1] - grad_Td * self.dx
 
     def _get_T_i_and_lda_grad_T_i(self, Tg: float, Td: float, dg: float, dd: float) -> (float, float):
         """
@@ -812,11 +798,8 @@ class CellsInterface:
         Args:
             T0:
             T1:
-            T2:
             x0:
             x1:
-            x2:
-            x_int:
 
         Returns:
 
@@ -885,6 +868,36 @@ class CellsInterface:
                         [1., (d11 ** 2 - d10 ** 2) / 2. / self.dx, (d11 ** 3 - d10 ** 3) / 6. / self.dx],
                         [0., 1., (d01 ** 2 - d00 ** 2) / 2. / self.dx]], dtype=np.float_)
         Tint, dTdx_int, d2Tdx2_int = np.dot(np.linalg.inv(mat), np.array([T0, T1, gradT0]))
+        return Tint, dTdx_int, d2Tdx2_int
+
+    @staticmethod
+    def _interp_lagrange_aval(T0: float, T1: float, T2: float, x0: float, x1: float, x2: float, x_int: float) \
+            -> (float, float, float):
+        """
+        Dans cette méthode on veux que T0 seulement soit amont de x_int.
+        C'est une interpolation d'ordre 3, attention elle ne peut être utilisée que pour calculer le gradient de
+        température, la température elle même doit impérativement être calculée en amont.
+
+        Args:
+            T0:
+            T1:
+            T2:
+            x0:
+            x1:
+            x2:
+            x_int:
+
+        Returns:
+
+        """
+        d0 = x0 - x_int
+        d1 = x1 - x_int
+        d2 = x2 - x_int
+
+        mat = np.array([[1., d0, d0**2 / 2.],
+                        [1., d1, d1**2 / 2.],
+                        [1., d2, d2**2 / 2.]], dtype=np.float_)
+        Tint, dTdx_int, d2Tdx2_int = np.dot(np.linalg.inv(mat), np.array([T0, T1, T2]))
         return Tint, dTdx_int, d2Tdx2_int
 
     @staticmethod
@@ -1216,5 +1229,3 @@ class CellsSuiviInterface:
             d = np.abs(np.array([x_I, xj[3]]) - xi[2])
             Ti[2] = self.cells_fixe.pid_interp(np.array([self.cells_fixe.Ti, Tj[3]]), d)
         return Ti
-
-

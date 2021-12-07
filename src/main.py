@@ -41,6 +41,9 @@ def interpolate(center_value, I=None, cl=1, schema='weno', cv_0=0., cv_n=0.):
                                                                                     cv_n=cv_n)
     else:
         raise NotImplementedError
+    if cl == 1:
+        if np.abs(interpolated_value[0] - interpolated_value[-1]) > 10**-10:
+            raise Exception("Les flux entrants et sortants sont censés être identiques")
     return interpolated_value
 
 
@@ -632,6 +635,16 @@ class Problem:
                     plotter.plot(self)
         return t, energy
 
+    def _echange_flux(self):
+        """
+        Cette méthode permet de forcer que le flux sortant soit bien égal au flux entrant
+
+        Returns:
+
+        """
+        self.flux_conv[-1] = self.flux_conv[0]
+        self.flux_diff[-1] = self.flux_diff[0]
+
     def _corrige_flux_coeff_interface(self, T, bulles, *args):
         """
         Cette méthode sert à corriger dans les versions discontinues de Problem directement les flux et ainsi de
@@ -674,6 +687,7 @@ class Problem:
         self.flux_diff = self._compute_diffusion_flux(self.T, self.bulles, bool_debug, debug)
         rho_cp_inv_h = 1./self.rho_cp_h
         self._corrige_flux_coeff_interface(self.T, self.bulles, self.flux_conv, self.flux_diff)
+        self._echange_flux()
         dTdt = - integrale_vol_div(self.flux_conv, dx) \
             + self.phy_prop.diff * rho_cp_inv_h * integrale_vol_div(self.flux_diff, dx)
         self.T += self.dt * dTdt
@@ -689,8 +703,11 @@ class Problem:
             # convection, conduction, dTdt = self.compute_dT_dt(T_int, markers_int, bool_debug, debug)
             convection = self._compute_convection_flux(T_int, markers_int, bool_debug, debug)
             conduction = self._compute_diffusion_flux(T_int, markers_int, bool_debug, debug)
+            # TODO: vérifier qu'il ne faudrait pas plutôt utiliser rho_cp^{n,k}
             rho_cp_inv_h = 1. / self.rho_cp_h
             self._corrige_flux_coeff_interface(T_int, markers_int, convection, conduction)
+            convection[-1] = convection[0]
+            conduction[-1] = conduction[0]
             dTdt = - integrale_vol_div(convection, self.num_prop.dx) \
                 + self.phy_prop.diff * rho_cp_inv_h * integrale_vol_div(conduction, self.num_prop.dx)
             K = K * coeff_dTdtm1[step] + dTdt
@@ -718,8 +735,11 @@ class Problem:
             T = self.T + h * self.dt * K[-1]
             convection = self._compute_convection_flux(T, markers_int, bool_debug, debug)
             conduction = self._compute_diffusion_flux(T, markers_int, bool_debug, debug)
+            # TODO: vérifier qu'il ne faudrait pas plutôt utiliser rho_cp^{n,k}
             rho_cp_inv_h = 1. / self.rho_cp_h
             self._corrige_flux_coeff_interface(T, markers_int, convection, conduction)
+            convection[-1] = convection[0]
+            conduction[-1] = conduction[0]
             T_u_l.append(convection)
             lda_gradT_l.append(conduction)
             K.append(- integrale_vol_div(convection, dx)

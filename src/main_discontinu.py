@@ -171,10 +171,11 @@ class ProblemDiscontinuEnergieTemperature(Problem):
 
                 # Correction des cellules
                 # ind_to_change = [im2, im1, i0, ip1, ip2]
-                ind_flux = [im1, i0, ip1, ip2, ip3]
-                self.flux_conv[ind_flux] = cells.T_f[1:] * self.phy_prop.v
-                self.flux_conv_ener[ind_flux] = rhocp_T_u[1:]
-                self.flux_diff[ind_flux] = lda_grad_T[1:]
+                ind_flux_conv = [im1, i0, ip1, ip2, ip3]  # on corrige les flux de i-3/2 a i+5/2 (en WENO ça va jusqu'a 5/2)
+                ind_flux_diff = [i0, ip1]  # on corrige les flux diffusifs des faces de la cellule diphasique seulement
+                self.flux_conv[ind_flux_conv] = cells.T_f[1:] * self.phy_prop.v
+                self.flux_conv_ener[ind_flux_conv] = rhocp_T_u[1:]
+                self.flux_diff[ind_flux_diff] = lda_grad_T[2:4]
                 # on écrit l'équation en température, et en energie
                 # Tnp1 = Tn + dt (- int_S_rho_cp_T_u + int_S_lda_grad_T
                 #                 - delta * I2 * (rhocp2 - rhocpa) - [rhocp] * int_S_Ti_v_n2_dS) / rhocpa
@@ -301,11 +302,12 @@ class ProblemDiscontinuEnergieTemperatureInt(Problem):
 
                 # Correction des cellules
                 # ind_to_change = [im2, im1, i0, ip1, ip2]
-                ind_flux = [im1, i0, ip1, ip2, ip3]
-                self.flux_conv[ind_flux] = cells.T_f[1:] * self.phy_prop.v
-                self.flux_conv_ener[ind_flux] = rhocp_T_u[1:]
-                self.flux_diff[ind_flux] = lda_grad_T[1:]
-                self.flux_diff_temp[ind_flux] = lda_grad_T[1:]/cells.rhocp_f[1:]
+                ind_flux_conv = [im1, i0, ip1, ip2, ip3]  # on corrige les flux de i-3/2 a i+5/2 (en WENO ça va jusqu'a 5/2)
+                ind_flux_diff = [i0, ip1]  # on corrige les flux diffusifs des faces de la cellule diphasique seulement
+                self.flux_conv[ind_flux_conv] = cells.T_f[1:] * self.phy_prop.v
+                self.flux_conv_ener[ind_flux_conv] = rhocp_T_u[1:]
+                self.flux_diff[ind_flux_diff] = lda_grad_T[2:4]
+                self.flux_diff_temp[ind_flux_diff] = lda_grad_T[2:4]*cells.inv_rhocp_f[2:4]
                 self.ind_interf[i0] = (1./rhocpg - 1./rhocpd) * cells.lda_gradTi
                 # on écrit l'équation en température, et en energie
                 # Tnp1 = Tn + dt (- int_S_rho_cp_T_u + int_S_lda_grad_T
@@ -430,10 +432,10 @@ class ProblemDiscontinuE(Problem):
                 self.bulles.Ti[i_int, ist] = cells.Ti
 
                 # Correction des flux cellules
-                # ind_to_change = [im2, im1, i0, ip1, ip2]
-                ind_flux = [im1, i0, ip1, ip2, ip3]
-                flux_conv[ind_flux] = rhocpT_u[1:]
-                flux_diff[ind_flux] = lda_grad_T[1:]
+                ind_flux_conv = [im1, i0, ip1, ip2, ip3]  # on corrige les flux de i-3/2 a i+5/2 (en WENO ça va jusqu'a 5/2)
+                ind_flux_diff = [i0, ip1]  # on corrige les flux diffusifs des faces de la cellule diphasique seulement
+                flux_conv[ind_flux_conv] = rhocpT_u[1:]
+                flux_diff[ind_flux_diff] = lda_grad_T[2:4]
                 # rho_cp_np1 * Tnp1 = rho_cp_n * Tn + dt (- int_S_rho_cp_T_u + int_S_lda_grad_T)
 
     def _euler_timestep(self, debug=None, bool_debug=False):
@@ -608,8 +610,8 @@ class ProblemRhoCpDiscontinuE(Problem):
                 self.bulles.Ti[i_int, ist] = cells.Ti
 
                 # Correction des flux cellules
-                ind_flux = [im1, i0, ip1, ip2, ip3]
-                flux_conv[ind_flux] = rhocpT_u[1:]
+                ind_flux_conv = [im1, i0, ip1, ip2, ip3]  # on corrige les flux de i-3/2 a i+5/2 (en WENO ça va jusqu'a 5/2)
+                flux_conv[ind_flux_conv] = rhocpT_u[1:]
 
     def _euler_timestep(self, debug=None, bool_debug=False):
         dx = self.num_prop.dx
@@ -717,10 +719,10 @@ class ProblemDiscontinuT(Problem):
                 self.bulles.Ti[i_int, ist] = cells.Ti
 
                 # Correction des cellules
-                # ind_to_change = [im2, im1, i0, ip1, ip2]
-                ind_flux = [im1, i0, ip1, ip2, ip3]
-                flux_conv[ind_flux] = T_u[1:]
-                flux_diff[ind_flux] = lda_grad_T[1:]
+                ind_flux_conv = [im1, i0, ip1, ip2, ip3]  # on corrige les flux de i-3/2 a i+5/2 (en WENO ça va jusqu'a 5/2)
+                ind_flux_diff = [i0, ip1]  # on corrige les flux diffusifs des faces de la cellule diphasique seulement
+                flux_conv[ind_flux_conv] = T_u[1:]
+                flux_diff[ind_flux_diff] = lda_grad_T[2:4]
                 # Tnp1 = Tn + dt (- int_S_T_u + 1/rhocp * int_S_lda_grad_T)
 
     @property
@@ -838,10 +840,10 @@ class ProblemDiscontinuT2(Problem):
                 self.bulles.Ti[i_int, ist] = cells.Ti
 
                 # Correction des cellules
-                # ind_to_change = [im2, im1, i0, ip1, ip2]
-                ind_flux = [im1, i0, ip1, ip2, ip3]
-                flux_conv[ind_flux] = T_u[1:]
-                flux_diff[ind_flux] = lda_over_rhocp_grad_T[1:]
+                ind_flux_conv = [im1, i0, ip1, ip2, ip3]  # on corrige les flux de i-3/2 a i+5/2 (en WENO ça va jusqu'a 5/2)
+                ind_flux_diff = [i0, ip1]  # on corrige les flux diffusifs des faces de la cellule diphasique seulement
+                flux_conv[ind_flux_conv] = T_u[1:]
+                flux_diff[ind_flux_diff] = lda_over_rhocp_grad_T[2:4]
                 # Tnp1 = Tn + dt (- int_S_T_u + 1/rhocp * int_S_lda_grad_T)
 
     def _euler_timestep(self, debug=None, bool_debug=False):
@@ -971,9 +973,10 @@ class ProblemDiscontinuSautdTdt(Problem):
 
                 # Correction des cellules
                 ind_to_change = [im2, im1, i0, ip1, ip2]
-                ind_flux = [im2, im1, i0, ip1, ip2, ip3]
-                self.flux_conv[ind_flux] = rhocp_T_u / self.rho_cp_a[ind_flux]
-                self.flux_diff[ind_flux] = lda_grad_T
+                ind_flux_conv = [im1, i0, ip1, ip2, ip3]  # on corrige les flux de i-3/2 a i+5/2 (en WENO ça va jusqu'a 5/2)
+                ind_flux_diff = [i0, ip1]  # on corrige les flux diffusifs des faces de la cellule diphasique seulement
+                self.flux_conv[ind_flux_conv] = rhocp_T_u[1:] / self.rho_cp_a[ind_flux_conv]
+                self.flux_diff[ind_flux_diff] = lda_grad_T[2:4]
                 if self.deb:
                     print('delta conv : ', cells.lda_gradTi * (1/ldad - 1/ldag) * self.phy_prop.v)
                     print('delta cond : ', (cells.grad_lda_gradT_n_d/rhocpd - cells.grad_lda_gradT_n_g/rhocpg))
@@ -1076,13 +1079,14 @@ class ProblemDiscontinuSepIntT(Problem):
                 # DONE: l'écrire en version flux pour être sûr de la conservation
                 dx = self.num_prop.dx
                 # rhocp_T_u = cells.rhocp_f * cells.T_f * self.phy_prop.v
-                inv_rhocp_f_lda_f_grad_T = cells.lda_f * cells.gradT / cells.rhocp_f
+                inv_rhocp_f_lda_f_grad_T = cells.lda_f * cells.gradT * cells.inv_rhocp_f
 
                 # Correction des cellules
                 # ind_to_change = [im2, im1, i0, ip1, ip2]
-                ind_flux = [im1, i0, ip1, ip2, ip3]
-                self.flux_conv[ind_flux] = cells.T_f[1:] * self.phy_prop.v
-                self.flux_diff[ind_flux] = inv_rhocp_f_lda_f_grad_T[1:]
+                ind_flux_conv = [im1, i0, ip1, ip2, ip3]  # on corrige les flux de i-3/2 a i+5/2 (en WENO ça va jusqu'a 5/2)
+                ind_flux_diff = [i0, ip1]  # on corrige les flux diffusifs des faces de la cellule diphasique seulement
+                self.flux_conv[ind_flux_conv] = cells.T_f[1:] * self.phy_prop.v
+                self.flux_diff[ind_flux_diff] = inv_rhocp_f_lda_f_grad_T[2:4]
                 self.ind_interf[i0] = (1. / rhocpg - 1. / rhocpd) * cells.lda_gradTi
                 # on écrit l'équation en température, et en energie
                 # Tnp1 = Tn + dt (- int_S_rho_cp_T_u + int_S_lda_grad_T
@@ -1128,6 +1132,7 @@ class ProblemDiscontinuECorrige(Problem):
         Ici on corrige l'approximation :maht:`\\overline{h} = rhoCp_a * \\overline{T}` grace au DL de la température
         à l'ordre 1 :
         :math:`T(x) = T_I + \\left.\\nabla T\\right|_{I^{+/-}} \\cdot (\\underline{x} - \\underline{x}_I)`
+        Cette classe est expérimentale, les réultats ne sont pas validés.
 
         Args:
             T0: temperature function
@@ -1181,13 +1186,16 @@ class ProblemDiscontinuECorrige(Problem):
             for ist, i in enumerate((i1, i2)):
                 if i == i1:
                     from_liqu_to_vap = True
+                    sign = -1.
                 else:
                     from_liqu_to_vap = False
+                    sign = 1.
                 im3, im2, im1, i0, ip1, ip2, ip3 = cl_perio(len(self.T), i)
 
                 # On calcule gradTg, gradTi, Ti, gradTd
 
                 ldag, rhocpg, ag, ldad, rhocpd, ad = get_prop(self, i, liqu_a_gauche=from_liqu_to_vap)
+                a1 = self.I[i0]
                 cells = CellsInterface(ldag, ldad, ag, dx, self.T[[im3, im2, im1, i0, ip1, ip2, ip3]],
                                        rhocpg=rhocpg, rhocpd=rhocpd, interp_type=self.interp_type,
                                        schema_conv=self.conv_interf, vdt=self.phy_prop.v * self.dt)
@@ -1209,17 +1217,17 @@ class ProblemDiscontinuECorrige(Problem):
 
                 # Correction des cellules
                 # ind_to_change = [im2, im1, i0, ip1, ip2]
-                ind_flux = [im1, i0, ip1, ip2, ip3]
-                self.flux_conv[ind_flux] = rhocp_T_u[1:]
-                self.flux_diff[ind_flux] = lda_gradT[1:]
-                self.ind_interf[i0] = (self.phy_prop.rho_cp1 - self.phy_prop.rho_cp2) * cells.lda_gradTi * \
-                    (ad/ldag + ag/ldad) * self.phy_prop.v
+                ind_flux_conv = [im1, i0, ip1, ip2, ip3]  # on corrige les flux de i-3/2 a i+5/2 (en WENO ça va jusqu'a 5/2)
+                ind_flux_diff = [i0, ip1]  # on corrige les flux diffusifs des faces de la cellule diphasique seulement (i-1/2 et i+1/2)
+                self.flux_conv[ind_flux_conv] = rhocp_T_u[1:]
+                self.flux_diff[ind_flux_diff] = lda_gradT[2:4]
+                self.ind_interf[i0] = sign * (self.phy_prop.rho_cp1 - self.phy_prop.rho_cp2) * cells.lda_gradTi * self.phy_prop.v *\
+                    (ag*ad*(1./self.phy_prop.lda1 - 1./self.phy_prop.lda2)
+                     - a1**2/(2.*self.phy_prop.lda1) + (1-a1)**2/(2*self.phy_prop.lda2))
                 # self.ind_interf[i0] = 0.
                 # on écrit l'équation en energie et on fait un DL a l'odre 1 sur la température de chaque côté pour
                 # corriger le produit :
-                # rhocp_a(np1)T(np1) = rhocp_a(n)T(n) + dt/dV (- int_S_rho_cp_T_u + int_S_lda_grad_T
-                #                                              + (rhocp1 - rhocp2) * int_S_Ti_v_n1_dS * q_I *
-                #                                                (a2/lda1 + a1/lda2) )
+                # rhocp_a(np1)T(np1) = rhocp_a(n)T(n) + dt/dV (- int_S_rho_cp_T_u + int_S_lda_grad_T) + dt*reste
 
     def _euler_timestep(self, debug=None, bool_debug=False):
         bulles = self.bulles.copy()
@@ -1237,7 +1245,7 @@ class ProblemDiscontinuECorrige(Problem):
         self.T = (self.T * self.rho_cp_a
                   + self.dt * (-int_div_rho_cp_T_u
                                + self.phy_prop.diff * int_div_lda_grad_T
-                               + self.phy_prop.diff / self.num_prop.dx * self.ind_interf)
+                               + self.phy_prop.diff * self.ind_interf)
                   )/rho_cp_a_np1
 
     @property
@@ -1344,10 +1352,11 @@ class ProblemDiscontinuCoupleConserv(Problem):
                 # Correction des cellules
                 ind_to_change = [im2, im1, i0, ip1, ip2]
                 # ind_flux = [im2, im1, i0, ip1, ip2, ip3]
-                ind_flux = [im1, i0, ip1, ip2, ip3]
-                self.flux_conv[ind_flux] = cells.T_f[1:] * self.phy_prop.v
-                self.flux_conv_ener[ind_flux] = rhocp_T_u[1:]
-                self.flux_diff[ind_flux] = lda_grad_T[1:]
+                ind_flux_conv = [im1, i0, ip1, ip2, ip3]  # on corrige les flux de i-3/2 a i+5/2 (en WENO ça va jusqu'a 5/2)
+                ind_flux_diff = [i0, ip1]  # on corrige les flux diffusifs des faces de la cellule diphasique seulement
+                self.flux_conv[ind_flux_conv] = cells.T_f[1:] * self.phy_prop.v
+                self.flux_conv_ener[ind_flux_conv] = rhocp_T_u[1:]
+                self.flux_diff[ind_flux_diff] = lda_grad_T[2:4]
                 # on écrit l'équation en température, et en energie
                 # Tnp1 = Tn + dt (- int_S_rho_cp_T_u + int_S_lda_grad_T
                 #                 - delta * I2 * (rhocp2 - rhocpa) - [rhocp] * int_S_Ti_v_n2_dS) / rhocpa

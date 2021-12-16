@@ -127,6 +127,8 @@ class CellsInterface:
                 self.compute_T_f_gradT_f_quick()
             if self.schema_conv == 'upwind':
                 self.compute_T_f_gradT_f_upwind()
+            if self.schema_conv == 'amont_centre':
+                self.compute_T_f_gradT_f_amont_centre()
 
     @staticmethod
     def pid_interp(T: float64[:], d: float64[:]) -> float:
@@ -144,6 +146,8 @@ class CellsInterface:
         if self.schema_conv == 'weno':
             return self._T_f
         if self.schema_conv == 'quick':
+            return self._T_f
+        if self.schema_conv == 'amont_centre':
             return self._T_f
         else:
             # schema centre
@@ -176,7 +180,7 @@ class CellsInterface:
 
     @property
     def gradT(self) -> np.ndarray((6,), dtype=float):
-        if self.schema_diff == 'DL' or self.schema_conv == 'weno' or self.schema_conv == 'quick':
+        if self.schema_diff == 'DL' or self.schema_conv == 'weno' or self.schema_conv == 'quick' or self.schema_conv == 'amont_centre':
             return self._gradT_f
         else:
             return np.concatenate((self.gradTg, self.gradTd))
@@ -190,6 +194,17 @@ class CellsInterface:
         else:
             self._rhocp_f[3] = self.rhocpd
             return self._rhocp_f
+
+    @property
+    def inv_rhocp_f(self) -> np.ndarray((6,), dtype=float):
+        if self.vdt > 0.:
+            coeff_d = min(self.vdt, self.ad*self.dx)/self.vdt
+            inv_rho_cp_f = 1./self.rhocp_f
+            inv_rho_cp_f[3] = coeff_d * 1./self.rhocpd + (1. - coeff_d) * 1./self.rhocpg
+            return inv_rho_cp_f
+        else:
+            self._rhocp_f[3] = self.rhocpd
+            return 1./self._rhocp_f
 
     @property
     def lda_f(self) -> np.ndarray((6,), dtype=float):
@@ -228,6 +243,61 @@ class CellsInterface:
         # TODO: il faut changer de manière à toujours faire une interpolation amont de la température et centrée des
         #  gradients
         raise NotImplemented
+
+    def compute_T_f_gradT_f_amont_centre(self):
+        """
+        Cellule type ::
+
+                Tg, gradTg                          Tghost
+                         0          1         2         3
+               +---------+----------+---------+---------+
+               |         |          |         |   |     |
+               |    +   -|>   +    -|>   +   -|>  |+    |
+               |    0    |    1     |    2    |   |3    |         4         5
+               +---------+----------+---------+---------+---------+---------+---------+
+                                              |   |     |         |         |         |
+                                 Td, gradTd   |   |+   -|>   +   -|>   +   -|>   +    |
+                                              |   |0    |    1    |    2    |    3    |
+                                              +---------+---------+---------+---------+
+                                                  Ti,                              |--|
+                                                  lda_gradTi                         vdt
+
+        Returns:
+
+        """
+        Tim32, _, _ = self._interp_lagrange_amont_centre(self.Tg[0], self.Tg[1], self.Tg[2],
+                                                         -2 * self.dx, -1. * self.dx, 0. * self.dx,
+                                                         -0.5 * self.dx)
+        Tim12, _, _ = self._interp_lagrange_amont_centre(self.Tg[1], self.Tg[2], self.Ti,
+                                                         -2. * self.dx, -1. * self.dx, (self.ag - 0.5) * self.dx,
+                                                         -0.5 * self.dx)
+        _, dTdxim12, _ = self._interp_lagrange_centre_grad(self.Tg[-3], self.Tg[-2], self.Ti, self._dTdxg,
+                                                           -2*self.dx, -1*self.dx, (self.ag - 0.5)*self.dx,
+                                                           -0.5*self.dx)
+        Tip12, _, _ = self._interp_lagrange_amont_grad(self.Ti, self.Td[1], self._dTdxd,
+                                                       (0.5 - self.ad) * self.dx, 1. * self.dx,
+                                                       0.5 * self.dx)
+        _, dTdxip12, _ = self._interp_lagrange_centre_grad(self.Td[2], self.Td[1], self.Ti, self._dTdxd,
+                                                           2. * self.dx, 1.*self.dx, (0.5 - self.ad) * self.dx,
+                                                           0.5 * self.dx)
+        Tip32, _, _ = self._interp_lagrange_amont_centre(self.Ti, self.Td[1], self.Td[2],
+                                                         (0.5 - self.ad) * self.dx, 1. * self.dx, 2. * self.dx,
+                                                         1.5 * self.dx)
+        Tip52, _, _ = self._interp_lagrange_amont_centre(self.Td[1], self.Td[2], self.Td[3],
+                                                         1. * self.dx, 2. * self.dx, 3. * self.dx,
+                                                         2.5 * self.dx)
+        self._T_f[0] = np.nan  # on ne veut pas se servir de cette valeur, on veut utiliser la version weno / quick
+        self._T_f[1] = Tim32
+        self._T_f[2] = Tim12  # self._T_dlg(0.)
+        self._T_f[3] = Tip12  # self._T_dld(self.dx)
+        self._T_f[4] = Tip32
+        self._T_f[5] = Tip52
+        self._gradT_f[0] = np.nan
+        self._gradT_f[1] = np.nan
+        self._gradT_f[2] = dTdxim12
+        self._gradT_f[3] = dTdxip12
+        self._gradT_f[4] = np.nan
+        self._gradT_f[5] = np.nan
 
     def compute_T_f_gradT_f_quick(self):
         """
@@ -575,7 +645,7 @@ class CellsInterface:
             Rien mais met à jour self.grad_T et self.T_f
         """
         # On commence par calculer T_I et lda_grad_Ti en fonction de Tgc et Tdc :
-        EPSILON = 10**-8
+        EPSILON = 10**-10
         if self.ag < EPSILON:
             self._Ti, self._lda_gradTi = self._get_T_i_and_lda_grad_T_i(self.Tg[-2], T_mean, (1.+self.ag) / 2. * self.dx,
                                                                         self.ad / 2. * self.dx)
@@ -899,6 +969,32 @@ class CellsInterface:
                         [1., d2, d2**2 / 2.]], dtype=np.float_)
         Tint, dTdx_int, d2Tdx2_int = np.dot(np.linalg.inv(mat), np.array([T0, T1, T2]))
         return Tint, dTdx_int, d2Tdx2_int
+
+    @staticmethod
+    def _interp_lagrange_amont_centre(T0: float, T1: float, T2: float, x0: float, x1: float, x2: float, x_int: float) \
+            -> (float, float, float):
+        """
+        Dans cette méthode on veux que T0 et T1 soient amont de x_int
+        C'est une interpolation d'ordre 1, qui mélange une interpolation amont 1 décentrée d'une interpolation
+        linéaire 1
+
+        Args:
+            T0:
+            T1:
+            T2:
+            x0:
+            x1:
+            x2:
+            x_int:
+
+        Returns:
+
+        """
+        T_int_amont = T1 + (T1 - T0) / (x1 - x0) * (x_int - x1)
+        T_int_centre = T1 + (T2 - T1) / (x2 - x1) * (x_int - x1)
+        Tint = (T_int_centre + T_int_amont)/2.
+
+        return Tint, np.nan, np.nan
 
     @staticmethod
     def _interp_lagrange_amont(T0: float, T1: float, T2: float, x0: float, x1: float, x2: float, x_int: float) \

@@ -14,7 +14,7 @@ if __name__ == '__main__':
     markers = Bulles(phy_prop=phy_prop, n_bulle=1)
     markers.shift(0.0000001)
     plot = Plotter('decale')
-    prob = Problem(get_T_creneau, markers=markers, phy_prop=phy_prop, num_prop=num_prop)
+    prob = Problem(get_T_creneau, markers=markers, num_prop=num_prop, phy_prop=phy_prop)
     t_fin = 0.2
     prob.timestep(t_fin=min(t_fin, t_fin_lim), n=n_lim, number_of_plots=1, plotter=plot)
 

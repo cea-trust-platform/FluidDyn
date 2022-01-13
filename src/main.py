@@ -494,7 +494,7 @@ class Problem:
     num_prop: NumericalProperties
     phy_prop: PhysicalProperties
 
-    def __init__(self, T0, markers=None, num_prop=None, phy_prop=None):
+    def __init__(self, T0, markers=None, num_prop=None, phy_prop=None, name=None):
         if phy_prop is None:
             print('Attention, les propriétés physiques par défaut sont utilisées')
             phy_prop = PhysicalProperties()
@@ -511,6 +511,7 @@ class Problem:
         self.iter = 0
         self.flux_conv = np.zeros_like(self.num_prop.x_f)
         self.flux_diff = np.zeros_like(self.num_prop.x_f)
+        self._imposed_name = name
 
     def _init_bulles(self, markers=None):
         if markers is None:
@@ -527,22 +528,29 @@ class Problem:
 
     @property
     def name(self):
-        return '%s' % self.phy_prop.cas
+        if self._imposed_name is None:
+            return self.name_cas
+        else:
+            return self._imposed_name
+
+    @property
+    def name_cas(self):
+        return 'TOF'
 
     @property
     def char(self):
         if self.phy_prop.v == 0.:
-            return '%s, %s, dx = %g, dt = %g' % (self.num_prop.time_scheme,
-                                                 self.num_prop.schema, self.num_prop.dx,
-                                                 self.dt)
+            return '%s, %s, dx = %g, dt = %.2g' % (self.num_prop.time_scheme,
+                                                   self.num_prop.schema, self.num_prop.dx,
+                                                   self.dt)
         elif self.phy_prop.diff == 0.:
             return '%s, %s, dx = %g, cfl = %g' % (self.num_prop.time_scheme,
                                                   self.num_prop.schema, self.num_prop.dx,
                                                   self.cfl)
         else:
-            return '%s, %s, dx = %g, dt = %g, cfl = %g' % (self.num_prop.time_scheme,
-                                                           self.num_prop.schema,
-                                                           self.num_prop.dx, self.dt, self.cfl)
+            return '%s, %s, dx = %g, dt = %.2g, cfl = %g' % (self.num_prop.time_scheme,
+                                                             self.num_prop.schema,
+                                                             self.num_prop.dx, self.dt, self.cfl)
 
     @property
     def cfl(self):
@@ -751,15 +759,15 @@ class Problem:
 
 
 class ProblemConserv2(Problem):
-    def __init__(self, T0, markers=None, num_prop=None, phy_prop=None):
-        super().__init__(T0, markers=markers, num_prop=num_prop, phy_prop=phy_prop)
+    def __init__(self, T0, markers=None, num_prop=None, phy_prop=None, **kwargs):
+        super().__init__(T0, markers=markers, num_prop=num_prop, phy_prop=phy_prop, **kwargs)
         if num_prop.time_scheme == 'rk3':
             print('RK3 is not implemented, changes to Euler')
             self.num_prop._time_scheme = 'euler'
 
     @property
-    def name(self):
-        return 'EC, ' + super().name
+    def name_cas(self):
+        return 'EOFm'
 
     def _euler_timestep(self, debug=None, bool_debug=False):
         rho_cp_u = interpolate(self.rho_cp_a, I=self.I, schema=self.num_prop.schema) * self.phy_prop.v

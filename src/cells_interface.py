@@ -274,9 +274,10 @@ class CellsInterface:
         _, dTdxim12, _ = self._interp_lagrange_centre_grad(self.Tg[-3], self.Tg[-2], self.Ti, self._dTdxg,
                                                            -2*self.dx, -1*self.dx, (self.ag - 0.5)*self.dx,
                                                            -0.5*self.dx)
-        Tip12, _, _ = self._interp_lagrange_amont_grad(self.Ti, self.Td[1], self._dTdxd,
-                                                       (0.5 - self.ad) * self.dx, 1. * self.dx,
-                                                       0.5 * self.dx)
+        # Tip12, _, _ = self._interp_lagrange_amont_grad(self.Ti, self.Td[1], self._dTdxd,
+        #                                                (0.5 - self.ad) * self.dx, 1. * self.dx,
+        #                                                0.5 * self.dx)
+        Tip12, _, _ = self._interp_amont_decentre(self.Ti, self._dTdxd, (0.5 - self.ad) * self.dx, 0.5 * self.dx)
         _, dTdxip12, _ = self._interp_lagrange_centre_grad(self.Td[2], self.Td[1], self.Ti, self._dTdxd,
                                                            2. * self.dx, 1.*self.dx, (0.5 - self.ad) * self.dx,
                                                            0.5 * self.dx)
@@ -879,6 +880,27 @@ class CellsInterface:
         dTdx_int = (T1 - T0)/(x1 - x0)
         d2Tdx2_int = 0.
         return Tint, dTdx_int, d2Tdx2_int
+
+    @staticmethod
+    def _interp_amont_decentre(T0: float, gradT0: float, x0: float, xint: float) \
+            -> (float, float, float):
+        """
+        Dans cette méthode on veux que T0 soit amont de xint, et gradT0 soit le gradient en T0.
+        C'est une interpolation d'ordre 1 décentrée amont
+
+        Args:
+            T0:
+            T1:
+            x0:
+            x1:
+
+        Returns:
+
+        """
+
+        Tint = T0 + gradT0 * (xint - x0)
+        d2Tdx2_int = 0.
+        return Tint, gradT0, d2Tdx2_int
 
     def _interp_lagrange_amont_vol(self, T0: float, T1: float, T2: float, x0: float, x1: float, x2: float, x_int: float) \
             -> (float, float, float):

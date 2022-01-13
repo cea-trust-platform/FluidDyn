@@ -17,7 +17,7 @@ import matplotlib.pyplot as plt
 
 
 class Plotter:
-    def __init__(self, cas='classic', lda_gradT=False, flux_conv=False, **kwargs):
+    def __init__(self, cas='classic', lda_gradT=False, flux_conv=False, time=True, markers=True, zoom=None, **kwargs):
         self._cas = cas
         self.fig = None
         self.ax = None
@@ -25,6 +25,9 @@ class Plotter:
         self.ax3 = None
         self.lda_gradT = lda_gradT
         self.flux_conv = flux_conv
+        self.time = time
+        self.markers = markers
+        self.zoom = zoom
         self.kwargs = kwargs
 
     @property
@@ -37,9 +40,12 @@ class Plotter:
         print("plotter mode changed to %s" % value)
 
     def plot(self, problem):
+        first_plot = False
+        # Set up of fig and ax
         if (self.fig is None) or (self.ax is None):
             if isinstance(problem.bulles, BulleTemperature) and (self.lda_gradT or self.flux_conv):
                 self.fig, (self.ax, self.ax2) = plt.subplots(2, sharex='all', **self.kwargs)
+                self.ax2.minorticks_on()
             else:
                 self.fig, self.ax = plt.subplots(1)
             if isinstance(problem.bulles, BulleTemperature) and self.lda_gradT and self.flux_conv:
@@ -47,32 +53,78 @@ class Plotter:
             elif isinstance(problem.bulles, BulleTemperature) and (not self.lda_gradT) and self.flux_conv:
                 self.ax3 = self.ax2
                 self.ax2 = None
-        self.ax.minorticks_on()
-        if self.cas is 'classic':
-            self.fig, self.ax, self.ax2, self.ax3 = plot_classic(problem, self.fig, self.ax, ax2=self.ax2, ax3=self.ax3,
-                                                                 lda_gradT=self.lda_gradT, flux_conv=self.flux_conv)
-        elif self.cas is 'decale':
-            self.fig, self.ax, self.ax2, self.ax3 = plot_decale(problem, self.fig, self.ax, ax2=self.ax2, ax3=self.ax3,
-                                                                lda_gradT=self.lda_gradT, flux_conv=self.flux_conv)
+            self.ax.minorticks_on()
+            first_plot = True
+        # Set up label
+        if self.time:
+            lab = '%s, time %.2g' % (problem.name.replace('_', ' '), problem.time)
         else:
-            raise NotImplementedError
+            lab = '%s' % (problem.name.replace('_', ' '))
+
+        # Set up decalage
+        x0 = problem.time * problem.phy_prop.v
+        while x0 > problem.phy_prop.Delta:
+            x0 -= problem.phy_prop.Delta
+        if self.cas == 'classic':
+            x0 = 0.
+
+        # Plot T
+        self.fig, self.ax = plot_temp(problem, x0=x0, fig=self.fig, ax=self.ax, label=lab)
+
+        # Plot lda gradT
+        if self.lda_gradT and (self.ax2 is not None):
+            xf_dec, lda_grad_T_dec = decale_perio(problem.num_prop.x_f, problem.flux_diff, x0=x0)
+            self.ax2.plot(xf_dec, lda_grad_T_dec,
+                          label=lab)
+
+        # Plot flux conv
+        if self.flux_conv and (self.ax3 is not None):
+            xf_dec, flux_conv_dec = decale_perio(problem.num_prop.x_f, problem.flux_conv, x0=x0)
+            self.ax3.plot(xf_dec, flux_conv_dec, '--', label=self.flux_conv)
+
+        ticks_major, ticks_minor, M1, Dx = get_ticks(problem, x0=x0)
         # self.ax.set_xticks(problem.num_prop.x_f, minor=True)
         # self.ax.set_xticklabels([], minor=True)
 
-        # calcul des positions des markers
-        self.ax.grid(b=True, which='major')
-        self.ax.grid(b=True, which='minor', alpha=0.2)
-        self.ax.set_xlabel(r'$x / D_b$')
-        self.ax.set_ylabel(r'$T$')
-        self.ax.legend()
+        # Plot markers
+        if isinstance(problem.bulles, BulleTemperature) and self.markers:
+            plot_temperature_bulles(problem, x0=x0, ax=self.ax, ax2=self.ax2,
+                                    lda_gradT=self.lda_gradT, flux_conv=self.flux_conv)
+
+        if first_plot:
+            self.ax.set_xticks(ticks_major, minor=False)
+            self.ax.set_xticks(ticks_minor, minor=True)
+            self.ax.set_xticklabels(np.rint((ticks_major - M1) / Dx).astype(int), minor=False)
+            if self.zoom is not None:
+                z0 = M1 + self.zoom[0] * Dx
+                z1 = M1 + self.zoom[1] * Dx
+                self.ax.set_xlim(z0, z1)
+            self.ax.grid(b=True, which='major')
+            self.ax.grid(b=True, which='minor', alpha=0.2)
+            self.ax.set_ylabel(r'$T$')
+            if self.ax2 is not None:
+                self.ax2.set_xticks(ticks_major, minor=False)
+                self.ax2.set_xticks(ticks_minor, minor=True)
+                self.ax2.set_xticklabels(np.rint((ticks_major - M1) / Dx).astype(int), minor=False)
+                self.ax2.set_xlabel(r'$x / D_b$')
+                self.ax2.grid(b=True, which='major')
+                self.ax2.grid(b=True, which='minor', alpha=0.2)
+                if self.zoom is not None:
+                    self.ax2.set_xlim(z0, z1)
+            else:
+                self.ax.set_xlabel(r'$x / D_b$')
+        self.ax.legend(loc='upper right')
+        # if self.ax2 is not None:
+        #     self.ax2.legend(loc='upper right')
+        # if self.ax3 is not None:
+        #     self.ax3.legend(loc='lower right')
         self.fig.tight_layout()
 
 
-def plot_decale(problem, fig=None, ax=None, ax2=None, ax3=None, lda_gradT=False, flux_conv=False):
-    fig.suptitle(problem.name.replace('_', ' '))
-    x0 = problem.time*problem.phy_prop.v
+def plot_temp(problem, fig=None, x0=0., ax=None, label=None):
+    # fig.suptitle(problem.name.replace('_', ' '))
     x_dec, T_dec = decale_perio(problem.num_prop.x, problem.T, x0, problem.bulles)
-    c = ax.plot(x_dec, T_dec, label='%s, time %g' % (problem.name.replace('_', ' '), problem.time))
+    c = ax.plot(x_dec, T_dec, label=label)
     col = c[-1].get_color()
     maxi = max(np.max(problem.T), np.max(problem.I))
     mini = min(np.min(problem.T), np.min(problem.I))
@@ -81,43 +133,26 @@ def plot_decale(problem, fig=None, ax=None, ax2=None, ax3=None, lda_gradT=False,
     for markers in problem.bulles():
         ax.plot([decale_positif(markers[0] - x0, problem.phy_prop.Delta)]*2, [mini, maxi], '--', c=col)
         ax.plot([decale_positif(markers[1] - x0, problem.phy_prop.Delta)]*2, [mini, maxi], '--', c=col)
-    if isinstance(problem.bulles, BulleTemperature):
-        plot_temperature_bulles(problem, x0=x0, ax=ax, col=col, ax2=ax2, ax3=ax3,
-                                lda_gradT=lda_gradT, flux_conv=flux_conv)
-    ticks_major, ticks_minor, M1, Dx = get_ticks(problem, decale=x0)
-    ax.set_xticks(ticks_major, minor=False)
-    ax.set_xticklabels(np.rint((ticks_major - M1) / Dx).astype(int), minor=False)
-    ax.set_xticks(ticks_minor, minor=True)
-    return fig, ax, ax2, ax3
+    return fig, ax
 
 
-def plot_classic(problem, fig=None, ax=None, ax2=None, ax3=None, lda_gradT=False, flux_conv=False):
-    fig.suptitle(problem.name.replace('_', '-'))
-    # c = ax.plot(problem.num_prop.x, problem.I, '+')
-    c = ax.plot(problem.num_prop.x, problem.T, label='%s, time %g' % (problem.name.replace('_', ' '), problem.time))
-    col = c[-1].get_color()
-    maxi = max(np.max(problem.T), np.max(problem.I))
-    mini = min(np.min(problem.T), np.min(problem.I))
-    for markers in problem.bulles():
-        ax.plot([markers[0]]*2, [mini, maxi], '--', c=col)
-        ax.plot([markers[1]]*2, [mini, maxi], '--', c=col)
-    if isinstance(problem.bulles, BulleTemperature):
-        plot_temperature_bulles(problem, ax=ax, col=col, ax2=ax2, ax3=ax3,
-                                lda_gradT=lda_gradT, flux_conv=flux_conv)
-    ticks_major, ticks_minor, M1, Dx = get_ticks(problem)
-    ax.set_xticks(ticks_major, minor=False)
-    ax.set_xticklabels(np.rint((ticks_major - M1) / Dx).astype(int), minor=False)
-    ax.set_xticks(ticks_minor, minor=True)
-    return fig, ax, ax2, ax3
+# def plot_classic(problem, fig=None, ax=None, label=None):
+#     # fig.suptitle(problem.name.replace('_', '-'))
+#     # c = ax.plot(problem.num_prop.x, problem.I, '+')
+#     if label is None:
+#         label = '%s' % problem.name.replace('_', ' ')
+#     c = ax.plot(problem.num_prop.x, problem.T, label=label)
+#     col = c[-1].get_color()
+#     maxi = max(np.max(problem.T), np.max(problem.I))
+#     mini = min(np.min(problem.T), np.min(problem.I))
+#     for markers in problem.bulles():
+#         ax.plot([markers[0]]*2, [mini, maxi], '--', c=col)
+#         ax.plot([markers[1]]*2, [mini, maxi], '--', c=col)
+#     return fig, ax
 
 
-def plot_temperature_bulles(problem, x0=None, ax=None, col=None, ax2=None, ax3=None, quiver=False,
+def plot_temperature_bulles(problem, x0=0., ax=None, ax2=None, quiver=False,
                             lda_gradT=False, flux_conv=False):
-    if x0 is None:
-        x0 = 0.
-        decale = False
-    else:
-        decale = True
     if flux_conv is True:
         label_conv = r'Flux convectif'
     else:
@@ -163,28 +198,13 @@ def plot_temperature_bulles(problem, x0=None, ax=None, col=None, ax2=None, ax3=N
         ax.plot(xil, Ti, 'k+')
         ax.plot(x0l, Tig, '+', label=r'$T_g$')
         ax.plot(x0l, Tid, '+', label=r'$T_d$')
-    if decale:
-        if lda_gradT and (ax2 is not None):
-            xf_dec, lda_grad_T_dec = decale_perio(problem.num_prop.x_f, problem.flux_diff, x0=x0)
-            ax2.plot(xf_dec, lda_grad_T_dec, label=r'$\lambda \nabla T$')
-        if flux_conv and (ax3 is not None):
-            xf_dec, flux_conv_dec = decale_perio(problem.num_prop.x_f, problem.flux_conv, x0=x0)
-            ax3.plot(xf_dec, flux_conv_dec, '--', label=label_conv)
-    else:
-        if lda_gradT and (ax2 is not None):
-            ax2.plot(problem.num_prop.x_f, problem.flux_diff, label=r'$\lambda \nabla T$')
-        if flux_conv and (ax3 is not None):
-            ax3.plot(problem.num_prop.x_f, problem.flux_conv, '--', label=label_conv)
     if lda_gradT and (ax2 is not None):
         ax2.plot(problem.bulles.markers.flatten() - x0, problem.bulles.lda_grad_T.flatten(),
                  '+')  # , label=r'$\lambda \nabla T_I$')
-        ax2.legend()
         # ax2.set_xticks(problem.num_prop.x_f)
         # ax2.set_xticklabels([])
-        ax2.grid(b=True, which='major')
-        ax2.grid(b=True, which='minor', alpha=0.2)
-    if flux_conv and (ax3 is not None):
-        ax3.legend(loc='lower right')
+        # ax2.grid(b=True, which='major')
+        # ax2.grid(b=True, which='minor', alpha=0.2)
 
 
 def align_y_axis(ax1, ax2):
@@ -216,8 +236,8 @@ def align_y_axis(ax1, ax2):
         ax2.set_ylim(ylim2[0], new_y1)
 
 
-def get_ticks(problem, decale=0.):
-    M1, M2 = problem.bulles.markers[0] - decale
+def get_ticks(problem, x0=0.):
+    M1, M2 = problem.bulles.markers[0] - x0
     if M2 > M1:
         Dx_minor = (M2 - M1) / 4.
         Dx_major = M2 - M1

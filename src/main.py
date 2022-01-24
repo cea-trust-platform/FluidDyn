@@ -603,7 +603,7 @@ class Problem:
         self.bulles.shift(self.phy_prop.v * self.dt)
         self.I = self.update_I()
 
-    def timestep(self, n=None, t_fin=None, plot_for_each=1, number_of_plots=None, plotter=None, debug=None):
+    def timestep(self, n=None, t_fin=None, plot_for_each=1, number_of_plots=None, plotter=None, debug=None, **kwargs):
         if plotter is None:
             raise(Exception('plotter is a mandatory argument'))
         if (n is None) and (t_fin is None):
@@ -638,9 +638,9 @@ class Problem:
             if (i % plot_for_each == 0) and ((i != 0) or (n == 1)):
                 if isinstance(plotter, list):
                     for plott in plotter:
-                        plott.plot(self)
+                        plott.plot(self, **kwargs)
                 else:
-                    plotter.plot(self)
+                    plotter.plot(self, **kwargs)
         return t, energy
 
     def _echange_flux(self):

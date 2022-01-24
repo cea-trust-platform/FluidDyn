@@ -39,7 +39,7 @@ class Plotter:
         self._cas = value
         print("plotter mode changed to %s" % value)
 
-    def plot(self, problem):
+    def plot(self, problem, **kwargs):
         first_plot = False
         # Set up of fig and ax
         if (self.fig is None) or (self.ax is None):
@@ -69,22 +69,20 @@ class Plotter:
             x0 = 0.
 
         # Plot T
-        self.fig, self.ax = plot_temp(problem, x0=x0, fig=self.fig, ax=self.ax, label=lab)
+        self.fig, self.ax = plot_temp(problem, x0=x0, fig=self.fig, ax=self.ax, label=lab, **kwargs)
 
         # Plot lda gradT
         if self.lda_gradT and (self.ax2 is not None):
             xf_dec, lda_grad_T_dec = decale_perio(problem.num_prop.x_f, problem.flux_diff, x0=x0)
             self.ax2.plot(xf_dec, lda_grad_T_dec,
-                          label=lab)
+                          label=lab, **kwargs)
 
         # Plot flux conv
         if self.flux_conv and (self.ax3 is not None):
             xf_dec, flux_conv_dec = decale_perio(problem.num_prop.x_f, problem.flux_conv, x0=x0)
-            self.ax3.plot(xf_dec, flux_conv_dec, '--', label=self.flux_conv)
+            self.ax3.plot(xf_dec, flux_conv_dec, '--', label=self.flux_conv, **kwargs)
 
         ticks_major, ticks_minor, M1, Dx = get_ticks(problem, x0=x0)
-        # self.ax.set_xticks(problem.num_prop.x_f, minor=True)
-        # self.ax.set_xticklabels([], minor=True)
 
         # Plot markers
         if isinstance(problem.bulles, BulleTemperature) and self.markers:
@@ -92,6 +90,8 @@ class Plotter:
                                     lda_gradT=self.lda_gradT, flux_conv=self.flux_conv)
 
         if first_plot:
+            # self.ax.set_xticks(problem.num_prop.x_f, minor=True)
+            # self.ax.set_xticklabels([], minor=True)
             self.ax.set_xticks(ticks_major, minor=False)
             self.ax.set_xticks(ticks_minor, minor=True)
             self.ax.set_xticklabels(np.rint((ticks_major - M1) / Dx).astype(int), minor=False)
@@ -103,6 +103,8 @@ class Plotter:
             self.ax.grid(b=True, which='minor', alpha=0.2)
             self.ax.set_ylabel(r'$T$')
             if self.ax2 is not None:
+                # self.ax2.set_xticks(problem.num_prop.x_f, minor=True)
+                # self.ax2.set_xticklabels([], minor=True)
                 self.ax2.set_xticks(ticks_major, minor=False)
                 self.ax2.set_xticks(ticks_minor, minor=True)
                 self.ax2.set_xticklabels(np.rint((ticks_major - M1) / Dx).astype(int), minor=False)
@@ -121,10 +123,10 @@ class Plotter:
         self.fig.tight_layout()
 
 
-def plot_temp(problem, fig=None, x0=0., ax=None, label=None):
+def plot_temp(problem, fig=None, x0=0., ax=None, label=None, **kwargs):
     # fig.suptitle(problem.name.replace('_', ' '))
     x_dec, T_dec = decale_perio(problem.num_prop.x, problem.T, x0, problem.bulles)
-    c = ax.plot(x_dec, T_dec, label=label)
+    c = ax.plot(x_dec, T_dec, label=label, **kwargs)
     col = c[-1].get_color()
     maxi = max(np.max(problem.T), np.max(problem.I))
     mini = min(np.min(problem.T), np.min(problem.I))

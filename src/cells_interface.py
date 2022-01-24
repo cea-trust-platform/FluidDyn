@@ -196,6 +196,13 @@ class CellsInterface:
             return self._rhocp_f
 
     @property
+    def coeff_d(self) -> float:
+        if self.vdt > 0.:
+            return min(self.vdt, self.ad*self.dx)/self.vdt
+        else:
+            return 1.
+
+    @property
     def inv_rhocp_f(self) -> np.ndarray((6,), dtype=float):
         if self.vdt > 0.:
             coeff_d = min(self.vdt, self.ad*self.dx)/self.vdt

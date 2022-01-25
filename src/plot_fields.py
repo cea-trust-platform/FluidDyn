@@ -17,7 +17,8 @@ import matplotlib.pyplot as plt
 
 
 class Plotter:
-    def __init__(self, cas='classic', lda_gradT=False, flux_conv=False, time=True, markers=True, zoom=None, **kwargs):
+    def __init__(self, cas='classic', lda_gradT=False, flux_conv=False, time=True, markers=True, zoom=None, dx=False,
+                 dt=False, **kwargs):
         self._cas = cas
         self.fig = None
         self.ax = None
@@ -26,6 +27,8 @@ class Plotter:
         self.lda_gradT = lda_gradT
         self.flux_conv = flux_conv
         self.time = time
+        self.dx = dx
+        self.dt = dt
         self.markers = markers
         self.zoom = zoom
         self.kwargs = kwargs
@@ -39,7 +42,7 @@ class Plotter:
         self._cas = value
         print("plotter mode changed to %s" % value)
 
-    def plot(self, problem, **kwargs):
+    def plot(self, problem, ispretty=True, **kwargs):
         first_plot = False
         # Set up of fig and ax
         if (self.fig is None) or (self.ax is None):
@@ -56,10 +59,15 @@ class Plotter:
             self.ax.minorticks_on()
             first_plot = True
         # Set up label
+        lab = '%s' % (problem.name.replace('_', ' '))
         if self.time:
-            lab = '%s, time %.2g' % (problem.name.replace('_', ' '), problem.time)
-        else:
-            lab = '%s' % (problem.name.replace('_', ' '))
+            lab += ', time %.2g' % problem.time
+        if self.dx:
+            leg = to_scientific('%.2e' % problem.num_prop.dx)
+            lab += r', $\Delta x = %s$' % leg
+        if self.dt:
+            leg = to_scientific('%.2e' % problem.dt)
+            lab += r', $\Delta t = %s$' % leg
 
         # Set up decalage
         x0 = problem.time * problem.phy_prop.v
@@ -90,11 +98,13 @@ class Plotter:
                                     lda_gradT=self.lda_gradT, flux_conv=self.flux_conv)
 
         if first_plot:
-            # self.ax.set_xticks(problem.num_prop.x_f, minor=True)
-            # self.ax.set_xticklabels([], minor=True)
-            self.ax.set_xticks(ticks_major, minor=False)
-            self.ax.set_xticks(ticks_minor, minor=True)
-            self.ax.set_xticklabels(np.rint((ticks_major - M1) / Dx).astype(int), minor=False)
+            if not ispretty:
+                self.ax.set_xticks(problem.num_prop.x_f, minor=True)
+                self.ax.set_xticklabels([], minor=True)
+            else:
+                self.ax.set_xticks(ticks_major, minor=False)
+                self.ax.set_xticks(ticks_minor, minor=True)
+                self.ax.set_xticklabels(np.rint((ticks_major - M1) / Dx).astype(int), minor=False)
             if self.zoom is not None:
                 z0 = M1 + self.zoom[0] * Dx
                 z1 = M1 + self.zoom[1] * Dx
@@ -103,11 +113,13 @@ class Plotter:
             self.ax.grid(b=True, which='minor', alpha=0.2)
             self.ax.set_ylabel(r'$T$')
             if self.ax2 is not None:
-                # self.ax2.set_xticks(problem.num_prop.x_f, minor=True)
-                # self.ax2.set_xticklabels([], minor=True)
-                self.ax2.set_xticks(ticks_major, minor=False)
-                self.ax2.set_xticks(ticks_minor, minor=True)
-                self.ax2.set_xticklabels(np.rint((ticks_major - M1) / Dx).astype(int), minor=False)
+                if not ispretty:
+                    self.ax2.set_xticks(problem.num_prop.x_f, minor=True)
+                    self.ax2.set_xticklabels([], minor=True)
+                else:
+                    self.ax2.set_xticks(ticks_major, minor=False)
+                    self.ax2.set_xticks(ticks_minor, minor=True)
+                    self.ax2.set_xticklabels(np.rint((ticks_major - M1) / Dx).astype(int), minor=False)
                 self.ax2.set_xlabel(r'$x / D_b$')
                 self.ax2.grid(b=True, which='major')
                 self.ax2.grid(b=True, which='minor', alpha=0.2)
@@ -316,3 +328,17 @@ def decale_positif(mark, Delta):
     while mark < 0.:
         mark += Delta
     return mark
+
+
+import re
+
+
+def to_scientific(leg):
+    leg = leg.split('e')
+    if len(leg) == 2:
+        leg[1] = re.sub('^-0*', '-', leg[1])
+        leg[1] = re.sub('^0*', '', leg[1])
+        leg = leg[0] + r'\times 10^{' + leg[1] + '}'
+    else:
+        leg = leg[0]
+    return leg

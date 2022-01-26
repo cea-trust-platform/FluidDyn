@@ -121,6 +121,7 @@ class Plotter:
                     self.ax2.set_xticks(ticks_minor, minor=True)
                     self.ax2.set_xticklabels(np.rint((ticks_major - M1) / Dx).astype(int), minor=False)
                 self.ax2.set_xlabel(r'$x / D_b$')
+                self.ax2.set_ylabel(r'$\lambda \nabla T$')
                 self.ax2.grid(b=True, which='major')
                 self.ax2.grid(b=True, which='minor', alpha=0.2)
                 if self.zoom is not None:

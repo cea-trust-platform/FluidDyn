@@ -24,6 +24,12 @@ class Plotter:
         self.ax = None
         self.ax2 = None
         self.ax3 = None
+        self.bulles_poly = None
+        self.ymini = None
+        self.ymaxi = None
+        self.bulles_poly2 = None
+        self.ymini2 = None
+        self.ymaxi2 = None
         self.lda_gradT = lda_gradT
         self.flux_conv = flux_conv
         self.time = time
@@ -97,7 +103,9 @@ class Plotter:
             plot_temperature_bulles(problem, x0=x0, ax=self.ax, ax2=self.ax2,
                                     lda_gradT=self.lda_gradT, flux_conv=self.flux_conv)
 
+        self.ax.legend(loc='upper right')
         if first_plot:
+            self.ymini, self.ymaxi = self.ax.get_ylim()
             if not ispretty:
                 self.ax.set_xticks(problem.num_prop.x_f, minor=True)
                 self.ax.set_xticklabels([], minor=True)
@@ -112,7 +120,13 @@ class Plotter:
             self.ax.grid(b=True, which='major')
             self.ax.grid(b=True, which='minor', alpha=0.2)
             self.ax.set_ylabel(r'$T$')
+            for markers in problem.bulles():
+                bulle0 = decale_positif(markers[0] - x0, problem.phy_prop.Delta)
+                bulle1 = decale_positif(markers[1] - x0, problem.phy_prop.Delta)
+                self.bulles_poly = self.ax.fill_between([bulle0, bulle1], [self.ymini] * 2, [self.ymaxi] * 2,
+                                                        color='grey', alpha=0.2)
             if self.ax2 is not None:
+                self.ymini2, self.ymaxi2 = self.ax.get_ylim()
                 if not ispretty:
                     self.ax2.set_xticks(problem.num_prop.x_f, minor=True)
                     self.ax2.set_xticklabels([], minor=True)
@@ -126,28 +140,51 @@ class Plotter:
                 self.ax2.grid(b=True, which='minor', alpha=0.2)
                 if self.zoom is not None:
                     self.ax2.set_xlim(z0, z1)
+                for markers in problem.bulles():
+                    bulle0 = decale_positif(markers[0] - x0, problem.phy_prop.Delta)
+                    bulle1 = decale_positif(markers[1] - x0, problem.phy_prop.Delta)
+                    self.bulles_poly2 = self.ax2.fill_between([bulle0, bulle1], [self.ymini2] * 2,
+                                                              [self.ymaxi2] * 2,
+                                                              color='grey', alpha=0.2)
             else:
                 self.ax.set_xlabel(r'$x / D_b$')
-        self.ax.legend(loc='upper right')
         # if self.ax2 is not None:
         #     self.ax2.legend(loc='upper right')
         # if self.ax3 is not None:
         #     self.ax3.legend(loc='lower right')
         self.fig.tight_layout()
 
+        # Zone de bulles mise à jour à chaque nouvelle courbe tracée
+        mini, maxi = self.ax.get_ylim()
+        self.ymini = min(self.ymini, mini)
+        self.ymaxi = max(self.ymaxi, maxi)
+        if self.ax2 is not None:
+            mini, maxi = self.ax2.get_ylim()
+            self.ymini2 = min(self.ymini2, mini)
+            self.ymaxi2 = max(self.ymaxi2, maxi)
+        for markers in problem.bulles():
+            bulle0 = decale_positif(markers[0] - x0, problem.phy_prop.Delta)
+            bulle1 = decale_positif(markers[1] - x0, problem.phy_prop.Delta)
+            # self.ax.plot([bulle0] * 2, [self.ymini, self.ymaxi], c='black', lw=0.2)
+            # self.ax.plot([bulle1] * 2, [self.ymini, self.ymaxi], c='black', lw=0.2)
+            self.bulles_poly.remove()
+            self.bulles_poly = self.ax.fill_between([bulle0, bulle1], [self.ymini] * 2, [self.ymaxi] * 2,
+                                                    color='grey', alpha=0.2)
+            if self.ax2 is not None:
+                # self.ax2.plot([bulle0] * 2, [self.ymini2, self.ymaxi2], c='black', lw=0.2)
+                # self.ax2.plot([bulle1] * 2, [self.ymini2, self.ymaxi2], c='black', lw=0.2)
+                self.bulles_poly2.remove()
+                self.bulles_poly2 = self.ax2.fill_between([bulle0, bulle1], [self.ymini2] * 2, [self.ymaxi2] * 2,
+                                                          color='grey', alpha=0.2)
+
 
 def plot_temp(problem, fig=None, x0=0., ax=None, label=None, **kwargs):
     # fig.suptitle(problem.name.replace('_', ' '))
     x_dec, T_dec = decale_perio(problem.num_prop.x, problem.T, x0, problem.bulles)
     c = ax.plot(x_dec, T_dec, label=label, **kwargs)
-    col = c[-1].get_color()
-    maxi = max(np.max(problem.T), np.max(problem.I))
-    mini = min(np.min(problem.T), np.min(problem.I))
-    while x0 > problem.phy_prop.Delta:
-        x0 -= problem.phy_prop.Delta
-    for markers in problem.bulles():
-        ax.plot([decale_positif(markers[0] - x0, problem.phy_prop.Delta)]*2, [mini, maxi], '--', c=col)
-        ax.plot([decale_positif(markers[1] - x0, problem.phy_prop.Delta)]*2, [mini, maxi], '--', c=col)
+    # col = c[-1].get_color()
+    # maxi = max(np.max(problem.T), np.max(problem.I))
+    # mini = min(np.min(problem.T), np.min(problem.I))
     return fig, ax
 
 

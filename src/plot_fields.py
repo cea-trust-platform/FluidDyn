@@ -106,6 +106,7 @@ class Plotter:
         self.ax.legend(loc='upper right')
         if first_plot:
             self.ymini, self.ymaxi = self.ax.get_ylim()
+            self.ax.set_ymargin(0.)
             if not ispretty:
                 self.ax.set_xticks(problem.num_prop.x_f, minor=True)
                 self.ax.set_xticklabels([], minor=True)
@@ -127,6 +128,7 @@ class Plotter:
                                                         color='grey', alpha=0.2)
             if self.ax2 is not None:
                 self.ymini2, self.ymaxi2 = self.ax.get_ylim()
+                self.ax2.set_ymargin(0.)
                 if not ispretty:
                     self.ax2.set_xticks(problem.num_prop.x_f, minor=True)
                     self.ax2.set_xticklabels([], minor=True)
@@ -158,24 +160,32 @@ class Plotter:
         mini, maxi = self.ax.get_ylim()
         self.ymini = min(self.ymini, mini)
         self.ymaxi = max(self.ymaxi, maxi)
+        delta = self.ymaxi - self.ymini
+        margin = 0.05
         if self.ax2 is not None:
             mini, maxi = self.ax2.get_ylim()
             self.ymini2 = min(self.ymini2, mini)
             self.ymaxi2 = max(self.ymaxi2, maxi)
+            delta2 = self.ymaxi2 - self.ymini2
         for markers in problem.bulles():
             bulle0 = decale_positif(markers[0] - x0, problem.phy_prop.Delta)
             bulle1 = decale_positif(markers[1] - x0, problem.phy_prop.Delta)
             # self.ax.plot([bulle0] * 2, [self.ymini, self.ymaxi], c='black', lw=0.2)
             # self.ax.plot([bulle1] * 2, [self.ymini, self.ymaxi], c='black', lw=0.2)
             self.bulles_poly.remove()
-            self.bulles_poly = self.ax.fill_between([bulle0, bulle1], [self.ymini] * 2, [self.ymaxi] * 2,
+            self.bulles_poly = self.ax.fill_between([bulle0, bulle1], [self.ymini - margin*delta] * 2,
+                                                    [self.ymaxi + margin*delta] * 2,
                                                     color='grey', alpha=0.2)
             if self.ax2 is not None:
                 # self.ax2.plot([bulle0] * 2, [self.ymini2, self.ymaxi2], c='black', lw=0.2)
                 # self.ax2.plot([bulle1] * 2, [self.ymini2, self.ymaxi2], c='black', lw=0.2)
                 self.bulles_poly2.remove()
-                self.bulles_poly2 = self.ax2.fill_between([bulle0, bulle1], [self.ymini2] * 2, [self.ymaxi2] * 2,
+                self.bulles_poly2 = self.ax2.fill_between([bulle0, bulle1], [self.ymini2 - margin*delta2] * 2,
+                                                          [self.ymaxi2 + delta2*margin] * 2,
                                                           color='grey', alpha=0.2)
+        self.ax.set_ymargin(0.)
+        if self.ax2 is not None:
+            self.ax2.set_ymargin(0.)
 
 
 def plot_temp(problem, fig=None, x0=0., ax=None, label=None, **kwargs):

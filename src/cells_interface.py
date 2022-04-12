@@ -21,11 +21,12 @@ from numba import float64    # import the types
 #     return wrapper
 
 
-@jitclass([('Td', float64[:]), ('Tg', float64[:]), ('_rhocp_f', float64[:]), ('_lda_f', float64[:]), ('_Ti', float64),
-           ('_lda_gradTi', float64), ('ldag', float64), ('ldad', float64), ('rhocpg', float64), ('rhocpd', float64),
-           ('ag', float64), ('ad', float64), ('dx', float64), ('vdt', float64), ('Tgc', float64), ('Tdc', float64),
-           ('_dTdxg', float64), ('_dTdxd', float64), ('_d2Tdx2g', float64), ('_d2Tdx2d', float64),
-           ('_d3Tdx3g', float64), ('_d3Tdx3d', float64), ('_T_f', float64[:]), ('_gradT_f', float64[:])])
+# @jitclass([('Td', float64[:]), ('Tg', float64[:]), ('_rhocp_f', float64[:]), ('_lda_f', float64[:]), ('_Ti', float64),
+#            ('_lda_gradTi', float64), ('ldag', float64), ('ldad', float64), ('rhocpg', float64), ('rhocpd', float64),
+#            ('ag', float64), ('ad', float64), ('dx', float64), ('vdt', float64), ('Tgc', float64), ('Tdc', float64),
+#            ('_dTdxg', float64), ('_dTdxd', float64), ('_d2Tdx2g', float64), ('_d2Tdx2d', float64),
+#            ('_d3Tdx3g', float64), ('_d3Tdx3d', float64), ('_T_f', float64[:]), ('_gradT_f', float64[:]),
+#            ('_T', float64[:])])
 class CellsInterface:
     schema_conv: str
     schema_diff: str
@@ -72,6 +73,7 @@ class CellsInterface:
         self.dx = dx
         if len(T) < 7:
             raise(Exception('T n est pas de taille 7'))
+        self._T = T[:].copy()  # use with extra care !!! Meant only to be used with the integrated method
         self.Tg = T[:4].copy()
         self.Tg[-1] = np.nan
         self.Td = T[3:].copy()
@@ -113,6 +115,8 @@ class CellsInterface:
             self.compute_from_ldagradTi_ordre2()
         elif self.interp_type == 'energie_temperature':
             pass
+        elif self.interp_type == 'integrale':
+            self.compute_from_Ti_and_ip1()
         else:
             raise NotImplementedError
 
@@ -675,6 +679,59 @@ class CellsInterface:
         #                           np.array([self.ad, 1.])*self.dx)
         # self.Tg[-1] = self.Tg[-2] + grad_Tg * self.dx
         # self.Td[0] = self.Td[1] - grad_Td * self.dx
+
+    def compute_from_Ti_and_ip1(self):
+        """
+        On commence par calculer Ti et lda_grad_Ti à partir de Ti et Tip1 (ou Tim1 selon la position de l'interface).
+        Ensuite on procède au calcul de grad_Tg et grad_Td en interpolant avec lda_grad_T_i et les gradients m32 et p32.
+        Cellule type ::
+
+
+                       0          1         2         3
+             +---------+----------+---------+---------+---------+---------+---------+
+             |         |          |         |   |     |         |         |         |
+             |    +   -|>   +    -|>   +   -|>  |+    |>   +   -|>   +   -|>   +    |
+             |    0    |    1     |    2    |   |3    |    4    |    5    |    6    |
+             +---------+----------+---------+---------+---------+---------+---------+
+                                                Ti,
+                                                lda_gradTi
+
+        Returns:
+            Calcule les gradients g, I, d, et Ti
+        """
+        self._Ti, self._lda_gradTi = self._get_T_i_and_lda_grad_T_i_from_integrated_temperature(self._T[2], self._T[3], self._T[4], self.ag, self.dx)
+        self._dTdxg = self._lda_gradTi/self.ldag
+        self._dTdxd = self._lda_gradTi/self.ldad
+        grad_Tg = self.pid_interp(np.array([self.gradTg[1], self._lda_gradTi/self.ldag]),
+                                  np.array([1., self.ag])*self.dx)
+        grad_Td = self.pid_interp(np.array([self._lda_gradTi/self.ldad, self.gradTd[1]]),
+                                  np.array([self.ad, 1.])*self.dx)
+        self.Tg[-1] = self.Tg[-2] + grad_Tg * self.dx
+        self.Td[0] = self.Td[1] - grad_Td * self.dx
+
+    def _get_T_i_and_lda_grad_T_i_from_integrated_temperature(self, Tg: float, Tc: float, Td: float, ag: float, dx: float) -> (float, float):
+        if ag > 0.5:
+            xi = ag * dx
+            xg = ag / 2. * dx
+            xc = (ag + (1. - ag) / 2) * dx
+            xd = 3./2. * dx
+            Ig = ag
+            Id = 1. - ag
+            a = np.array([[1., 1. / self.ldag * Ig*(xg - xi) + 1. / self.ldad * Id * (xc - xi)],
+                          [1., 1. / self.ldad * (xd - xi)]])
+            b = np.array([[Tc], [Td]])
+        else:
+            xi = ag * dx
+            xg = -1./2. * dx
+            xc = ag/2. * dx
+            xd = (ag + (1. - ag) / 2) * dx
+            Ig = ag
+            Id = 1. - ag
+            a = np.array([[1., 1. / self.ldag * Ig * (xc - xi) + 1. / self.ldad * Id * (xd - xi)],
+                          [1., 1. / self.ldag * (xg - xi)]])
+            b = np.array([[Tc], [Tg]])
+        Ti, qi = np.dot(np.linalg.inv(a), b)
+        return Ti, qi
 
     def _get_T_i_and_lda_grad_T_i(self, Tg: float, Td: float, dg: float, dd: float) -> (float, float):
         """

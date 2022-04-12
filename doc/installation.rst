@@ -10,10 +10,10 @@ Pour installer un environnement virtuel qui contient tous les paquets du fichier
 .. code-block:: bash
         
    cd .../Flu1dDyn/
-   python3 -m venv venv
+   python3 -m venv venv-flu1d
    
    # pour activer l'environnement lancer :
-   source venv/bin/activate
+   source venv-flu1d/bin/activate
 
 Dans ce terminal toutes les consoles pythons et modules python s'exécuteront avec l'environnement venv.
 Il est temps d'importer les paquets python nécessaires dans l'environnement :
@@ -57,20 +57,20 @@ Utiliation de Jupyter
 
 Jupyter est aussi téléchargé en tant que paquet python, donc il doit être dans ``venv``.
 
-La première étape est d'ajouter ``venv`` en tant que kernel pour jupyter :
+La première étape est d'ajouter ``venv-flu1d`` en tant que kernel pour jupyter :
 
 .. code-block:: bash
 
    source venv/bin/activate
-   ipython kernel install --name "venv" --user
+   ipython kernel install --name "venv-flu1d" --sys-prefix
 
 Cepandant pour installer un gestionnaire d'extensions (bien pratique), il faut lancer les commandes suivantes :
 
 .. code-block:: bash
 
-   source venv/bin/activate
-   jupyter contrib nbextension install --user
-   jupyter nbextensions_configurator enable --user
+   source venv-flu1d/bin/activate
+   jupyter contrib nbextension install --sys-prefix
+   jupyter nbextensions_configurator enable --sys-prefix
 
 Il faut activer au moins deux plugin pratique : table of content (2) via le plugin manager qui se trouve dans les onglets à l'ouverture d'une session jupyter, et hide_code, qui permet au choix de cacher le code, le resultat ou le numéro de cellule lors de l'export du Notebook. Ce plugin propose aussi un export au format slides. Pour l'installer lancer les commandes suivantes :
 
@@ -78,15 +78,15 @@ Il faut activer au moins deux plugin pratique : table of content (2) via le plug
 
    source venv/bin/activate
    pip install hide_code
-   jupyter nbextension install --py hide_code
-   jupyter nbextension enable --py hide_code
+   jupyter nbextension install --py hide_code --sys-prefix
+   jupyter nbextension enable --py hide_code --sys-prefix
 
 Pour lancer jupyter procéder de la manière suivante :
 
 .. code-block:: bash
 
    cd .../Flu1dDyn
-   source venv/bin/activate
+   source venv-flu1d/bin/activate
    jupyter notebook
 
 Pour lancer un test de non régression sur des notebooks de test :

@@ -19,10 +19,10 @@ from copy import deepcopy
 
 
 def integrale_vol_div(flux, dx):
-    return 1/dx * (flux[1:] - flux[:-1])
+    return 1 / dx * (flux[1:] - flux[:-1])
 
 
-def interpolate(center_value, I=None, cl=1, schema='weno', cv_0=0., cv_n=0.):
+def interpolate(center_value, I=None, cl=1, schema="weno", cv_0=0.0, cv_n=0.0):
     """
     Calcule le delta de convection aux bords des cellules
 
@@ -39,21 +39,32 @@ def interpolate(center_value, I=None, cl=1, schema='weno', cv_0=0., cv_n=0.):
     """
     if len(center_value.shape) != 1:
         raise NotImplementedError
-    if schema == 'upwind':
-        interpolated_value = interpolate_from_center_to_face_upwind(center_value, cl=cl, cv_0=cv_0)
-    elif schema == 'center':
-        interpolated_value = interpolate_from_center_to_face_center(center_value, cl=cl, cv_0=cv_0, cv_n=cv_n)
-    elif schema == 'center_h':
-        interpolated_value = interpolate_from_center_to_face_center_h(center_value, cl=cl, cv_0=cv_0, cv_n=cv_n)
-    elif schema == 'quick':
-        interpolated_value = interpolate_from_center_to_face_quick(center_value, cl=cl, cv_0=cv_0, cv_n=cv_n)
-    elif schema == 'weno':
-        interpolated_value = interpolate_from_center_to_face_weno(center_value, cl=cl, cv_0=cv_0, cv_n=cv_n)
-    elif schema == 'weno upwind':
+    if schema == "upwind":
+        interpolated_value = interpolate_from_center_to_face_upwind(
+            center_value, cl=cl, cv_0=cv_0
+        )
+    elif schema == "center":
+        interpolated_value = interpolate_from_center_to_face_center(
+            center_value, cl=cl, cv_0=cv_0, cv_n=cv_n
+        )
+    elif schema == "center_h":
+        interpolated_value = interpolate_from_center_to_face_center_h(
+            center_value, cl=cl, cv_0=cv_0, cv_n=cv_n
+        )
+    elif schema == "quick":
+        interpolated_value = interpolate_from_center_to_face_quick(
+            center_value, cl=cl, cv_0=cv_0, cv_n=cv_n
+        )
+    elif schema == "weno":
+        interpolated_value = interpolate_from_center_to_face_weno(
+            center_value, cl=cl, cv_0=cv_0, cv_n=cv_n
+        )
+    elif schema == "weno upwind":
         if I is None:
             raise NotImplementedError
-        interpolated_value = interpolate_center_value_weno_to_face_upwind_interface(center_value, I, cl=cl, cv_0=cv_0,
-                                                                                    cv_n=cv_n)
+        interpolated_value = interpolate_center_value_weno_to_face_upwind_interface(
+            center_value, I, cl=cl, cv_0=cv_0, cv_n=cv_n
+        )
     else:
         raise NotImplementedError
     if cl == 1:
@@ -62,24 +73,24 @@ def interpolate(center_value, I=None, cl=1, schema='weno', cv_0=0., cv_n=0.):
     return interpolated_value
 
 
-def interpolate_from_center_to_face_center(center_value, cl=1, cv_0=0., cv_n=0.):
+def interpolate_from_center_to_face_center(center_value, cl=1, cv_0=0.0, cv_n=0.0):
     interpolated_value = np.zeros((center_value.shape[0] + 1,))
-    interpolated_value[1:-1] = (center_value[:-1] + center_value[1:]) / 2.
+    interpolated_value[1:-1] = (center_value[:-1] + center_value[1:]) / 2.0
     if cl == 1:
-        interpolated_value[0] = (center_value[0] + center_value[-1]) / 2.
-        interpolated_value[-1] = (center_value[0] + center_value[-1]) / 2.
+        interpolated_value[0] = (center_value[0] + center_value[-1]) / 2.0
+        interpolated_value[-1] = (center_value[0] + center_value[-1]) / 2.0
     elif cl == 2:
         interpolated_value[0] = interpolated_value[1]
         interpolated_value[-1] = interpolated_value[-2]
     elif cl == 0:
-        interpolated_value[0] = (center_value[0] + cv_0) / 2.
-        interpolated_value[-1] = (center_value[-1] + cv_n) / 2.
+        interpolated_value[0] = (center_value[0] + cv_0) / 2.0
+        interpolated_value[-1] = (center_value[-1] + cv_n) / 2.0
     else:
         raise NotImplementedError
     return interpolated_value
 
 
-def interpolate_from_center_to_face_center_h(center_value, cl=1, cv_0=0., cv_n=0.):
+def interpolate_from_center_to_face_center_h(center_value, cl=1, cv_0=0.0, cv_n=0.0):
     ext_center = np.zeros((center_value.shape[0] + 2,))
     ext_center[1:-1] = center_value
 
@@ -90,11 +101,11 @@ def interpolate_from_center_to_face_center_h(center_value, cl=1, cv_0=0., cv_n=0
         raise NotImplementedError
     cent0 = ext_center[:-1]
     cent1 = ext_center[1:]
-    interpolated_value = cent0*cent1 / (cent1 + cent0) * 2.
+    interpolated_value = cent0 * cent1 / (cent1 + cent0) * 2.0
     return interpolated_value
 
 
-def interpolate_from_center_to_face_upwind(center_value, cl=1, cv_0=0.):
+def interpolate_from_center_to_face_upwind(center_value, cl=1, cv_0=0.0):
     interpolated_value = np.zeros((center_value.shape[0] + 1,))
     interpolated_value[1:] = center_value
     if cl == 2:
@@ -109,7 +120,7 @@ def interpolate_from_center_to_face_upwind(center_value, cl=1, cv_0=0.):
     return interpolated_value
 
 
-def interpolate_from_center_to_face_weno(a, cl=1, cv_0=0., cv_n=0.):
+def interpolate_from_center_to_face_weno(a, cl=1, cv_0=0.0, cv_n=0.0):
     """
     Weno scheme
 
@@ -139,16 +150,22 @@ def interpolate_from_center_to_face_weno(a, cl=1, cv_0=0., cv_n=0.):
     uj = center_values[2:-2]
     ujp1 = center_values[3:-1]
     ujp2 = center_values[4:]
-    f1 = 1. / 3 * ujm2 - 7. / 6 * ujm1 + 11. / 6 * uj
-    f2 = -1. / 6 * ujm1 + 5. / 6 * uj + 1. / 3 * ujp1
-    f3 = 1. / 3 * uj + 5. / 6 * ujp1 - 1. / 6 * ujp2
-    eps = np.array(10. ** -6)
-    b1 = 13. / 12 * (ujm2 - 2 * ujm1 + uj) ** 2 + 1. / 4 * (ujm2 - 4 * ujm1 + 3 * uj) ** 2
-    b2 = 13. / 12 * (ujm1 - 2 * uj + ujp1) ** 2 + 1. / 4 * (ujm1 - ujp1) ** 2
-    b3 = 13. / 12 * (uj - 2 * ujp1 + ujp2) ** 2 + 1. / 4 * (3 * uj - 4 * ujp1 + ujp2) ** 2
-    w1 = 1. / 10 / (eps + b1) ** 2
-    w2 = 3. / 5 / (eps + b2) ** 2
-    w3 = 3. / 10 / (eps + b3) ** 2
+    f1 = 1.0 / 3 * ujm2 - 7.0 / 6 * ujm1 + 11.0 / 6 * uj
+    f2 = -1.0 / 6 * ujm1 + 5.0 / 6 * uj + 1.0 / 3 * ujp1
+    f3 = 1.0 / 3 * uj + 5.0 / 6 * ujp1 - 1.0 / 6 * ujp2
+    eps = np.array(10.0**-6)
+    b1 = (
+        13.0 / 12 * (ujm2 - 2 * ujm1 + uj) ** 2
+        + 1.0 / 4 * (ujm2 - 4 * ujm1 + 3 * uj) ** 2
+    )
+    b2 = 13.0 / 12 * (ujm1 - 2 * uj + ujp1) ** 2 + 1.0 / 4 * (ujm1 - ujp1) ** 2
+    b3 = (
+        13.0 / 12 * (uj - 2 * ujp1 + ujp2) ** 2
+        + 1.0 / 4 * (3 * uj - 4 * ujp1 + ujp2) ** 2
+    )
+    w1 = 1.0 / 10 / (eps + b1) ** 2
+    w2 = 3.0 / 5 / (eps + b2) ** 2
+    w3 = 3.0 / 10 / (eps + b3) ** 2
     sum_w = w1 + w2 + w3
     w1 /= sum_w
     w2 /= sum_w
@@ -157,7 +174,7 @@ def interpolate_from_center_to_face_weno(a, cl=1, cv_0=0., cv_n=0.):
     return interpolated_value
 
 
-def interpolate_from_center_to_face_quick(a, cl=1, cv_0=0., cv_n=0.):
+def interpolate_from_center_to_face_quick(a, cl=1, cv_0=0.0, cv_n=0.0):
     """
     Quick scheme, in this case upwind is always on the left side.
 
@@ -191,20 +208,26 @@ def interpolate_from_center_to_face_quick(a, cl=1, cv_0=0., cv_n=0.):
     smax = np.where(t2 > t0, t2, t0)
     smin = np.where(t2 < t0, t2, t0)
     dmax = smax - smin
-    DMINFLOAT = 10.**-30
-    ds = np.where(np.abs(dmax) > DMINFLOAT, dmax, 1.)
-    fram = np.where(np.abs(dmax) > DMINFLOAT, ((t1 - smin) / ds * 2. - 1.)**3, 0.)
-    fram = np.where(fram < 1., fram, 1.)  # idem fram est trop long de 1 devant et derrière
-    fram = np.where(fram[1:] > fram[:-1], fram[1:], fram[:-1])  # selection du max entre fram(i-1) et fram(i), fram est
+    DMINFLOAT = 10.0**-30
+    ds = np.where(np.abs(dmax) > DMINFLOAT, dmax, 1.0)
+    fram = np.where(np.abs(dmax) > DMINFLOAT, ((t1 - smin) / ds * 2.0 - 1.0) ** 3, 0.0)
+    fram = np.where(
+        fram < 1.0, fram, 1.0
+    )  # idem fram est trop long de 1 devant et derrière
+    fram = np.where(
+        fram[1:] > fram[:-1], fram[1:], fram[:-1]
+    )  # selection du max entre fram(i-1) et fram(i), fram est
     # de taille n+1
     tamont = t1[:-1]
     taval = t1[1:]
-    interp_1 = (tamont + taval)/2. - 1./8. * curv  # + 1/4. * tamont
-    interpolated_value = (1. - fram) * interp_1 + fram * tamont
+    interp_1 = (tamont + taval) / 2.0 - 1.0 / 8.0 * curv  # + 1/4. * tamont
+    interpolated_value = (1.0 - fram) * interp_1 + fram * tamont
     return interpolated_value
 
 
-def interpolate_center_value_weno_to_face_upwind_interface(a, I, cl=1, cv_0=0., cv_n=0.):
+def interpolate_center_value_weno_to_face_upwind_interface(
+    a, I, cl=1, cv_0=0.0, cv_n=0.0
+):
     """
     interpolate the center value a[i] at the face res[i+1] (corresponding to the upwind scheme) on diphasic cells
 
@@ -228,16 +251,16 @@ def interpolate_center_value_weno_to_face_upwind_interface(a, I, cl=1, cv_0=0., 
         phase_indicator[:3] = I[-3:]
         phase_indicator[3:-2] = I
         phase_indicator[-2:] = I[:2]
-        center_diph = (phase_indicator * (1. - phase_indicator) != 0.)
+        center_diph = phase_indicator * (1.0 - phase_indicator) != 0.0
     elif cl == 0:
         center_values[:3] = cv_0
         center_values[3:-2] = a
         center_values[-2:] = cv_n
         # en cas d'utilisation du schéma avec des conditions aux limites on n'est pas diphasique aux bords
-        phase_indicator[:3] = 0.
+        phase_indicator[:3] = 0.0
         phase_indicator[3:-2] = I
-        phase_indicator[-2:] = 0.
-        center_diph = (phase_indicator * (1. - phase_indicator) != 0.)
+        phase_indicator[-2:] = 0.0
+        center_diph = phase_indicator * (1.0 - phase_indicator) != 0.0
     else:
         raise NotImplementedError
     diph_jm2 = center_diph[:-4]
@@ -253,7 +276,7 @@ def interpolate_center_value_weno_to_face_upwind_interface(a, I, cl=1, cv_0=0., 
     return res
 
 
-def grad(center_value, dx=1., cl=1):
+def grad(center_value, dx=1.0, cl=1):
     """
     Calcule le gradient aux faces
 
@@ -278,7 +301,7 @@ def grad(center_value, dx=1., cl=1):
     return gradient
 
 
-def grad_center4(center_value, dx=1., cl=1):
+def grad_center4(center_value, dx=1.0, cl=1):
     """
     Calcule le gradient aux faces
 
@@ -293,37 +316,57 @@ def grad_center4(center_value, dx=1., cl=1):
     if len(center_value.shape) != 1:
         raise NotImplementedError
     gradient = np.zeros(center_value.shape[0] + 1)
-    gradient[2:-2] = (9./8*(center_value[2:-1] - center_value[1:-2]) - 1./24*(center_value[3:] - center_value[:-4])) / dx
+    gradient[2:-2] = (
+        9.0 / 8 * (center_value[2:-1] - center_value[1:-2])
+        - 1.0 / 24 * (center_value[3:] - center_value[:-4])
+    ) / dx
     if cl == 1:
-        gradient[0] = (9./8*(center_value[0] - center_value[-1]) - 1/24*(center_value[1] - center_value[-2])) / dx
+        gradient[0] = (
+            9.0 / 8 * (center_value[0] - center_value[-1])
+            - 1 / 24 * (center_value[1] - center_value[-2])
+        ) / dx
         gradient[-1] = gradient[0]  # periodicity
-        gradient[1] = (9./8*(center_value[1] - center_value[0]) - 1/24*(center_value[2] - center_value[-1])) / dx
-        gradient[-2] = (9./8*(center_value[-1] - center_value[-2]) - 1/24*(center_value[0] - center_value[-3])) / dx
+        gradient[1] = (
+            9.0 / 8 * (center_value[1] - center_value[0])
+            - 1 / 24 * (center_value[2] - center_value[-1])
+        ) / dx
+        gradient[-2] = (
+            9.0 / 8 * (center_value[-1] - center_value[-2])
+            - 1 / 24 * (center_value[0] - center_value[-3])
+        ) / dx
     else:
         raise NotImplementedError
     return gradient
 
 
 class Bulles:
-    def __init__(self, markers=None, phy_prop=None, n_bulle=None, Delta=1.):
+    def __init__(self, markers=None, phy_prop=None, n_bulle=None, Delta=1.0):
         if markers is None:
             self.markers = []
             if n_bulle is None:
                 if phy_prop.a_i is None:
-                    raise Exception('On ne peut pas déterminer auto la géométrie des bulles sans le rapport surfacique')
+                    raise Exception(
+                        "On ne peut pas déterminer auto la géométrie des bulles sans le rapport surfacique"
+                    )
                 else:
                     # On détermine le nombre de bulle pour avoir une aire interfaciale donnée.
                     # On considère ici une géométrie 1D comme l'équivalent d'une situation 3D
-                    n_bulle = int(phy_prop.a_i / 2. * phy_prop.Delta) + 1
+                    n_bulle = int(phy_prop.a_i / 2.0 * phy_prop.Delta) + 1
             if phy_prop.alpha is None:
-                raise Exception('On ne peut pas déterminer auto la géométrie des bulles sans le taux de vide')
+                raise Exception(
+                    "On ne peut pas déterminer auto la géométrie des bulles sans le taux de vide"
+                )
             else:
                 # Avec le taux de vide on en déduit le diamètre d'une bulle. On va considérer que le taux de vide
                 # s'exprime en 1D, cad : phy_prop.alpha = n*d*dS/(Dx*dS)
                 self.diam = phy_prop.alpha * phy_prop.Delta / n_bulle
-                centers = np.linspace(self.diam, phy_prop.Delta + self.diam, n_bulle + 1)[:-1]
+                centers = np.linspace(
+                    self.diam, phy_prop.Delta + self.diam, n_bulle + 1
+                )[:-1]
                 for center in centers:
-                    self.markers.append((center - self.diam / 2., center + self.diam / 2.))
+                    self.markers.append(
+                        (center - self.diam / 2.0, center + self.diam / 2.0)
+                    )
                 self.markers = np.array(self.markers)
         else:
             self.markers = np.array(markers).copy()
@@ -334,12 +377,12 @@ class Bulles:
         else:
             self.Delta = Delta
 
-        depasse = (self.markers > self.Delta) | (self.markers < 0.)
+        depasse = (self.markers > self.Delta) | (self.markers < 0.0)
         if np.any(depasse):
-            print('Delta : ', self.Delta)
-            print('markers : ', self.markers)
-            print('depasse : ', depasse)
-            raise Exception('Les marqueurs dépassent du domaine')
+            print("Delta : ", self.Delta)
+            print("markers : ", self.markers)
+            print("depasse : ", depasse)
+            raise Exception("Les marqueurs dépassent du domaine")
 
     def __call__(self, *args, **kwargs):
         return self.markers
@@ -364,13 +407,13 @@ class Bulles:
         dx = x[1] - x[0]
         for markers in self.markers:
             if markers[0] < markers[1]:
-                i[(x > markers[0]) & (x < markers[1])] = 0.
+                i[(x > markers[0]) & (x < markers[1])] = 0.0
             else:
-                i[(x > markers[0]) | (x < markers[1])] = 0.
-            diph0 = (np.abs(x - markers[0]) < dx / 2.)
-            i[diph0] = (markers[0] - x[diph0]) / dx + 1. / 2.
-            diph1 = (np.abs(x - markers[1]) < dx / 2.)
-            i[diph1] = -(markers[1] - x[diph1]) / dx + 1 / 2.
+                i[(x > markers[0]) | (x < markers[1])] = 0.0
+            diph0 = np.abs(x - markers[0]) < dx / 2.0
+            i[diph0] = (markers[0] - x[diph0]) / dx + 1.0 / 2.0
+            diph1 = np.abs(x - markers[1]) < dx / 2.0
+            i[diph1] = -(markers[1] - x[diph1]) / dx + 1 / 2.0
         return i
 
     def shift(self, dx):
@@ -387,7 +430,19 @@ class Bulles:
 
 
 class PhysicalProperties:
-    def __init__(self, Delta=1., lda1=1., lda2=0., rho_cp1=1., rho_cp2=1., v=1., diff=1., a_i=358., alpha=0.06, dS=1.):
+    def __init__(
+        self,
+        Delta=1.0,
+        lda1=1.0,
+        lda2=0.0,
+        rho_cp1=1.0,
+        rho_cp2=1.0,
+        v=1.0,
+        diff=1.0,
+        a_i=358.0,
+        alpha=0.06,
+        dS=1.0,
+    ):
         self._Delta = Delta
         self._lda1 = lda1
         self._lda2 = lda2
@@ -398,12 +453,12 @@ class PhysicalProperties:
         self._a_i = a_i
         self._alpha = alpha
         self._dS = dS
-        if self._v == 0.:
-            self._cas = 'diffusion'
-        elif self._diff == 0.:
-            self._cas = 'convection'
+        if self._v == 0.0:
+            self._cas = "diffusion"
+        elif self._diff == 0.0:
+            self._cas = "convection"
         else:
-            self._cas = 'mixte'
+            self._cas = "mixte"
 
     @property
     def Delta(self):
@@ -451,9 +506,20 @@ class PhysicalProperties:
 
 
 class NumericalProperties:
-    def __init__(self, dx=0.1, dt=1., cfl=1., fo=1., schema='weno', time_scheme='euler', phy_prop=None):
+    def __init__(
+        self,
+        dx=0.1,
+        dt=1.0,
+        cfl=1.0,
+        fo=1.0,
+        schema="weno",
+        time_scheme="euler",
+        phy_prop=None,
+    ):
         if phy_prop is None:
-            print('Attention : les valeurs par défaut ont été prises pour Delta et les autres params physiques')
+            print(
+                "Attention : les valeurs par défaut ont été prises pour Delta et les autres params physiques"
+            )
             phy_prop = PhysicalProperties()
         self._cfl_lim = cfl
         self._fo_lim = fo
@@ -463,8 +529,8 @@ class NumericalProperties:
         nx = int(phy_prop.Delta / dx)
         dx = phy_prop.Delta / nx
         self._dx = dx
-        self._x = np.linspace(dx / 2., phy_prop.Delta - dx / 2., nx)
-        self._x_f = np.linspace(0., phy_prop.Delta, nx + 1)
+        self._x = np.linspace(dx / 2.0, phy_prop.Delta - dx / 2.0, nx)
+        self._x_f = np.linspace(0.0, phy_prop.Delta, nx + 1)
         self._dt_min = dt
 
     @property
@@ -511,17 +577,17 @@ class Problem:
 
     def __init__(self, T0, markers=None, num_prop=None, phy_prop=None, name=None):
         if phy_prop is None:
-            print('Attention, les propriétés physiques par défaut sont utilisées')
+            print("Attention, les propriétés physiques par défaut sont utilisées")
             phy_prop = PhysicalProperties()
         if num_prop is None:
-            print('Attention, les propriétés numériques par défaut sont utilisées')
+            print("Attention, les propriétés numériques par défaut sont utilisées")
             num_prop = NumericalProperties()
         self.phy_prop = deepcopy(phy_prop)
         self.num_prop = deepcopy(num_prop)
         self.bulles = self._init_bulles(markers)
         self.T = T0(self.num_prop.x, markers=self.bulles, phy_prop=self.phy_prop)
         self.dt = self.get_time()
-        self.time = 0.
+        self.time = 0.0
         self.I = self.update_I()
         self.iter = 0
         self.flux_conv = np.zeros_like(self.num_prop.x_f)
@@ -539,7 +605,7 @@ class Problem:
 
     @property
     def full_name(self):
-        return '%s, %s' % (self.name, self.char)
+        return "%s, %s" % (self.name, self.char)
 
     @property
     def name(self):
@@ -550,22 +616,32 @@ class Problem:
 
     @property
     def name_cas(self):
-        return 'TOF'
+        return "TOF"
 
     @property
     def char(self):
-        if self.phy_prop.v == 0.:
-            return '%s, %s, dx = %g, dt = %.2g' % (self.num_prop.time_scheme,
-                                                   self.num_prop.schema, self.num_prop.dx,
-                                                   self.dt)
-        elif self.phy_prop.diff == 0.:
-            return '%s, %s, dx = %g, cfl = %g' % (self.num_prop.time_scheme,
-                                                  self.num_prop.schema, self.num_prop.dx,
-                                                  self.cfl)
+        if self.phy_prop.v == 0.0:
+            return "%s, %s, dx = %g, dt = %.2g" % (
+                self.num_prop.time_scheme,
+                self.num_prop.schema,
+                self.num_prop.dx,
+                self.dt,
+            )
+        elif self.phy_prop.diff == 0.0:
+            return "%s, %s, dx = %g, cfl = %g" % (
+                self.num_prop.time_scheme,
+                self.num_prop.schema,
+                self.num_prop.dx,
+                self.cfl,
+            )
         else:
-            return '%s, %s, dx = %g, dt = %.2g, cfl = %g' % (self.num_prop.time_scheme,
-                                                             self.num_prop.schema,
-                                                             self.num_prop.dx, self.dt, self.cfl)
+            return "%s, %s, dx = %g, dt = %.2g, cfl = %g" % (
+                self.num_prop.time_scheme,
+                self.num_prop.schema,
+                self.num_prop.dx,
+                self.dt,
+                self.cfl,
+            )
 
     @property
     def cfl(self):
@@ -573,15 +649,17 @@ class Problem:
 
     @property
     def Lda_h(self):
-        return 1. / (self.I / self.phy_prop.lda1 + (1. - self.I) / self.phy_prop.lda2)
+        return 1.0 / (self.I / self.phy_prop.lda1 + (1.0 - self.I) / self.phy_prop.lda2)
 
     @property
     def rho_cp_a(self):
-        return self.I * self.phy_prop.rho_cp1 + (1. - self.I) * self.phy_prop.rho_cp2
+        return self.I * self.phy_prop.rho_cp1 + (1.0 - self.I) * self.phy_prop.rho_cp2
 
     @property
     def rho_cp_h(self):
-        return 1. / (self.I / self.phy_prop.rho_cp1 + (1. - self.I) / self.phy_prop.rho_cp2)
+        return 1.0 / (
+            self.I / self.phy_prop.rho_cp1 + (1.0 - self.I) / self.phy_prop.rho_cp2
+        )
 
     def update_I(self):
         i = self.bulles.indicatrice_liquide(self.num_prop.x)
@@ -592,15 +670,19 @@ class Problem:
         if self.phy_prop.v > 10 ** (-15):
             dt_cfl = self.num_prop.dx / self.phy_prop.v * self.num_prop.cfl_lim
         else:
-            dt_cfl = 10 ** 15
+            dt_cfl = 10**15
         # nombre de fourier = 1. par défaut
-        dt_fo = self.num_prop.dx ** 2 / max(self.phy_prop.lda1, self.phy_prop.lda2) * \
-            min(self.phy_prop.rho_cp2, self.phy_prop.rho_cp1) * self.num_prop.fo_lim
+        dt_fo = (
+            self.num_prop.dx**2
+            / max(self.phy_prop.lda1, self.phy_prop.lda2)
+            * min(self.phy_prop.rho_cp2, self.phy_prop.rho_cp1)
+            * self.num_prop.fo_lim
+        )
         # dt_fo = dx**2/max(lda1/rho_cp1, lda2/rho_cp2)*fo
         # minimum des 3
         list_dt = [self.num_prop.dt_min, dt_cfl, dt_fo]
         i_dt = np.argmin(list_dt)
-        temps = ['dt min', 'dt cfl', 'dt fourier'][i_dt]
+        temps = ["dt min", "dt cfl", "dt fourier"][i_dt]
         dt = list_dt[i_dt]
         print(temps)
         print(dt)
@@ -618,9 +700,18 @@ class Problem:
         self.bulles.shift(self.phy_prop.v * self.dt)
         self.I = self.update_I()
 
-    def timestep(self, n=None, t_fin=None, plot_for_each=1, number_of_plots=None, plotter=None, debug=None, **kwargs):
+    def timestep(
+        self,
+        n=None,
+        t_fin=None,
+        plot_for_each=1,
+        number_of_plots=None,
+        plotter=None,
+        debug=None,
+        **kwargs
+    ):
         if plotter is None:
-            raise(Exception('plotter is a mandatory argument'))
+            raise (Exception("plotter is a mandatory argument"))
         if (n is None) and (t_fin is None):
             raise NotImplementedError
         elif (n is not None) and (t_fin is not None):
@@ -640,11 +731,11 @@ class Problem:
         t = np.linspace(0, n * self.dt, n + 1)
         energy[0] = self.energy
         for i in range(n):
-            if self.num_prop.time_scheme == 'euler':
+            if self.num_prop.time_scheme == "euler":
                 self._euler_timestep(debug=debug, bool_debug=(i % plot_for_each == 0))
-            elif self.num_prop.time_scheme == 'rk4':
+            elif self.num_prop.time_scheme == "rk4":
                 self._rk4_timestep(debug=debug, bool_debug=(i % plot_for_each == 0))
-            elif self.num_prop.time_scheme == 'rk3':
+            elif self.num_prop.time_scheme == "rk3":
                 self._rk3_timestep(debug=debug, bool_debug=(i % plot_for_each == 0))
             self.update_markers()
             self.time += self.dt
@@ -691,53 +782,76 @@ class Problem:
     def _compute_diffusion_flux(self, T, bulles, bool_debug=False, debug=None):
         indic = bulles.indicatrice_liquide(self.num_prop.x)
 
-        Lda_h = 1. / (indic / self.phy_prop.lda1 + (1. - indic) / self.phy_prop.lda2)
-        lda_grad_T = interpolate(Lda_h, I=indic, schema='center_h') * grad(T, self.num_prop.dx)
+        Lda_h = 1.0 / (indic / self.phy_prop.lda1 + (1.0 - indic) / self.phy_prop.lda2)
+        lda_grad_T = interpolate(Lda_h, I=indic, schema="center_h") * grad(
+            T, self.num_prop.dx
+        )
 
         if (debug is not None) and bool_debug:
             # debug.set_title('sous-pas de temps %f' % (len(K) - 2))
-            debug.plot(self.num_prop.x_f, lda_grad_T,
-                       label='lda_h grad T, time = %f' % self.time)
-            debug.plot(self.num_prop.x_f, lda_grad_T, label='lda_grad_T, time = %f' % self.time)
+            debug.plot(
+                self.num_prop.x_f,
+                lda_grad_T,
+                label="lda_h grad T, time = %f" % self.time,
+            )
+            debug.plot(
+                self.num_prop.x_f, lda_grad_T, label="lda_grad_T, time = %f" % self.time
+            )
             debug.set_xticks(self.num_prop.x_f)
-            debug.grid(b=True, which='major')
+            debug.grid(b=True, which="major")
             debug.legend()
         return lda_grad_T
 
     def _euler_timestep(self, debug=None, bool_debug=False):
         dx = self.num_prop.dx
-        self.flux_conv = self._compute_convection_flux(self.T, self.bulles, bool_debug, debug)
-        self.flux_diff = self._compute_diffusion_flux(self.T, self.bulles, bool_debug, debug)
-        rho_cp_inv_h = 1./self.rho_cp_h
-        self._corrige_flux_coeff_interface(self.T, self.bulles, self.flux_conv, self.flux_diff)
+        self.flux_conv = self._compute_convection_flux(
+            self.T, self.bulles, bool_debug, debug
+        )
+        self.flux_diff = self._compute_diffusion_flux(
+            self.T, self.bulles, bool_debug, debug
+        )
+        rho_cp_inv_h = 1.0 / self.rho_cp_h
+        self._corrige_flux_coeff_interface(
+            self.T, self.bulles, self.flux_conv, self.flux_diff
+        )
         self._echange_flux()
-        dTdt = - integrale_vol_div(self.flux_conv, dx) \
-            + self.phy_prop.diff * rho_cp_inv_h * integrale_vol_div(self.flux_diff, dx)
+        dTdt = -integrale_vol_div(
+            self.flux_conv, dx
+        ) + self.phy_prop.diff * rho_cp_inv_h * integrale_vol_div(self.flux_diff, dx)
         self.T += self.dt * dTdt
 
     def _rk3_timestep(self, debug=None, bool_debug=False):
         T_int = self.T.copy()
         markers_int = self.bulles.copy()
-        K = 0.
-        coeff_h = np.array([1./3, 5./12, 1./4])
-        coeff_dTdtm1 = np.array([0., -5./9, -153./128])
-        coeff_dTdt = np.array([1., 4./9, 15./32])
+        K = 0.0
+        coeff_h = np.array([1.0 / 3, 5.0 / 12, 1.0 / 4])
+        coeff_dTdtm1 = np.array([0.0, -5.0 / 9, -153.0 / 128])
+        coeff_dTdt = np.array([1.0, 4.0 / 9, 15.0 / 32])
         for step, h in enumerate(coeff_h):
             # convection, conduction, dTdt = self.compute_dT_dt(T_int, markers_int, bool_debug, debug)
-            convection = self._compute_convection_flux(T_int, markers_int, bool_debug, debug)
-            conduction = self._compute_diffusion_flux(T_int, markers_int, bool_debug, debug)
+            convection = self._compute_convection_flux(
+                T_int, markers_int, bool_debug, debug
+            )
+            conduction = self._compute_diffusion_flux(
+                T_int, markers_int, bool_debug, debug
+            )
             # TODO: vérifier qu'il ne faudrait pas plutôt utiliser rho_cp^{n,k}
-            rho_cp_inv_h = 1. / self.rho_cp_h
-            self._corrige_flux_coeff_interface(T_int, markers_int, convection, conduction)
+            rho_cp_inv_h = 1.0 / self.rho_cp_h
+            self._corrige_flux_coeff_interface(
+                T_int, markers_int, convection, conduction
+            )
             convection[-1] = convection[0]
             conduction[-1] = conduction[0]
-            dTdt = - integrale_vol_div(convection, self.num_prop.dx) \
-                + self.phy_prop.diff * rho_cp_inv_h * integrale_vol_div(conduction, self.num_prop.dx)
+            dTdt = -integrale_vol_div(
+                convection, self.num_prop.dx
+            ) + self.phy_prop.diff * rho_cp_inv_h * integrale_vol_div(
+                conduction, self.num_prop.dx
+            )
             K = K * coeff_dTdtm1[step] + dTdt
             if bool_debug and (debug is not None):
-                print('step : ', step)
-                print('dTdt : ', dTdt)
-                print('K    : ', K)
+                print("step : ", step)
+                print("dTdt : ", dTdt)
+                print("K    : ", K)
             T_int += h * self.dt * K / coeff_dTdt[step]  # coeff_dTdt est calculé de
             # sorte à ce que le coefficient total devant les dérviées vale 1.
             # convection_l.append(convection)
@@ -747,27 +861,31 @@ class Problem:
         self.T = T_int
 
     def _rk4_timestep(self, debug=None, bool_debug=False):
-        K = [0.]
+        K = [0.0]
         T_u_l = []
         lda_gradT_l = []
-        pas_de_temps = np.array([0., 0.5, 0.5, 1.])
+        pas_de_temps = np.array([0.0, 0.5, 0.5, 1.0])
         dx = self.num_prop.dx
         for h in pas_de_temps:
             markers_int = self.bulles.copy()
             markers_int.shift(self.phy_prop.v * h * self.dt)
             T = self.T + h * self.dt * K[-1]
-            convection = self._compute_convection_flux(T, markers_int, bool_debug, debug)
+            convection = self._compute_convection_flux(
+                T, markers_int, bool_debug, debug
+            )
             conduction = self._compute_diffusion_flux(T, markers_int, bool_debug, debug)
             # TODO: vérifier qu'il ne faudrait pas plutôt utiliser rho_cp^{n,k}
-            rho_cp_inv_h = 1. / self.rho_cp_h
+            rho_cp_inv_h = 1.0 / self.rho_cp_h
             self._corrige_flux_coeff_interface(T, markers_int, convection, conduction)
             convection[-1] = convection[0]
             conduction[-1] = conduction[0]
             T_u_l.append(convection)
             lda_gradT_l.append(conduction)
-            K.append(- integrale_vol_div(convection, dx)
-                     + self.phy_prop.diff * rho_cp_inv_h * integrale_vol_div(conduction, dx))
-        coeff = np.array([1. / 6, 1 / 3., 1 / 3., 1. / 6])
+            K.append(
+                -integrale_vol_div(convection, dx)
+                + self.phy_prop.diff * rho_cp_inv_h * integrale_vol_div(conduction, dx)
+            )
+        coeff = np.array([1.0 / 6, 1 / 3.0, 1 / 3.0, 1.0 / 6])
         self.flux_conv = np.sum(coeff * np.array(T_u_l).T, axis=-1)
         self.flux_diff = np.sum(coeff * np.array(lda_gradT_l).T, axis=-1)
         self.T += np.sum(self.dt * coeff * np.array(K[1:]).T, axis=-1)
@@ -775,46 +893,71 @@ class Problem:
 
 class ProblemConserv2(Problem):
     def __init__(self, T0, markers=None, num_prop=None, phy_prop=None, **kwargs):
-        super().__init__(T0, markers=markers, num_prop=num_prop, phy_prop=phy_prop, **kwargs)
-        if num_prop.time_scheme == 'rk3':
-            print('RK3 is not implemented, changes to Euler')
-            self.num_prop._time_scheme = 'euler'
+        super().__init__(
+            T0, markers=markers, num_prop=num_prop, phy_prop=phy_prop, **kwargs
+        )
+        if num_prop.time_scheme == "rk3":
+            print("RK3 is not implemented, changes to Euler")
+            self.num_prop._time_scheme = "euler"
 
     @property
     def name_cas(self):
-        return 'EOFm'
+        return "EOFm"
 
     def _euler_timestep(self, debug=None, bool_debug=False):
-        rho_cp_u = interpolate(self.rho_cp_a, I=self.I, schema=self.num_prop.schema) * self.phy_prop.v
+        rho_cp_u = (
+            interpolate(self.rho_cp_a, I=self.I, schema=self.num_prop.schema)
+            * self.phy_prop.v
+        )
         int_div_rho_cp_u = integrale_vol_div(rho_cp_u, self.num_prop.dx)
         rho_cp_etoile = self.rho_cp_a + self.dt * int_div_rho_cp_u
 
-        self.flux_conv = interpolate(self.rho_cp_a * self.T, I=self.I, schema=self.num_prop.schema) * self.phy_prop.v
+        self.flux_conv = (
+            interpolate(self.rho_cp_a * self.T, I=self.I, schema=self.num_prop.schema)
+            * self.phy_prop.v
+        )
         int_div_rho_cp_T_u = integrale_vol_div(self.flux_conv, self.num_prop.dx)
 
-        self.flux_diff = interpolate(self.Lda_h, I=self.I, schema=self.num_prop.schema) * grad(self.T, self.num_prop.dx)
+        self.flux_diff = interpolate(
+            self.Lda_h, I=self.I, schema=self.num_prop.schema
+        ) * grad(self.T, self.num_prop.dx)
         int_div_lda_grad_T = integrale_vol_div(self.flux_diff, self.num_prop.dx)
 
         if (debug is not None) and bool_debug:
-            debug.plot(self.num_prop.x, 1. / self.rho_cp_h, label='rho_cp_inv_h, time = %f' % self.time)
-            debug.plot(self.num_prop.x, int_div_lda_grad_T, label='div_lda_grad_T, time = %f' % self.time)
+            debug.plot(
+                self.num_prop.x,
+                1.0 / self.rho_cp_h,
+                label="rho_cp_inv_h, time = %f" % self.time,
+            )
+            debug.plot(
+                self.num_prop.x,
+                int_div_lda_grad_T,
+                label="div_lda_grad_T, time = %f" % self.time,
+            )
             debug.xticks(self.num_prop.x_f)
-            debug.grid(which='major')
-            maxi = max(np.max(int_div_lda_grad_T), np.max(1. / self.rho_cp_h))
-            mini = min(np.min(int_div_lda_grad_T), np.min(1. / self.rho_cp_h))
+            debug.grid(which="major")
+            maxi = max(np.max(int_div_lda_grad_T), np.max(1.0 / self.rho_cp_h))
+            mini = min(np.min(int_div_lda_grad_T), np.min(1.0 / self.rho_cp_h))
             for markers in self.bulles():
-                debug.plot([markers[0]] * 2, [mini, maxi], '--')
-                debug.plot([markers[1]] * 2, [mini, maxi], '--')
+                debug.plot([markers[0]] * 2, [mini, maxi], "--")
+                debug.plot([markers[1]] * 2, [mini, maxi], "--")
                 debug.legend()
-        self.T += self.dt / rho_cp_etoile * (int_div_rho_cp_u * self.T +
-                                             - int_div_rho_cp_T_u + self.phy_prop.diff * int_div_lda_grad_T)
+        self.T += (
+            self.dt
+            / rho_cp_etoile
+            * (
+                int_div_rho_cp_u * self.T
+                + -int_div_rho_cp_T_u
+                + self.phy_prop.diff * int_div_lda_grad_T
+            )
+        )
 
     def _rk4_timestep(self, debug=None, bool_debug=False):
-        K = [np.array(0.)]  # type: list[np.ndarray]
-        K_rhocp = [0.]
+        K = [np.array(0.0)]  # type: list[np.ndarray]
+        K_rhocp = [0.0]
         rho_cp_T_u_l = []
         lda_gradT_l = []
-        pas_de_temps = np.array([0, 0.5, 0.5, 1.])
+        pas_de_temps = np.array([0, 0.5, 0.5, 1.0])
         for h in pas_de_temps:
             markers_int = self.bulles.copy()
             markers_int.shift(self.phy_prop.v * self.dt * h)
@@ -823,7 +966,10 @@ class ProblemConserv2(Problem):
             # On s'occupe de calculer d_rho_cp
 
             rho_cp = self.rho_cp_a + h * self.dt * K_rhocp[-1]
-            rho_cp_u = interpolate(rho_cp, I=temp_I, schema=self.num_prop.schema) * self.phy_prop.v
+            rho_cp_u = (
+                interpolate(rho_cp, I=temp_I, schema=self.num_prop.schema)
+                * self.phy_prop.v
+            )
             int_div_rho_cp_u = integrale_vol_div(rho_cp_u, self.num_prop.dx)
 
             rho_cp_etoile = rho_cp - int_div_rho_cp_u * self.dt * h
@@ -831,19 +977,33 @@ class ProblemConserv2(Problem):
             # On s'occupe de calculer d_rho_cp_T
 
             T = self.T + h * self.dt * K[-1]
-            rho_cp_T_u = interpolate(rho_cp * T, I=temp_I, schema=self.num_prop.schema) * self.phy_prop.v
+            rho_cp_T_u = (
+                interpolate(rho_cp * T, I=temp_I, schema=self.num_prop.schema)
+                * self.phy_prop.v
+            )
             rho_cp_T_u_l.append(rho_cp_T_u)
             int_div_rho_cp_T_u = integrale_vol_div(rho_cp_T_u, self.num_prop.dx)
 
-            Lda_h = 1. / (temp_I / self.phy_prop.lda1 + (1. - temp_I) / self.phy_prop.lda2)
-            lda_grad_T = interpolate(Lda_h, I=temp_I, schema='center_h') * grad(T, self.num_prop.dx)
+            Lda_h = 1.0 / (
+                temp_I / self.phy_prop.lda1 + (1.0 - temp_I) / self.phy_prop.lda2
+            )
+            lda_grad_T = interpolate(Lda_h, I=temp_I, schema="center_h") * grad(
+                T, self.num_prop.dx
+            )
             lda_gradT_l.append(lda_grad_T)
             int_div_lda_grad_T = integrale_vol_div(lda_grad_T, self.num_prop.dx)
 
-            K.append(1. / rho_cp_etoile * (T * int_div_rho_cp_u - int_div_rho_cp_T_u +
-                                           self.phy_prop.diff * int_div_lda_grad_T))
+            K.append(
+                1.0
+                / rho_cp_etoile
+                * (
+                    T * int_div_rho_cp_u
+                    - int_div_rho_cp_T_u
+                    + self.phy_prop.diff * int_div_lda_grad_T
+                )
+            )
 
-        coeff = np.array([1. / 6, 1 / 3., 1 / 3., 1. / 6])
+        coeff = np.array([1.0 / 6, 1 / 3.0, 1 / 3.0, 1.0 / 6])
         self.flux_conv = np.sum(coeff * np.array(rho_cp_T_u_l).T, axis=-1)
         self.flux_diff = np.sum(coeff * np.array(lda_gradT_l).T, axis=-1)
         d_rhocpT = np.sum(self.dt * coeff * np.array(K[1:]).T, axis=-1)
@@ -861,7 +1021,7 @@ def get_T(x, markers=None, phy_prop=None):
         lda_1 = phy_prop.lda1
         lda_2 = phy_prop.lda2
     dx = x[1] - x[0]
-    Delta = x[-1] + dx / 2.
+    Delta = x[-1] + dx / 2.0
     if markers is None:
         marker = np.array([[0.25 * Delta, 0.75 * Delta]])
     elif isinstance(markers, Bulles):
@@ -870,7 +1030,7 @@ def get_T(x, markers=None, phy_prop=None):
         marker = markers.copy()
 
     if len(marker) > 1:
-        raise Exception('Le cas pour plus d une bulle n est pas enore implémenté')
+        raise Exception("Le cas pour plus d une bulle n est pas enore implémenté")
     marker = marker.squeeze()
     if marker[0] < marker[1]:
         m = np.mean(marker)
@@ -880,9 +1040,13 @@ def get_T(x, markers=None, phy_prop=None):
             m -= Delta
     T1 = lda_2 * np.cos(2 * np.pi * (x - m) / Delta)
     w = opt.fsolve(
-        lambda y: y * np.sin(2 * np.pi * y * (marker[0] - m) / Delta) - np.sin(2 * np.pi * (marker[0] - m) / Delta),
-        np.array(1.))
-    b = lda_2 * np.cos(2 * np.pi / Delta * (marker[0] - m)) - lda_1 * np.cos(2 * np.pi * w / Delta * (marker[0] - m))
+        lambda y: y * np.sin(2 * np.pi * y * (marker[0] - m) / Delta)
+        - np.sin(2 * np.pi * (marker[0] - m) / Delta),
+        np.array(1.0),
+    )
+    b = lda_2 * np.cos(2 * np.pi / Delta * (marker[0] - m)) - lda_1 * np.cos(
+        2 * np.pi * w / Delta * (marker[0] - m)
+    )
     T2 = lda_1 * np.cos(w * 2 * np.pi * ((x - m) / Delta)) + b
     T = T1.copy()
     if marker[0] < marker[1]:
@@ -897,8 +1061,10 @@ def get_T(x, markers=None, phy_prop=None):
 
 def get_T_creneau(x, markers=None, phy_prop=None):
     if phy_prop is None:
-        raise Exception('Attetion, il faut des propriétés thermiques pour déterminer auto le nbre de bulles')
+        raise Exception(
+            "Attetion, il faut des propriétés thermiques pour déterminer auto le nbre de bulles"
+        )
     if markers is None:
         markers = Bulles(markers=markers, phy_prop=phy_prop)
-    T = 1. - markers.indicatrice_liquide(x)
+    T = 1.0 - markers.indicatrice_liquide(x)
     return T

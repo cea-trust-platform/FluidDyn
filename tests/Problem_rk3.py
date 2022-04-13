@@ -1,6 +1,7 @@
 import sys
+import os
 
-sys.path = [r'/home/as259691/PycharmProjects/FluidDyn1D'] + sys.path
+sys.path = [os.path.join(os.getcwd(), '..')] + sys.path
 
 from src.main import Problem, PhysicalProperties, NumericalProperties, Bulles, get_T_creneau
 from src.plot_fields import Plotter

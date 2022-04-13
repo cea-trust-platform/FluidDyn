@@ -25,9 +25,17 @@
    .. autosummary::
    
       BulleTemperature
-      ProblemDiscontinu
+      ProblemDiscontinuCoupleConserv
+      ProblemDiscontinuE
+      ProblemDiscontinuECorrige
       ProblemDiscontinuEnergieTemperature
+      ProblemDiscontinuEnergieTemperatureInt
+      ProblemDiscontinuEsansq
       ProblemDiscontinuFT
+      ProblemDiscontinuSautdTdt
+      ProblemDiscontinuSepIntT
+      ProblemDiscontinuT
+      ProblemRhoCpDiscontinuE
    
    
 

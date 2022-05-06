@@ -15,7 +15,7 @@ Pour installer un environnement virtuel qui contient tous les paquets du fichier
    # pour activer l'environnement lancer :
    source venv-flu1d/bin/activate
 
-Dans ce terminal toutes les consoles pythons et modules python s'exécuteront avec l'environnement venv.
+Dans ce terminal toutes les consoles pythons et modules python s'exécuteront avec l'environnement venv-flu1d.
 Il est temps d'importer les paquets python nécessaires dans l'environnement :
 
 .. code-block:: bash
@@ -23,7 +23,7 @@ Il est temps d'importer les paquets python nécessaires dans l'environnement :
    pip install --upgrade pip
    pip install -r requirements.txt
    
-(les paquets seront installés dans l'environnement activé, donc venv si tout va bien)
+(les paquets seront installés dans l'environnement activé, donc venv-flu1d si tout va bien)
 Attention : il est nécessaire d'avoir installé tous ces paquets python pour que sphinx puisse s'exécuter correctement, il est
 donc fortement recommandé de passer par l'installation d'un environnement virtuel présentée à l'instant.
 
@@ -55,13 +55,13 @@ Pour installer les extensions jupyter sur la machine, lancer :
 Utiliation de Jupyter
 ---------------------
 
-Jupyter est aussi téléchargé en tant que paquet python, donc il doit être dans ``venv``.
+Jupyter est aussi téléchargé en tant que paquet python, donc il doit être dans ``venv-flu1d``.
 
 La première étape est d'ajouter ``venv-flu1d`` en tant que kernel pour jupyter :
 
 .. code-block:: bash
 
-   source venv/bin/activate
+   source venv-flu1d/bin/activate
    ipython kernel install --name "venv-flu1d" --sys-prefix
 
 Cepandant pour installer un gestionnaire d'extensions (bien pratique), il faut lancer les commandes suivantes :
@@ -76,7 +76,7 @@ Il faut activer au moins deux plugin pratique : table of content (2) via le plug
 
 .. code-block:: bash
 
-   source venv/bin/activate
+   source venv-flu1d/bin/activate
    pip install hide_code
    jupyter nbextension install --py hide_code --sys-prefix
    jupyter nbextension enable --py hide_code --sys-prefix

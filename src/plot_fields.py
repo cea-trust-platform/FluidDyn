@@ -171,7 +171,7 @@ class Plotter:
                 self.ax.set_xlim(z0, z1)
             self.ax.grid(b=True, which="major")
             self.ax.grid(b=True, which="minor", alpha=0.2)
-            self.ax.set_ylabel(r"$T$")
+            self.ax.set_ylabel(r"$T$", size='x-large')
             for markers in problem.bulles():
                 bulle0 = decale_positif(markers[0] - x0, problem.phy_prop.Delta)
                 bulle1 = decale_positif(markers[1] - x0, problem.phy_prop.Delta)
@@ -194,8 +194,8 @@ class Plotter:
                     self.ax2.set_xticklabels(
                         np.rint((ticks_major - M1) / Dx).astype(int), minor=False
                     )
-                self.ax2.set_xlabel(r"$x / D_b$")
-                self.ax2.set_ylabel(r"$\lambda \nabla T$")
+                self.ax2.set_xlabel(r"$x / D_b$", size='x-large')
+                self.ax2.set_ylabel(r"$\lambda \nabla T$", size='x-large')
                 self.ax2.grid(b=True, which="major")
                 self.ax2.grid(b=True, which="minor", alpha=0.2)
                 if self.zoom is not None:
@@ -211,7 +211,7 @@ class Plotter:
                         alpha=0.2,
                     )
             else:
-                self.ax.set_xlabel(r"$x / D_b$")
+                self.ax.set_xlabel(r"$x / D_b$", size='x-large')
         # if self.ax2 is not None:
         #     self.ax2.legend(loc='upper right')
         # if self.ax3 is not None:

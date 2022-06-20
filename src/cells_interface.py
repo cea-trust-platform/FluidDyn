@@ -91,6 +91,7 @@ class CellsInterface:
         schema_conv="upwind",
         interp_type="Ti",
         schema_diff="centre",
+        time_integral="exact",
     ):
         self.ldag = ldag
         self.ldad = ldad
@@ -99,6 +100,7 @@ class CellsInterface:
         self.ag = ag
         self.ad = 1.0 - ag
         self.dx = dx
+        self.time_integral = time_integral
         if len(T) < 7:
             raise (Exception("T n est pas de taille 7"))
         self._T = T[
@@ -227,8 +229,16 @@ class CellsInterface:
     @property
     def rhocp_f(self) -> np.ndarray((6,), dtype=float):
         if self.vdt > 0.0:
-            coeff_d = min(self.vdt, self.ad * self.dx) / self.vdt
-            self._rhocp_f[3] = coeff_d * self.rhocpd + (1.0 - coeff_d) * self.rhocpg
+            if self.time_integral == 'exact':
+                coeff_d = min(self.vdt, self.ad * self.dx) / self.vdt
+                self._rhocp_f[3] = coeff_d * self.rhocpd + (1.0 - coeff_d) * self.rhocpg
+            elif self.time_integral == 'CN':
+                if self.ad * self.dx > self.vdt:
+                    self._rhocp_f[3] = self.rhocpd
+                else:
+                    self._rhocp_f[3] = (self.rhocpd + self.rhocpg) / 2.
+            else:
+                raise Exception("L'attribut time_integral : %s n'est pas reconnu" % self.time_integral)
             return self._rhocp_f
         else:
             self._rhocp_f[3] = self.rhocpd

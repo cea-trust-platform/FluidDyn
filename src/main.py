@@ -55,6 +55,12 @@ def interpolate(center_value, I=None, cl=1, schema="weno", cv_0=0.0, cv_n=0.0):
         interpolated_value = interpolate_from_center_to_face_quick(
             center_value, cl=cl, cv_0=cv_0, cv_n=cv_n
         )
+    elif schema == "quick upwind":
+        if I is None:
+            raise NotImplementedError
+        interpolated_value = interpolate_from_center_to_face_quick_upwind_interface(
+            center_value, I, cl=cl, cv_0=cv_0, cv_n=cv_n
+        )
     elif schema == "weno":
         interpolated_value = interpolate_from_center_to_face_weno(
             center_value, cl=cl, cv_0=cv_0, cv_n=cv_n
@@ -225,6 +231,55 @@ def interpolate_from_center_to_face_quick(a, cl=1, cv_0=0.0, cv_n=0.0):
     return interpolated_value
 
 
+def interpolate_from_center_to_face_quick_upwind_interface(a, I, cl=1, cv_0=0.0, cv_n=0.0):
+    """
+    Quick scheme and upwind at the interface, in this case upwind is always on the left side.
+    On doit ajouter pour la périodicité 2 cellules amont (-2 et -1) et une cellule après (n+1)
+
+    Args:
+        cv_n: center value at n+1
+        cv_0: center value at -1
+        a: the scalar value at the center of the cell
+        I: the indicator function
+        cl: conditions aux limites, cl = 1: périodicité, cl=0 valeurs imposées aux bords à cv_0 et cv_n avec gradients
+            nuls
+
+    Returns:
+        les valeurs interpolées aux faces de la face -1/2 à la face n+1/2
+    """
+    res = interpolate_from_center_to_face_quick(a, cl)
+    center_values = np.empty(a.size + 3)
+    phase_indicator = np.empty(I.size + 3)
+    if cl == 1:
+        center_values[:2] = a[-2:]
+        center_values[2:-1] = a
+        center_values[-1:] = a[:1]
+        phase_indicator[:2] = I[-2:]
+        phase_indicator[2:-1] = I
+        phase_indicator[-1:] = I[:1]
+        center_diph = phase_indicator * (1.0 - phase_indicator) != 0.0
+    elif cl == 0:
+        center_values[:2] = cv_0
+        center_values[2:-1] = a
+        center_values[-1:] = cv_n
+        phase_indicator[:2] = 0.0
+        phase_indicator[2:-1] = I
+        phase_indicator[-1:] = 0.0
+        center_diph = phase_indicator * (1.0 - phase_indicator) != 0.0
+    else:
+        raise NotImplementedError
+    diph_jm1 = center_diph[:-2]
+    diph_j = center_diph[1:-1]
+    diph_jp1 = center_diph[2:]
+    # f diphasic correspond aux faces dont le stencil utilisé par le QUICK traverse l'interface
+    f_diph = diph_jm1 | diph_j | diph_jp1
+
+    # interpolation upwind
+    #res[f_diph] = center_values[2:-1][f_diph]
+    res[f_diph] = center_values[1:-1][f_diph]
+    return res
+
+
 def interpolate_center_value_weno_to_face_upwind_interface(
     a, I, cl=1, cv_0=0.0, cv_n=0.0
 ):
@@ -341,6 +396,12 @@ def grad_center4(center_value, dx=1.0, cl=1):
 
 class Bulles:
     def __init__(self, markers=None, phy_prop=None, n_bulle=None, Delta=1.0):
+        self.diam = 0.
+        if phy_prop is not None:
+            self.Delta = phy_prop.Delta
+        else:
+            self.Delta = Delta
+
         if markers is None:
             self.markers = []
             if n_bulle is None:
@@ -370,12 +431,11 @@ class Bulles:
                 self.markers = np.array(self.markers)
         else:
             self.markers = np.array(markers).copy()
-            self.diam = None
-
-        if phy_prop is not None:
-            self.Delta = phy_prop.Delta
-        else:
-            self.Delta = Delta
+            mark1 = self.markers[0][1]
+            mark0 = self.markers[0][0]
+            while mark1 < mark0:
+                mark1 += self.Delta
+            self.diam = mark1 - mark0
 
         depasse = (self.markers > self.Delta) | (self.markers < 0.0)
         if np.any(depasse):
@@ -593,6 +653,7 @@ class Problem:
         self.flux_conv = np.zeros_like(self.num_prop.x_f)
         self.flux_diff = np.zeros_like(self.num_prop.x_f)
         self._imposed_name = name
+        print('Db / dx = %.2i' % (self.bulles.diam / self.num_prop.dx))
 
     def _init_bulles(self, markers=None):
         if markers is None:

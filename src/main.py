@@ -231,7 +231,9 @@ def interpolate_from_center_to_face_quick(a, cl=1, cv_0=0.0, cv_n=0.0):
     return interpolated_value
 
 
-def interpolate_from_center_to_face_quick_upwind_interface(a, I, cl=1, cv_0=0.0, cv_n=0.0):
+def interpolate_from_center_to_face_quick_upwind_interface(
+    a, I, cl=1, cv_0=0.0, cv_n=0.0
+):
     """
     Quick scheme and upwind at the interface, in this case upwind is always on the left side.
     On doit ajouter pour la périodicité 2 cellules amont (-2 et -1) et une cellule après (n+1)
@@ -275,7 +277,7 @@ def interpolate_from_center_to_face_quick_upwind_interface(a, I, cl=1, cv_0=0.0,
     f_diph = diph_jm1 | diph_j | diph_jp1
 
     # interpolation upwind
-    #res[f_diph] = center_values[2:-1][f_diph]
+    # res[f_diph] = center_values[2:-1][f_diph]
     res[f_diph] = center_values[1:-1][f_diph]
     return res
 
@@ -396,7 +398,7 @@ def grad_center4(center_value, dx=1.0, cl=1):
 
 class Bulles:
     def __init__(self, markers=None, phy_prop=None, n_bulle=None, Delta=1.0):
-        self.diam = 0.
+        self.diam = 0.0
         if phy_prop is not None:
             self.Delta = phy_prop.Delta
         else:
@@ -649,11 +651,12 @@ class Problem:
         self.dt = self.get_time()
         self.time = 0.0
         self.I = self.update_I()
+        self.If = self.update_If()
         self.iter = 0
         self.flux_conv = np.zeros_like(self.num_prop.x_f)
         self.flux_diff = np.zeros_like(self.num_prop.x_f)
         self._imposed_name = name
-        print('Db / dx = %.2i' % (self.bulles.diam / self.num_prop.dx))
+        print("Db / dx = %.2i" % (self.bulles.diam / self.num_prop.dx))
 
     def _init_bulles(self, markers=None):
         if markers is None:
@@ -717,6 +720,10 @@ class Problem:
         return self.I * self.phy_prop.rho_cp1 + (1.0 - self.I) * self.phy_prop.rho_cp2
 
     @property
+    def rho_cp_f(self):
+        return self.If * self.phy_prop.rho_cp1 + (1.0 - self.If) * self.phy_prop.rho_cp2
+
+    @property
     def rho_cp_h(self):
         return 1.0 / (
             self.I / self.phy_prop.rho_cp1 + (1.0 - self.I) / self.phy_prop.rho_cp2
@@ -725,6 +732,10 @@ class Problem:
     def update_I(self):
         i = self.bulles.indicatrice_liquide(self.num_prop.x)
         return i
+
+    def update_If(self):
+        i_f = self.bulles.indicatrice_liquide(self.num_prop.x_f)
+        return i_f
 
     def get_time(self):
         # nombre CFL = 1. par défaut
@@ -760,6 +771,7 @@ class Problem:
     def update_markers(self):
         self.bulles.shift(self.phy_prop.v * self.dt)
         self.I = self.update_I()
+        self.If = self.update_If()
 
     def timestep(
         self,

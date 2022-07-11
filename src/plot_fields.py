@@ -74,7 +74,7 @@ class Plotter:
         self._cas = value
         print("plotter mode changed to %s" % value)
 
-    def plot(self, problem, ispretty=True, **kwargs):
+    def plot(self, problem, ispretty=True, plot_Ti=False, **kwargs):
         first_plot = False
         # Set up of fig and ax
         if (self.fig is None) or (self.ax is None):
@@ -150,6 +150,7 @@ class Plotter:
                 ax2=self.ax2,
                 lda_gradT=self.lda_gradT,
                 flux_conv=self.flux_conv,
+                plot_Ti=plot_Ti,
             )
 
         self.ax.legend(loc="upper right")
@@ -171,7 +172,7 @@ class Plotter:
                 self.ax.set_xlim(z0, z1)
             self.ax.grid(b=True, which="major")
             self.ax.grid(b=True, which="minor", alpha=0.2)
-            self.ax.set_ylabel(r"$T$", size='x-large')
+            self.ax.set_ylabel(r"$T$", size="x-large")
             for markers in problem.bulles():
                 bulle0 = decale_positif(markers[0] - x0, problem.phy_prop.Delta)
                 bulle1 = decale_positif(markers[1] - x0, problem.phy_prop.Delta)
@@ -194,8 +195,8 @@ class Plotter:
                     self.ax2.set_xticklabels(
                         np.rint((ticks_major - M1) / Dx).astype(int), minor=False
                     )
-                self.ax2.set_xlabel(r"$x / D_b$", size='x-large')
-                self.ax2.set_ylabel(r"$\lambda \nabla T$", size='x-large')
+                self.ax2.set_xlabel(r"$x / D_b$", size="x-large")
+                self.ax2.set_ylabel(r"$\lambda \nabla T$", size="x-large")
                 self.ax2.grid(b=True, which="major")
                 self.ax2.grid(b=True, which="minor", alpha=0.2)
                 if self.zoom is not None:
@@ -211,7 +212,7 @@ class Plotter:
                         alpha=0.2,
                     )
             else:
-                self.ax.set_xlabel(r"$x / D_b$", size='x-large')
+                self.ax.set_xlabel(r"$x / D_b$", size="x-large")
         # if self.ax2 is not None:
         #     self.ax2.legend(loc='upper right')
         # if self.ax3 is not None:
@@ -284,7 +285,14 @@ def plot_temp(problem, fig=None, x0=0.0, ax=None, label=None, **kwargs):
 
 
 def plot_temperature_bulles(
-    problem, x0=0.0, ax=None, ax2=None, quiver=False, lda_gradT=False, flux_conv=False
+    problem,
+    x0=0.0,
+    ax=None,
+    ax2=None,
+    quiver=False,
+    lda_gradT=False,
+    flux_conv=False,
+    plot_Ti=False,
 ):
     if flux_conv is True:
         label_conv = r"Flux convectif"
@@ -299,6 +307,7 @@ def plot_temperature_bulles(
     Ti = []
     Tig = []
     Tid = []
+    lda_grad_Ti = []
     for i_int, x in enumerate(problem.bulles()):
         for j, xi in enumerate(x):
             i = problem.bulles.ind[i_int, j]
@@ -307,6 +316,7 @@ def plot_temperature_bulles(
             Ti.append(problem.bulles.T[i_int, j])
             Tig.append(problem.bulles.Tg[i_int, j])
             Tid.append(problem.bulles.Td[i_int, j])
+            lda_grad_Ti.append(problem.bulles.lda_grad_T[i_int, j])
             ldag, rhocpg, ag, ldad, rhocpd, ad = get_prop(
                 problem, i, liqu_a_gauche=(not j)
             )
@@ -344,26 +354,22 @@ def plot_temperature_bulles(
                         (problem.T[i + 2] - problem.T[i + 1]) / problem.num_prop.dx,
                         angles="xy",
                     )
-            cells_suivi = problem.bulles.cells[2 * i_int + j]
+            # cells_suivi = problem.bulles.cells[2 * i_int + j]
             # if isinstance(cells_suivi, CellsSuiviInterface) and (ax is not None):
             #     ax.plot(cells_suivi.xj + problem.num_prop.x[i], cells_suivi.Tj,
             #             '--', label='Tj interp', c=col)
-            if ax is not None:
-                ax.plot(
-                    problem.bulles.markers.flatten() - x0,
-                    problem.bulles.Ti.flatten(),
-                    "+",
-                )  # , label=r'$T_I$')
-    if problem.time > 0.0 and quiver and (ax is not None):
-        ax.plot(xil, Ti, "k+")
+            # if ax is not None:
+            #     ax.plot(
+            #         problem.bulles.markers.flatten() - x0,
+            #         problem.bulles.Ti.flatten(),
+            #         "+",
+            #     )  # , label=r'$T_I$')
+    if problem.time > 0.0 and plot_Ti and (ax is not None):
+        ax.plot(xil, Ti, "k+", label=r"$T_I$")
         ax.plot(x0l, Tig, "+", label=r"$T_g$")
         ax.plot(x0l, Tid, "+", label=r"$T_d$")
-    if lda_gradT and (ax2 is not None):
-        ax2.plot(
-            problem.bulles.markers.flatten() - x0,
-            problem.bulles.lda_grad_T.flatten(),
-            "+",
-        )  # , label=r'$\lambda \nabla T_I$')
+    if problem.time > 0.0 and lda_gradT and plot_Ti and (ax2 is not None):
+        ax2.plot(xil, lda_grad_Ti, "k+", label=r"$\lambda \nabla T_I$")
         # ax2.set_xticks(problem.num_prop.x_f)
         # ax2.set_xticklabels([])
         # ax2.grid(b=True, which='major')

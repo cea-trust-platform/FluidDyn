@@ -14,7 +14,7 @@
 ##############################################################################
 
 import numpy as np
-from src.main import integrale_vol_div
+from src.main import integrale_vol_div, interpolate_from_center_to_face_quick
 from numba.experimental import jitclass
 from numba import float64  # import the types
 
@@ -129,7 +129,9 @@ class CellsInterface:
         self._T_f = np.empty((6,), dtype=np.float_)
         self._gradT_f = np.empty((6,), dtype=np.float_)
         # On fait tout de suite le calcul qui nous intéresse, il est nécessaire pour la suite
-        if self.interp_type == "Ti" or self.interp_type == "Ti_vol":
+        if self.schema_conv.endswith("ghost"):
+            self.compute_from_Ti_ghost()
+        elif self.interp_type == "Ti" or self.interp_type == "Ti_vol":
             self.compute_from_Ti()
         elif self.interp_type == "Ti2":
             self.compute_from_Ti2()
@@ -161,6 +163,8 @@ class CellsInterface:
                 self.compute_T_f_gradT_f_quick()
             if self.schema_conv == "quick":
                 self.compute_T_f_gradT_f_quick()
+            if self.schema_conv == "quick_ghost":
+                self.compute_T_f_gradT_f_quick_ghost()
             if self.schema_conv == "upwind":
                 self.compute_T_f_gradT_f_upwind()
             if self.schema_conv == "amont_centre":
@@ -182,6 +186,8 @@ class CellsInterface:
         if self.schema_conv == "weno":
             return self._T_f
         if self.schema_conv == "quick":
+            return self._T_f
+        if self.schema_conv == "quick_ghost":
             return self._T_f
         if self.schema_conv == "amont_centre":
             return self._T_f
@@ -229,16 +235,19 @@ class CellsInterface:
     @property
     def rhocp_f(self) -> np.ndarray((6,), dtype=float):
         if self.vdt > 0.0:
-            if self.time_integral == 'exact':
+            if self.time_integral == "exact":
                 coeff_d = min(self.vdt, self.ad * self.dx) / self.vdt
                 self._rhocp_f[3] = coeff_d * self.rhocpd + (1.0 - coeff_d) * self.rhocpg
-            elif self.time_integral == 'CN':
+            elif self.time_integral == "CN":
                 if self.ad * self.dx > self.vdt:
                     self._rhocp_f[3] = self.rhocpd
                 else:
-                    self._rhocp_f[3] = (self.rhocpd + self.rhocpg) / 2.
+                    self._rhocp_f[3] = (self.rhocpd + self.rhocpg) / 2.0
             else:
-                raise Exception("L'attribut time_integral : %s n'est pas reconnu" % self.time_integral)
+                raise Exception(
+                    "L'attribut time_integral : %s n'est pas reconnu"
+                    % self.time_integral
+                )
             return self._rhocp_f
         else:
             self._rhocp_f[3] = self.rhocpd
@@ -504,6 +513,55 @@ class CellsInterface:
         self._gradT_f[4] = dTdxip32
         self._gradT_f[5] = dTdxip52
 
+    def compute_T_f_gradT_f_quick_ghost(self):
+        """
+        Cellule type ::
+
+                Tg, gradTg                          Tghost
+                         0          1         2         3
+               +---------+----------+---------+---------+
+               |         |          |         |   |     |
+               |    +   -|>   +    -|>   +   -|>  |+    |
+               |    0    |    1     |    2    |   |3    |         4         5
+               +---------+----------+---------+---------+---------+---------+---------+
+                                              |   |     |         |         |         |
+                                 Td, gradTd   |   |+   -|>   +   -|>   +   -|>   +    |
+                                              |   |0    |    1    |    2    |    3    |
+                                              +---------+---------+---------+---------+
+                                                  Ti,                              |--|
+                                                  lda_gradTi                         vdt
+
+        Returns:
+            Tf avec :
+            - -3/2 en quick pas corrige
+            - -1/2 en quick avec Tghost gauche
+            -  1/2 en centre avec T ghost droit et Td1
+            -  3/2 en quick avec Tghost droit Td1 et Td2
+            -  5/2 en quick pas corrige
+
+        """
+        # calcul Tghost
+
+        # _, _, Tim32, _, _ = interpolate_from_center_to_face_quick(self.Tg)
+        Tim12 = self.Tg[-2] + (self.Tg[-2] - self.Tg[-3]) * 0.5  # extrapolation amont
+        Tip12 = self.Td[0]  # interpolation amont
+        # Tip32 = self.Td[1]  # interpolation amont
+        _, _, Tip32, _, _ = interpolate_from_center_to_face_quick(
+            self.Td,
+            cl=0,
+            cv_0=self._Ti - (self.ag + 0.5) * self.dx * self._dTdxg,
+            cv_n=0.0,
+        )
+        # on ne veut pas se servir de cette valeur, on veut utiliser la version weno / quick
+        self._T_f[0] = np.nan
+        # on ne veut pas se servir de cette valeur, on veut utiliser la version weno / quick
+        self._T_f[1] = np.nan
+        self._T_f[2] = Tim12  # self._T_dlg(0.)
+        self._T_f[3] = Tip12  # self._T_dld(self.dx)
+        self._T_f[4] = Tip32
+        # on ne veut pas se servir de cette valeur, on veut utiliser la version weno / quick
+        self._T_f[5] = np.nan
+
     def compute_T_f_gradT_f_upwind(self):
         """
         Cellule type ::
@@ -716,6 +774,27 @@ class CellsInterface:
         )
         self.Tg[-1] = self.Tg[-2] + lda_gradTig / self.ldag * self.dx
         self.Td[0] = self.Td[1] - lda_gradTid / self.ldad * self.dx
+
+    def compute_from_Ti_ghost(self):
+        """
+        On commence par calculer Ti et lda_grad_Ti à partir de Tim1 et Tip1.
+        Ensuite on procède au calcul de grad_Tg et grad_Td en interpolant avec lda_grad_T_i et les gradients m32 et p32.
+        C'est la méthode qui donne les résultats les plus stables. Probablement parce qu'elle donne un poids plus
+        important aux valeurs des mailles monophasiques
+
+        Returns:
+            Calcule les gradients g, I, d, et Ti
+        """
+        self._Ti, self._lda_gradTi = self._get_T_i_and_lda_grad_T_i(
+            self.Tg[-2],
+            self.Td[1],
+            (1.0 / 2 + self.ag) * self.dx,
+            (1.0 / 2 + self.ad) * self.dx,
+        )
+        self._dTdxg = self._lda_gradTi / self.ldag
+        self._dTdxd = self._lda_gradTi / self.ldad
+        self.Tg[-1] = self._Ti + self._dTdxg * self.dx * (0.5 - self.ag)
+        self.Td[0] = self._Ti + self._dTdxd * self.dx * (self.ad - 0.5)
 
     def compute_from_Ti(self):
         """
@@ -1072,6 +1151,55 @@ class CellsInterface:
         lda_grad_T_ig = self.ldag * (T_i - Tg) / dg
         lda_grad_T_id = self.ldad * (Td - T_i) / dd
         return T_i, (lda_grad_T_ig + lda_grad_T_id) / 2.0
+
+    def _get_T_i_and_lda_grad_T_i_limited(
+        self, Tg: float, Td: float, Tgg: float, Tdd: float, dg: float, dd: float
+    ) -> (float, float):
+        """
+        On utilise la continuité de lda_grad_T pour interpoler en Ti, on en déduit Ti et lda_grad_Ti
+        Puis on limite lda_grad_Ti a partir de ce qui se passe de chaque côté
+        On retourne les gradients suivants ::
+
+                                          dgg    dg              dd      ddd
+                            |---------------|-----------|-------------------|---------------|
+                    +---------------+---------------+---------------+---------------+---------------+
+                    |               |               |   |           |               |               |
+                   -|>      +      -|>      +      -|>  |   +      -|>      +      -|>      +      -|>
+                    |               |               |   |           |               |               |
+                    +---------------+---------------+---------------+---------------+---------------+
+
+        Returns:
+            Ti, lda_grad_T
+        """
+        T_i = (self.ldag / dg * Tg + self.ldad / dd * Td) / (
+            self.ldag / dg + self.ldad / dd
+        )
+        lda_grad_T_ig = self.ldag * (T_i - Tg) / dg
+        lda_grad_T_id = self.ldad * (Td - T_i) / dd
+        lda_grad_T = (lda_grad_T_ig + lda_grad_T_id) / 2.0
+        lda_grad_Tg = self.ldag * (Tg - Tgg) / self.dx
+        lda_grad_Td = self.ldad * (Tdd - Td) / self.dx
+        if lda_grad_Tg < lda_grad_Td:
+            lda_grad_Tmin = lda_grad_Tg
+            lda_grad_Tmax = lda_grad_Td
+        else:
+            lda_grad_Tmax = lda_grad_Tg
+            lda_grad_Tmin = lda_grad_Td
+        recalcul = True
+        if lda_grad_T < lda_grad_Tmin:
+            lda_grad_T = lda_grad_Tmin
+        elif lda_grad_T > lda_grad_Tmax:
+            lda_grad_T = lda_grad_Tmax
+        else:
+            recalcul = False
+        # recalcul de Ti ? comment ?
+        # TODO: vérifier que ce n'est pas completement arbitraire...
+        if recalcul:
+            T_ig = Tg + lda_grad_T / self.ldag * (0.5 + self.ag) * self.dx
+            T_id = Td - lda_grad_T / self.ldad * (0.5 + self.ad) * self.dx
+            T_i = (T_id + T_ig) / 2.0
+
+        return T_i, lda_grad_T
 
     def _get_T_i_and_lda_grad_T_i2(
         self, Tg: float, Td: float, Tgg: float, Tdd: float, dg: float, dd: float

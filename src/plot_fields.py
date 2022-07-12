@@ -43,6 +43,7 @@ class Plotter:
         zoom=None,
         dx=False,
         dt=False,
+        ispretty=True,
         **kwargs
     ):
         self._cas = cas
@@ -63,6 +64,7 @@ class Plotter:
         self.dt = dt
         self.markers = markers
         self.zoom = zoom
+        self.ispretty = ispretty
         self.kwargs = kwargs
 
     @property
@@ -74,7 +76,7 @@ class Plotter:
         self._cas = value
         print("plotter mode changed to %s" % value)
 
-    def plot(self, problem, ispretty=True, plot_Ti=False, **kwargs):
+    def plot(self, problem, plot_Ti=False, **kwargs):
         first_plot = False
         # Set up of fig and ax
         if (self.fig is None) or (self.ax is None):
@@ -142,7 +144,11 @@ class Plotter:
         ticks_major, ticks_minor, M1, Dx = get_ticks(problem, x0=x0)
 
         # Plot markers
-        if isinstance(problem.bulles, BulleTemperature) and self.markers:
+        if (
+            isinstance(problem.bulles, BulleTemperature)
+            and self.markers
+            and not self.ispretty
+        ):
             plot_temperature_bulles(
                 problem,
                 x0=x0,
@@ -157,7 +163,7 @@ class Plotter:
         if first_plot:
             self.ymini, self.ymaxi = self.ax.get_ylim()
             self.ax.set_ymargin(0.0)
-            if not ispretty:
+            if not self.ispretty:
                 self.ax.set_xticks(problem.num_prop.x_f, minor=True)
                 self.ax.set_xticklabels([], minor=True)
             else:
@@ -186,7 +192,7 @@ class Plotter:
             if self.ax2 is not None:
                 self.ymini2, self.ymaxi2 = self.ax.get_ylim()
                 self.ax2.set_ymargin(0.0)
-                if not ispretty:
+                if not self.ispretty:
                     self.ax2.set_xticks(problem.num_prop.x_f, minor=True)
                     self.ax2.set_xticklabels([], minor=True)
                 else:
@@ -521,3 +527,49 @@ def to_scientific(leg):
     else:
         leg = leg[0]
     return leg
+
+
+class EnergiePlot:
+    def __init__(self, e0=None):
+        self.fig = None
+        self.ax = None
+        self.e0 = e0
+
+    def plot(self, t, e, label=None):
+        if self.fig is None:
+            self.fig, self.ax = plt.subplots(1)
+            self.ax.minorticks_on()
+            self.ax.grid(b=True, which="major")
+            self.ax.grid(b=True, which="minor", alpha=0.2)
+            self.ax.set_xlabel(r"$t [s]$")
+            self.ax.set_ylabel(r"$E_{tot} [J/m^3]$")
+            if self.e0 is None:
+                self.e0 = e[0]
+
+        self.ax.plot(t, e, label=label)
+        self.ax.legend()
+        self.fig.tight_layout()
+
+        n = len(e)
+        i0 = int(n / 5)
+        dedt_adim = (
+            (e[-1] - e[i0]) / (t[-1] - t[i0]) * (t[1] - t[0]) / self.e0
+        )  # on a mult
+
+        print()
+        if label is not None:
+            print(label)
+            print("=" * len(label))
+        else:
+            print("Calcul sans label")
+            print("=================")
+        print("dE*/dt* = %g" % dedt_adim)
+
+    def add_E0(self):
+        self.fig.canvas.draw()
+        labels = [item.get_text() for item in self.ax.get_yticklabels()]
+        ticks = list(self.ax.get_yticks())
+        ticks.append(self.e0)
+        labels.append(r"$E_0$")
+        self.ax.set_yticks(ticks)
+        self.ax.set_yticklabels(labels)

@@ -42,7 +42,7 @@ from numba import float64  # import the types
 #            ('ag', float64), ('ad', float64), ('dx', float64), ('vdt', float64), ('Tgc', float64), ('Tdc', float64),
 #            ('_dTdxg', float64), ('_dTdxd', float64), ('_d2Tdx2g', float64), ('_d2Tdx2d', float64),
 #            ('_d3Tdx3g', float64), ('_d3Tdx3d', float64), ('_T_f', float64[:]), ('_gradT_f', float64[:]),
-#            ('_T', float64[:])])
+#            ('_T', float64[:]), ('grad_Tim12', float64), ('grad_Tip12', float64)])
 class CellsInterface:
     schema_conv: str
     schema_diff: str
@@ -120,6 +120,8 @@ class CellsInterface:
         self._d2Tdx2d = 0.0
         self._d3Tdx3g = 0.0
         self._d3Tdx3d = 0.0
+        self.grad_Tim12 = 0.0
+        self.grad_Tip12 = 0.0
         self.schema_conv = schema_conv
         self.schema_diff = schema_diff
         self.vdt = vdt
@@ -165,6 +167,8 @@ class CellsInterface:
                 self.compute_T_f_gradT_f_quick()
             if self.schema_conv == "quick_ghost":
                 self.compute_T_f_gradT_f_quick_ghost()
+            if self.schema_conv == "quick_upwind_ghost":
+                self.compute_T_f_gradT_f_quick_upwind_ghost()
             if self.schema_conv == "upwind":
                 self.compute_T_f_gradT_f_upwind()
             if self.schema_conv == "amont_centre":
@@ -188,6 +192,8 @@ class CellsInterface:
         if self.schema_conv == "quick":
             return self._T_f
         if self.schema_conv == "quick_ghost":
+            return self._T_f
+        if self.schema_conv == "quick_upwind_ghost":
             return self._T_f
         if self.schema_conv == "amont_centre":
             return self._T_f
@@ -535,6 +541,50 @@ class CellsInterface:
             Tf avec :
             - -3/2 en quick pas corrige
             - -1/2 en quick avec Tghost gauche
+            -  1/2 en upwind avec Td ghost et gradTd_ghost
+            -  3/2 en quick avec Td ghost, Td1 et Td2
+            -  5/2 en quick pas corrige
+
+        """
+        # calcul Tghost
+
+        _, _, _, Tim12, _ = interpolate_from_center_to_face_quick(self.Tg)
+        Tip12 = (
+            self.Td[0] + self.lda_gradTi / self.ldad * self.dx * 0.5
+        )  # interpolation amont
+        _, _, Tip32, _, _ = interpolate_from_center_to_face_quick(self.Td)
+        # on ne veut pas se servir de cette valeur, on veut utiliser la version weno / quick
+        self._T_f[0] = np.nan
+        # on ne veut pas se servir de cette valeur, on veut utiliser la version weno / quick
+        self._T_f[1] = np.nan
+        self._T_f[2] = Tim12  # self._T_dlg(0.)
+        self._T_f[3] = Tip12  # self._T_dld(self.dx)
+        self._T_f[4] = Tip32
+        # on ne veut pas se servir de cette valeur, on veut utiliser la version weno / quick
+        self._T_f[5] = np.nan
+
+    def compute_T_f_gradT_f_quick_upwind_ghost(self):
+        """
+        Cellule type ::
+
+                Tg, gradTg                          Tghost
+                         0          1         2         3
+               +---------+----------+---------+---------+
+               |         |          |         |   |     |
+               |    +   -|>   +    -|>   +   -|>  |+    |
+               |    0    |    1     |    2    |   |3    |         4         5
+               +---------+----------+---------+---------+---------+---------+---------+
+                                              |   |     |         |         |         |
+                                 Td, gradTd   |   |+   -|>   +   -|>   +   -|>   +    |
+                                              |   |0    |    1    |    2    |    3    |
+                                              +---------+---------+---------+---------+
+                                                  Ti,                              |--|
+                                                  lda_gradTi                         vdt
+
+        Returns:
+            Tf avec :
+            - -3/2 en quick pas corrige
+            - -1/2 en quick avec Tghost gauche
             -  1/2 en centre avec T ghost droit et Td1
             -  3/2 en quick avec Tghost droit Td1 et Td2
             -  5/2 en quick pas corrige
@@ -543,15 +593,10 @@ class CellsInterface:
         # calcul Tghost
 
         # _, _, Tim32, _, _ = interpolate_from_center_to_face_quick(self.Tg)
-        Tim12 = self.Tg[-2] + (self.Tg[-2] - self.Tg[-3]) * 0.5  # extrapolation amont
+        Tim12 = self.Tg[-2]  # extrapolation amont
         Tip12 = self.Td[0]  # interpolation amont
-        # Tip32 = self.Td[1]  # interpolation amont
-        _, _, Tip32, _, _ = interpolate_from_center_to_face_quick(
-            self.Td,
-            cl=0,
-            cv_0=self._Ti - (self.ag + 0.5) * self.dx * self._dTdxg,
-            cv_n=0.0,
-        )
+        Tip32 = self.Td[1]  # interpolation amont
+
         # on ne veut pas se servir de cette valeur, on veut utiliser la version weno / quick
         self._T_f[0] = np.nan
         # on ne veut pas se servir de cette valeur, on veut utiliser la version weno / quick
@@ -788,13 +833,21 @@ class CellsInterface:
         self._Ti, self._lda_gradTi = self._get_T_i_and_lda_grad_T_i(
             self.Tg[-2],
             self.Td[1],
-            (1.0 / 2 + self.ag) * self.dx,
-            (1.0 / 2 + self.ad) * self.dx,
+            (0.5 + self.ag) * self.dx,
+            (0.5 + self.ad) * self.dx,
         )
         self._dTdxg = self._lda_gradTi / self.ldag
         self._dTdxd = self._lda_gradTi / self.ldad
         self.Tg[-1] = self._Ti + self._dTdxg * self.dx * (0.5 - self.ag)
         self.Td[0] = self._Ti + self._dTdxd * self.dx * (self.ad - 0.5)
+        self.grad_Tim12 = self.pid_interp(
+            np.array([self.gradTg[1], self._lda_gradTi / self.ldag]),
+            np.array([1.0, self.ag]) * self.dx,
+        )
+        self.grad_Tip12 = self.pid_interp(
+            np.array([self._lda_gradTi / self.ldad, self.gradTd[1]]),
+            np.array([self.ad, 1.0]) * self.dx,
+        )
 
     def compute_from_Ti(self):
         """

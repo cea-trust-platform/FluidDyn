@@ -783,6 +783,9 @@ class Problem:
         debug=None,
         **kwargs
     ):
+        print()
+        print(self.name)
+        print("=" * len(self.name))
         if plotter is None:
             raise (Exception("plotter is a mandatory argument"))
         if (n is None) and (t_fin is None):

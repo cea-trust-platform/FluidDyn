@@ -1037,6 +1037,8 @@ class ProblemDiscontinuEcomme3D_ghost(Problem):
         if conv_interf is None:
             conv_interf = self.num_prop.schema
         self.conv_interf = conv_interf
+        if not conv_interf.endswith("ghost"):
+            raise (Exception("Le schema conv_interf doit etre du type ghost."))
 
     def _init_bulles(self, markers=None):
         if markers is None:
@@ -1092,7 +1094,7 @@ class ProblemDiscontinuEcomme3D_ghost(Problem):
                     rhocpg=rhocpg,
                     rhocpd=rhocpd,
                     interp_type=self.interp_type,
-                    schema_conv="quick_ghost",
+                    schema_conv=self.conv_interf,
                     vdt=self.dt * self.phy_prop.v,
                     time_integral="CN",
                 )
@@ -1144,7 +1146,7 @@ class ProblemDiscontinuEcomme3D_ghost(Problem):
 
     @property
     def name_cas(self):
-        return "ESP sans correction flux"  # + self.interp_type.replace('_', '-') + self.conv_interf.replace('_', '-')
+        return "ESP comme en 3D"  # + self.interp_type.replace('_', '-') + self.conv_interf.replace('_', '-')
 
 
 class ProblemRhoCpDiscontinuE(Problem):

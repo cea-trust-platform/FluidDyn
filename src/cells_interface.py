@@ -232,6 +232,8 @@ class CellsInterface:
             self.schema_diff == "DL"
             or self.schema_conv == "weno"
             or self.schema_conv == "quick"
+            or self.schema_conv == "quick_ghost"
+            or self.schema_conv == "quick_upwind_ghost"
             or self.schema_conv == "amont_centre"
         ):
             return self._gradT_f
@@ -563,6 +565,14 @@ class CellsInterface:
         # on ne veut pas se servir de cette valeur, on veut utiliser la version weno / quick
         self._T_f[5] = np.nan
 
+        self._gradT_f[0] = np.nan
+        self._gradT_f[1] = np.nan
+        self._gradT_f[2] = (self.Tg[-1] - self.Tg[-2]) / self.dx
+        self._gradT_f[3] = (self.Td[1] - self.Td[0]) / self.dx
+        self._gradT_f[4] = np.nan
+        self._gradT_f[5] = np.nan
+
+
     def compute_T_f_gradT_f_quick_upwind_ghost(self):
         """
         Cellule type ::
@@ -606,6 +616,13 @@ class CellsInterface:
         self._T_f[4] = Tip32
         # on ne veut pas se servir de cette valeur, on veut utiliser la version weno / quick
         self._T_f[5] = np.nan
+
+        self._gradT_f[0] = np.nan
+        self._gradT_f[1] = np.nan
+        self._gradT_f[2] = (self.Tg[-1] - self.Tg[-2]) / self.dx
+        self._gradT_f[3] = (self.Td[1] - self.Td[0]) / self.dx
+        self._gradT_f[4] = np.nan
+        self._gradT_f[5] = np.nan
 
     def compute_T_f_gradT_f_upwind(self):
         """

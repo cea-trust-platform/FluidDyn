@@ -164,7 +164,9 @@ class Plotter:
             self.ymini, self.ymaxi = self.ax.get_ylim()
             self.ax.set_ymargin(0.0)
             if not self.ispretty:
+                self.ax.set_xticks([], minor=False)
                 self.ax.set_xticks(problem.num_prop.x_f, minor=True)
+                self.ax.set_xticklabels([], minor=False)
                 self.ax.set_xticklabels([], minor=True)
             else:
                 self.ax.set_xticks(ticks_major, minor=False)
@@ -371,11 +373,11 @@ def plot_temperature_bulles(
             #         "+",
             #     )  # , label=r'$T_I$')
     if problem.time > 0.0 and plot_Ti and (ax is not None):
-        ax.plot(xil, Ti, "k+", label=r"$T_I$")
-        ax.plot(x0l, Tig, "+", label=r"$T_g$")
-        ax.plot(x0l, Tid, "+", label=r"$T_d$")
+        ax.plot(xil, Ti, "k+")  # , label=r"$T_I$")
+        ax.plot(x0l, Tig, "r+")  # , label=r"$T_g$")
+        ax.plot(x0l, Tid, "g+")  # , label=r"$T_d$")
     if problem.time > 0.0 and lda_gradT and plot_Ti and (ax2 is not None):
-        ax2.plot(xil, lda_grad_Ti, "k+", label=r"$\lambda \nabla T_I$")
+        ax2.plot(xil, lda_grad_Ti, "k+")  # , label=r"$\lambda \nabla T_I$")
         # ax2.set_xticks(problem.num_prop.x_f)
         # ax2.set_xticklabels([])
         # ax2.grid(b=True, which='major')
@@ -564,6 +566,9 @@ class EnergiePlot:
             print("Calcul sans label")
             print("=================")
         print("dE*/dt* = %g" % dedt_adim)
+
+    def plot_pb(self, pb, fac=1.):
+        self.plot(pb.t, pb.E / fac, label=pb.name)
 
     def add_E0(self):
         self.fig.canvas.draw()

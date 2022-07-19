@@ -16,6 +16,8 @@
 import numpy as np
 from scipy import optimize as opt
 from copy import deepcopy
+import pickle
+import os
 
 
 def integrale_vol_div(flux, dx):
@@ -550,6 +552,10 @@ class PhysicalProperties:
     def v(self):
         return self._v
 
+    @v.setter
+    def v(self, val):
+        self._v = val
+
     @property
     def diff(self):
         return self._diff
@@ -657,6 +663,8 @@ class Problem:
         self.flux_diff = np.zeros_like(self.num_prop.x_f)
         self._imposed_name = name
         print("Db / dx = %.2i" % (self.bulles.diam / self.num_prop.dx))
+        self.E = None
+        self.t = None
 
     def _init_bulles(self, markers=None):
         if markers is None:
@@ -803,9 +811,16 @@ class Problem:
         #         plott.plot(self)
         # else:
         #     plotter.plot(self)
-        energy = np.zeros((n + 1,))
-        t = np.linspace(0, n * self.dt, n + 1)
-        energy[0] = self.energy
+        if self.E is None:
+            offset = 0
+            self.E = np.zeros((n + 1,))
+            self.t = np.linspace(0, n * self.dt, n + 1).copy()
+            self.E[0] = self.energy
+        else:
+            offset = self.E.size - 1
+            self.E.resize((offset + 1 + n,), refcheck=False)
+            self.t.resize((offset + 1 + n,), refcheck=False)
+            self.t[offset:-1] = np.linspace(self.time + self.dt, self.time + n * self.dt, n).copy()
         for i in range(n):
             if self.num_prop.time_scheme == "euler":
                 self._euler_timestep(debug=debug, bool_debug=(i % plot_for_each == 0))
@@ -816,14 +831,14 @@ class Problem:
             self.update_markers()
             self.time += self.dt
             self.iter += 1
-            energy[i + 1] = self.energy
+            self.E[offset + i + 1] = self.energy
             if (i % plot_for_each == 0) and ((i != 0) or (n == 1)):
                 if isinstance(plotter, list):
                     for plott in plotter:
                         plott.plot(self, **kwargs)
                 else:
                     plotter.plot(self, **kwargs)
-        return t, energy
+        return self.t, self.E
 
     def _echange_flux(self):
         """
@@ -1144,3 +1159,22 @@ def get_T_creneau(x, markers=None, phy_prop=None):
         markers = Bulles(markers=markers, phy_prop=phy_prop)
     T = 1.0 - markers.indicatrice_liquide(x)
     return T
+
+
+def load_or_compute(pb, pb_name='prob_ref', t_fin=0., n=None, number_of_plots=1, plotter=None):
+    save_name = 'References/%s_t_%f.pkl' % (pb_name, pb.time + t_fin)
+    print(save_name)
+    if os.path.isfile(save_name):
+        with open(save_name, 'rb') as f:
+            pb = pickle.load(f)
+        print('Reference was loaded')
+        for plot in plotter:
+            plot.plot(pb)
+        t = pb.t
+        E = pb.E
+    else:
+        t, E = pb.timestep(t_fin=t_fin, n=n, number_of_plots=number_of_plots, plotter=plotter)
+        with open(save_name, 'wb') as f:
+            pickle.dump(pb, f)
+    return pb, t, E
+

@@ -475,9 +475,9 @@ class Bulles:
             else:
                 i[(x > markers[0]) | (x < markers[1])] = 0.0
             diph0 = np.abs(x - markers[0]) < dx / 2.0
-            i[diph0] = (markers[0] - x[diph0]) / dx + 1.0 / 2.0
+            i[diph0] = (markers[0] - x[diph0]) / dx + 0.5
             diph1 = np.abs(x - markers[1]) < dx / 2.0
-            i[diph1] = -(markers[1] - x[diph1]) / dx + 1 / 2.0
+            i[diph1] = -(markers[1] - x[diph1]) / dx + 0.5
         return i
 
     def shift(self, dx):
@@ -572,6 +572,14 @@ class PhysicalProperties:
     def dS(self):
         return self._dS
 
+    def isequal(self, prop):
+        dic = {key: self.__dict__[key] == prop.__dict__[key] for key in self.__dict__}
+        equal = np.all(list(dic.values()))
+        if not equal:
+            print("Attention, les propriétés ne sont pas égales :")
+            print(dic)
+        return equal
+
 
 class NumericalProperties:
     def __init__(
@@ -665,6 +673,26 @@ class Problem:
         print("Db / dx = %.2i" % (self.bulles.diam / self.num_prop.dx))
         self.E = None
         self.t = None
+
+    def copy(self, pb):
+        equal_prop = self.phy_prop.isequal(pb.phy_prop)
+        if not equal_prop:
+            raise Exception(
+                "Impossible de copier le Problème, il n'a pas les mm propriétés physiques"
+            )
+        self.num_prop = deepcopy(self.num_prop)
+        self.bulles = deepcopy(pb.bulles)
+        self.T = pb.T.copy()
+        self.dt = pb.dt
+        self.time = pb.time
+        self.I = pb.I.copy()
+        self.If = pb.If.copy()
+        self.iter = pb.iter
+        self.flux_conv = pb.flux_conv.copy()
+        self.flux_diff = pb.flux_diff.copy()
+        print("Db / dx = %.2i" % (self.bulles.diam / self.num_prop.dx))
+        self.E = pb.E.copy()
+        self.t = pb.t.copy()
 
     def _init_bulles(self, markers=None):
         if markers is None:
@@ -818,9 +846,13 @@ class Problem:
             self.E[0] = self.energy
         else:
             offset = self.E.size - 1
-            self.E.resize((offset + 1 + n,), refcheck=False)
-            self.t.resize((offset + 1 + n,), refcheck=False)
-            self.t[offset:-1] = np.linspace(self.time + self.dt, self.time + n * self.dt, n).copy()
+            self.E = np.r_[self.E, np.zeros((n,))]
+            self.t = np.r_[
+                self.t, np.linspace(self.time + self.dt, self.time + n * self.dt, n)
+            ]
+            # self.E.resize((offset + 1 + n,), refcheck=False)
+            # self.t.resize((offset + 1 + n,), refcheck=False)
+            # self.t[offset:-1] = np.linspace(self.time + self.dt, self.time + n * self.dt, n).copy()
         for i in range(n):
             if self.num_prop.time_scheme == "euler":
                 self._euler_timestep(debug=debug, bool_debug=(i % plot_for_each == 0))
@@ -980,6 +1012,30 @@ class Problem:
         self.flux_conv = np.sum(coeff * np.array(T_u_l).T, axis=-1)
         self.flux_diff = np.sum(coeff * np.array(lda_gradT_l).T, axis=-1)
         self.T += np.sum(self.dt * coeff * np.array(K[1:]).T, axis=-1)
+
+    def load_or_compute(
+        self, pb_name=None, t_fin=0.0, n=None, number_of_plots=1, plotter=None
+    ):
+        if pb_name is None:
+            pb_name = self.full_name
+        save_name = "References/%s_t_%f.pkl" % (pb_name, self.time + t_fin)
+        print(save_name)
+        if os.path.isfile(save_name):
+            with open(save_name, "rb") as f:
+                saved = pickle.load(f)
+            self.copy(saved)
+            print("Reference was loaded")
+            for plot in plotter:
+                plot.plot(self)
+            t = self.t
+            E = self.E
+        else:
+            t, E = self.timestep(
+                t_fin=t_fin, n=n, number_of_plots=number_of_plots, plotter=plotter
+            )
+            with open(save_name, "wb") as f:
+                pickle.dump(self, f)
+        return t, E
 
 
 class ProblemConserv2(Problem):
@@ -1159,22 +1215,3 @@ def get_T_creneau(x, markers=None, phy_prop=None):
         markers = Bulles(markers=markers, phy_prop=phy_prop)
     T = 1.0 - markers.indicatrice_liquide(x)
     return T
-
-
-def load_or_compute(pb, pb_name='prob_ref', t_fin=0., n=None, number_of_plots=1, plotter=None):
-    save_name = 'References/%s_t_%f.pkl' % (pb_name, pb.time + t_fin)
-    print(save_name)
-    if os.path.isfile(save_name):
-        with open(save_name, 'rb') as f:
-            pb = pickle.load(f)
-        print('Reference was loaded')
-        for plot in plotter:
-            plot.plot(pb)
-        t = pb.t
-        E = pb.E
-    else:
-        t, E = pb.timestep(t_fin=t_fin, n=n, number_of_plots=number_of_plots, plotter=plotter)
-        with open(save_name, 'wb') as f:
-            pickle.dump(pb, f)
-    return pb, t, E
-

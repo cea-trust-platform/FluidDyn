@@ -572,7 +572,6 @@ class CellsInterface:
         self._gradT_f[4] = np.nan
         self._gradT_f[5] = np.nan
 
-
     def compute_T_f_gradT_f_quick_upwind_ghost(self):
         """
         Cellule type ::

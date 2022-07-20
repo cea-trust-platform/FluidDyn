@@ -683,14 +683,14 @@ class ProblemDiscontinuE_CN(Problem):
     """
 
     def __init__(
-            self,
-            T0,
-            markers=None,
-            num_prop=None,
-            phy_prop=None,
-            interp_type=None,
-            conv_interf=None,
-            **kwargs
+        self,
+        T0,
+        markers=None,
+        num_prop=None,
+        phy_prop=None,
+        interp_type=None,
+        conv_interf=None,
+        **kwargs
     ):
         super().__init__(T0, markers, num_prop=num_prop, phy_prop=phy_prop, **kwargs)
         if num_prop.time_scheme == "rk3":
@@ -762,7 +762,7 @@ class ProblemDiscontinuE_CN(Problem):
                     interp_type=self.interp_type,
                     schema_conv=self.conv_interf,
                     vdt=self.dt * self.phy_prop.v,
-                    time_integral='CN'
+                    time_integral="CN",
                 )
                 self.bulles.cells[2 * i_int + ist] = cells
 
@@ -800,7 +800,7 @@ class ProblemDiscontinuE_CN(Problem):
         bulles_np1.shift(self.phy_prop.v * self.dt)
         I_np1 = bulles_np1.indicatrice_liquide(self.num_prop.x)
         rho_cp_a_np1 = (
-                I_np1 * self.phy_prop.rho_cp1 + (1.0 - I_np1) * self.phy_prop.rho_cp2
+            I_np1 * self.phy_prop.rho_cp1 + (1.0 - I_np1) * self.phy_prop.rho_cp2
         )
         self.flux_conv = self._compute_convection_flux(
             self.rho_cp_a * self.T, self.bulles, bool_debug, debug
@@ -1347,14 +1347,14 @@ class ProblemDiscontinuEcomme3D_ghost_exactSf(Problem):
     """
 
     def __init__(
-            self,
-            T0,
-            markers=None,
-            num_prop=None,
-            phy_prop=None,
-            interp_type=None,
-            conv_interf=None,
-            **kwargs
+        self,
+        T0,
+        markers=None,
+        num_prop=None,
+        phy_prop=None,
+        interp_type=None,
+        conv_interf=None,
+        **kwargs
     ):
         super().__init__(T0, markers, num_prop=num_prop, phy_prop=phy_prop, **kwargs)
         if num_prop.time_scheme == "rk3":
@@ -1457,7 +1457,7 @@ class ProblemDiscontinuEcomme3D_ghost_exactSf(Problem):
         bulles_np1.shift(self.phy_prop.v * self.dt)
         I_np1 = bulles_np1.indicatrice_liquide(self.num_prop.x)
         rho_cp_a_np1 = (
-                I_np1 * self.phy_prop.rho_cp1 + (1.0 - I_np1) * self.phy_prop.rho_cp2
+            I_np1 * self.phy_prop.rho_cp1 + (1.0 - I_np1) * self.phy_prop.rho_cp2
         )
         self.flux_conv = self.rho_cp_f * self._compute_convection_flux(
             self.T, self.bulles, bool_debug, debug
@@ -1514,14 +1514,14 @@ class ProblemDiscontinuEcomme3Davecq_ghost(Problem):
     """
 
     def __init__(
-            self,
-            T0,
-            markers=None,
-            num_prop=None,
-            phy_prop=None,
-            interp_type=None,
-            conv_interf=None,
-            **kwargs
+        self,
+        T0,
+        markers=None,
+        num_prop=None,
+        phy_prop=None,
+        interp_type=None,
+        conv_interf=None,
+        **kwargs
     ):
         super().__init__(T0, markers, num_prop=num_prop, phy_prop=phy_prop, **kwargs)
         if num_prop.time_scheme == "rk3":
@@ -1630,7 +1630,7 @@ class ProblemDiscontinuEcomme3Davecq_ghost(Problem):
         bulles_np1.shift(self.phy_prop.v * self.dt)
         I_np1 = bulles_np1.indicatrice_liquide(self.num_prop.x)
         rho_cp_a_np1 = (
-                I_np1 * self.phy_prop.rho_cp1 + (1.0 - I_np1) * self.phy_prop.rho_cp2
+            I_np1 * self.phy_prop.rho_cp1 + (1.0 - I_np1) * self.phy_prop.rho_cp2
         )
         self.flux_conv = self.rho_cp_f * self._compute_convection_flux(
             self.T, self.bulles, bool_debug, debug
@@ -1687,14 +1687,14 @@ class ProblemDiscontinuEcomme3Davecq_I(Problem):
     """
 
     def __init__(
-            self,
-            T0,
-            markers=None,
-            num_prop=None,
-            phy_prop=None,
-            interp_type=None,
-            conv_interf=None,
-            **kwargs
+        self,
+        T0,
+        markers=None,
+        num_prop=None,
+        phy_prop=None,
+        interp_type=None,
+        conv_interf=None,
+        **kwargs
     ):
         super().__init__(T0, markers, num_prop=num_prop, phy_prop=phy_prop, **kwargs)
         if num_prop.time_scheme == "rk3":
@@ -1804,7 +1804,7 @@ class ProblemDiscontinuEcomme3Davecq_I(Problem):
         bulles_np1.shift(self.phy_prop.v * self.dt)
         I_np1 = bulles_np1.indicatrice_liquide(self.num_prop.x)
         rho_cp_a_np1 = (
-                I_np1 * self.phy_prop.rho_cp1 + (1.0 - I_np1) * self.phy_prop.rho_cp2
+            I_np1 * self.phy_prop.rho_cp1 + (1.0 - I_np1) * self.phy_prop.rho_cp2
         )
         self.flux_conv = self.rho_cp_f * self._compute_convection_flux(
             self.T, self.bulles, bool_debug, debug
@@ -1825,7 +1825,7 @@ class ProblemDiscontinuEcomme3Davecq_I(Problem):
 
     @property
     def name_cas(self):
-        return "ESP 3D ghost, corr. diff."  # + self.interp_type.replace('_', '-') + self.conv_interf.replace('_', '-')
+        return "ESP 3D ghost, corr. diff. qI"  # + self.interp_type.replace('_', '-') + self.conv_interf.replace('_', '-')
 
 
 class ProblemRhoCpDiscontinuE(Problem):

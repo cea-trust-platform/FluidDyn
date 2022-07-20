@@ -13,6 +13,7 @@
 #
 ##############################################################################
 
+import math
 from src.main_discontinu import *
 from src.main import *
 
@@ -23,8 +24,8 @@ rc("font", size=18)
 rc("font", family="serif")
 rc("legend", fontsize=16)
 rc("figure", max_open_warning=50)
-rc("figure", figsize=(19, 8))
-rc("figure", dpi=200)
+# rc("figure", figsize=(19, 8))
+# rc("figure", dpi=200)
 rc("savefig", dpi=300)
 rc("legend", loc="upper right")
 
@@ -86,9 +87,11 @@ class Plotter:
                 self.fig, (self.ax, self.ax2) = plt.subplots(
                     2, sharex="all", **self.kwargs
                 )
+                self.fig.set_size_inches(9.5, 7)
                 self.ax2.minorticks_on()
             else:
                 self.fig, self.ax = plt.subplots(1)
+                self.fig.set_size_inches(9.5, 5)
             if (
                 isinstance(problem.bulles, BulleTemperature)
                 and self.lda_gradT
@@ -101,6 +104,7 @@ class Plotter:
                 and self.flux_conv
             ):
                 self.ax3 = self.ax2
+                self.ax3.minorticks_on()
                 self.ax2 = None
             self.ax.minorticks_on()
             first_plot = True
@@ -194,25 +198,42 @@ class Plotter:
             if self.ax2 is not None:
                 self.ymini2, self.ymaxi2 = self.ax.get_ylim()
                 self.ax2.set_ymargin(0.0)
-                if not self.ispretty:
-                    self.ax2.set_xticks(problem.num_prop.x_f, minor=True)
-                    self.ax2.set_xticklabels([], minor=True)
-                else:
-                    self.ax2.set_xticks(ticks_major, minor=False)
-                    self.ax2.set_xticks(ticks_minor, minor=True)
-                    self.ax2.set_xticklabels(
-                        np.rint((ticks_major - M1) / Dx).astype(int), minor=False
-                    )
+                # if not self.ispretty:
+                #     self.ax2.set_xticks(problem.num_prop.x_f, minor=True)
+                #     self.ax2.set_xticklabels([], minor=True)
+                # else:
+                #     self.ax2.set_xticks(ticks_major, minor=False)
+                #     self.ax2.set_xticks(ticks_minor, minor=True)
+                #     self.ax2.set_xticklabels(
+                #         np.rint((ticks_major - M1) / Dx).astype(int), minor=False
+                #     )
                 self.ax2.set_xlabel(r"$x / D_b$", size="x-large")
                 self.ax2.set_ylabel(r"$\lambda \nabla T$", size="x-large")
                 self.ax2.grid(b=True, which="major")
                 self.ax2.grid(b=True, which="minor", alpha=0.2)
-                if self.zoom is not None:
-                    self.ax2.set_xlim(z0, z1)
+                # if self.zoom is not None:
+                #     self.ax2.set_xlim(z0, z1)
                 for markers in problem.bulles():
                     bulle0 = decale_positif(markers[0] - x0, problem.phy_prop.Delta)
                     bulle1 = decale_positif(markers[1] - x0, problem.phy_prop.Delta)
                     self.bulles_poly2 = self.ax2.fill_between(
+                        [bulle0, bulle1],
+                        [self.ymini2] * 2,
+                        [self.ymaxi2] * 2,
+                        color="grey",
+                        alpha=0.2,
+                    )
+            elif self.ax3 is not None:
+                self.ymini2, self.ymaxi2 = self.ax.get_ylim()
+                self.ax3.set_ymargin(0.0)
+                self.ax3.set_xlabel(r"$x / D_b$", size="x-large")
+                self.ax3.set_ylabel(r"$\lambda \nabla T$", size="x-large")
+                self.ax3.grid(b=True, which="major")
+                self.ax3.grid(b=True, which="minor", alpha=0.2)
+                for markers in problem.bulles():
+                    bulle0 = decale_positif(markers[0] - x0, problem.phy_prop.Delta)
+                    bulle1 = decale_positif(markers[1] - x0, problem.phy_prop.Delta)
+                    self.bulles_poly2 = self.ax3.fill_between(
                         [bulle0, bulle1],
                         [self.ymini2] * 2,
                         [self.ymaxi2] * 2,
@@ -238,6 +259,12 @@ class Plotter:
             self.ymini2 = min(self.ymini2, mini)
             self.ymaxi2 = max(self.ymaxi2, maxi)
             delta2 = self.ymaxi2 - self.ymini2
+        elif self.ax3 is not None:
+            mini, maxi = self.ax3.get_ylim()
+            self.ymini2 = min(self.ymini2, mini)
+            self.ymaxi2 = max(self.ymaxi2, maxi)
+            delta2 = self.ymaxi2 - self.ymini2
+
         for markers in problem.bulles():
             bulle0 = decale_positif(markers[0] - x0, problem.phy_prop.Delta)
             bulle1 = decale_positif(markers[1] - x0, problem.phy_prop.Delta)
@@ -262,9 +289,21 @@ class Plotter:
                     color="grey",
                     alpha=0.2,
                 )
+            elif self.ax3 is not None:
+                self.bulles_poly2.remove()
+                self.bulles_poly2 = self.ax3.fill_between(
+                    [bulle0, bulle1],
+                    [self.ymini2 - margin * delta2] * 2,
+                    [self.ymaxi2 + delta2 * margin] * 2,
+                    color="grey",
+                    alpha=0.2,
+                )
+
         self.ax.set_ymargin(0.0)
         if self.ax2 is not None:
             self.ax2.set_ymargin(0.0)
+        elif self.ax3 is not None:
+            self.ax3.set_ymargin(0.0)
 
 
 def plot_temp(problem, fig=None, x0=0.0, ax=None, label=None, **kwargs):
@@ -464,7 +503,7 @@ def decale_perio(x, T, x0=0.0, markers=None, plot=False):
     Delta = x[-1] + dx / 2.0
     while x0 > Delta:
         x0 -= Delta
-    n = int(x0 / dx)
+    n = math.ceil(x0 / dx - 10**-9)
     T_decale = np.r_[T[n:], T[:n]]
     x_decale = x - (x0 - n * dx)
     if plot:
@@ -540,6 +579,7 @@ class EnergiePlot:
     def plot(self, t, e, label=None):
         if self.fig is None:
             self.fig, self.ax = plt.subplots(1)
+            self.fig.set_size_inches(9.5, 5)
             self.ax.minorticks_on()
             self.ax.grid(b=True, which="major")
             self.ax.grid(b=True, which="minor", alpha=0.2)
@@ -567,7 +607,7 @@ class EnergiePlot:
             print("=================")
         print("dE*/dt* = %g" % dedt_adim)
 
-    def plot_pb(self, pb, fac=1.):
+    def plot_pb(self, pb, fac=1.0):
         self.plot(pb.t, pb.E / fac, label=pb.name)
 
     def add_E0(self):

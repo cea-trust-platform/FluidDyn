@@ -304,6 +304,7 @@ class Plotter:
             self.ax2.set_ymargin(0.0)
         elif self.ax3 is not None:
             self.ax3.set_ymargin(0.0)
+        self.fig.tight_layout()
 
 
 def plot_temp(problem, fig=None, x0=0.0, ax=None, label=None, **kwargs):
@@ -618,3 +619,4 @@ class EnergiePlot:
         labels.append(r"$E_0$")
         self.ax.set_yticks(ticks)
         self.ax.set_yticklabels(labels)
+        self.fig.tight_layout()

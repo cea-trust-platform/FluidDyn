@@ -612,7 +612,7 @@ class EnergiePlot:
         self.plot(pb.t, pb.E / fac, label=pb.name)
 
     def add_E0(self):
-        self.fig.canvas.draw()
+        self.fig.canvas.draw_idle()
         labels = [item.get_text() for item in self.ax.get_yticklabels()]
         ticks = list(self.ax.get_yticks())
         ticks.append(self.e0)

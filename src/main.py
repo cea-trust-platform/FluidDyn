@@ -1213,5 +1213,11 @@ def get_T_creneau(x, markers=None, phy_prop=None):
         )
     if markers is None:
         markers = Bulles(markers=markers, phy_prop=phy_prop)
-    T = 1.0 - markers.indicatrice_liquide(x)
+    indic_liqu = markers.indicatrice_liquide(x)
+    # T = 1. dans la vapeur, 0. dans le liquide, et Tm = int rhoCpT / int rhoCp dans les mailles diph.
+    T = (
+        phy_prop.rho_cp2
+        * (1.0 - indic_liqu)
+        / (phy_prop.rho_cp1 * indic_liqu + phy_prop.rho_cp2 * (1.0 - indic_liqu))
+    )
     return T

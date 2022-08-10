@@ -399,40 +399,39 @@ def grad_center4(center_value, dx=1.0, cl=1):
 
 
 class Bulles:
-    def __init__(self, markers=None, phy_prop=None, n_bulle=None, Delta=1.0):
+    def __init__(self, markers=None, phy_prop=None, n_bulle=None, Delta=1.0, alpha=0.06, a_i=None):
         self.diam = 0.0
         if phy_prop is not None:
             self.Delta = phy_prop.Delta
+            self.alpha = phy_prop.alpha
+            self.a_i = phy_prop.a_i
         else:
             self.Delta = Delta
+            self.alpha = alpha
+            self.a_i = a_i
 
         if markers is None:
             self.markers = []
             if n_bulle is None:
-                if phy_prop.a_i is None:
+                if self.a_i is None:
                     raise Exception(
                         "On ne peut pas déterminer auto la géométrie des bulles sans le rapport surfacique"
                     )
                 else:
                     # On détermine le nombre de bulle pour avoir une aire interfaciale donnée.
                     # On considère ici une géométrie 1D comme l'équivalent d'une situation 3D
-                    n_bulle = int(phy_prop.a_i / 2.0 * phy_prop.Delta) + 1
-            if phy_prop.alpha is None:
-                raise Exception(
-                    "On ne peut pas déterminer auto la géométrie des bulles sans le taux de vide"
+                    n_bulle = int(self.a_i / 2.0 * self.Delta) + 1
+            # Avec le taux de vide, on en déduit le diamètre d'une bulle. On va considérer que le taux de vide
+            # s'exprime en 1D, cad : phy_prop.alpha = n*d*dS/(Dx*dS)
+            self.diam = self.alpha * self.Delta / n_bulle
+            centers = np.linspace(
+                self.diam, self.Delta + self.diam, n_bulle + 1
+            )[:-1]
+            for center in centers:
+                self.markers.append(
+                    (center - self.diam / 2.0, center + self.diam / 2.0)
                 )
-            else:
-                # Avec le taux de vide on en déduit le diamètre d'une bulle. On va considérer que le taux de vide
-                # s'exprime en 1D, cad : phy_prop.alpha = n*d*dS/(Dx*dS)
-                self.diam = phy_prop.alpha * phy_prop.Delta / n_bulle
-                centers = np.linspace(
-                    self.diam, phy_prop.Delta + self.diam, n_bulle + 1
-                )[:-1]
-                for center in centers:
-                    self.markers.append(
-                        (center - self.diam / 2.0, center + self.diam / 2.0)
-                    )
-                self.markers = np.array(self.markers)
+            self.markers = np.array(self.markers)
         else:
             self.markers = np.array(markers).copy()
             mark1 = self.markers[0][1]
@@ -658,8 +657,8 @@ class Problem:
         if num_prop is None:
             print("Attention, les propriétés numériques par défaut sont utilisées")
             num_prop = NumericalProperties()
-        self.phy_prop = deepcopy(phy_prop)
-        self.num_prop = deepcopy(num_prop)
+        self.phy_prop = deepcopy(phy_prop)  # type: PhysicalProperties
+        self.num_prop = deepcopy(num_prop)  # type: NumericalProperties
         self.bulles = self._init_bulles(markers)
         self.T = T0(self.num_prop.x, markers=self.bulles, phy_prop=self.phy_prop)
         self.dt = self.get_time()
@@ -775,7 +774,7 @@ class Problem:
 
     def get_time(self):
         # nombre CFL = 1. par défaut
-        if self.phy_prop.v > 10 ** (-15):
+        if self.phy_prop.v > 10 ** (-12):
             dt_cfl = self.num_prop.dx / self.phy_prop.v * self.num_prop.cfl_lim
         else:
             dt_cfl = 10**15
@@ -1014,10 +1013,12 @@ class Problem:
         self.T += np.sum(self.dt * coeff * np.array(K[1:]).T, axis=-1)
 
     def load_or_compute(
-        self, pb_name=None, t_fin=0.0, n=None, number_of_plots=1, plotter=None
+        self, pb_name=None, t_fin=0.0, n=None, number_of_plots=1, plotter=None, debug=None, **kwargs
     ):
         if pb_name is None:
             pb_name = self.full_name
+        if not isinstance(plotter, list):
+            plotter = [plotter]
         save_name = "References/%s_t_%f.pkl" % (pb_name, self.time + t_fin)
         print(save_name)
         if os.path.isfile(save_name):
@@ -1026,12 +1027,12 @@ class Problem:
             self.copy(saved)
             print("Reference was loaded")
             for plot in plotter:
-                plot.plot(self)
+                plot.plot(self, **kwargs)
             t = self.t
             E = self.E
         else:
             t, E = self.timestep(
-                t_fin=t_fin, n=n, number_of_plots=number_of_plots, plotter=plotter
+                t_fin=t_fin, n=n, number_of_plots=number_of_plots, plotter=plotter, debug=debug, **kwargs
             )
             with open(save_name, "wb") as f:
                 pickle.dump(self, f)

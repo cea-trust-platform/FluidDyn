@@ -34,6 +34,12 @@ import matplotlib.pyplot as plt
 
 
 class Plotter:
+    """
+    Cette classe permet de tracer facilement les résultats d'une simulation.
+    Elle trace le domaine qui va de 0. à Delta (le premier point de température
+    est en dx/2. et le premier flux en 0.).
+    """
+
     def __init__(
         self,
         cas="classic",
@@ -77,8 +83,10 @@ class Plotter:
         self._cas = value
         print("plotter mode changed to %s" % value)
 
-    def plot(self, problem, plot_Ti=False, **kwargs):
+    def plot(self, problem, plot_Ti=False, dlabel=None, **kwargs):
         first_plot = False
+        if 'label' not in kwargs.keys():
+            kwargs['label'] = dlabel
         # Set up of fig and ax
         if (self.fig is None) or (self.ax is None):
             if isinstance(problem.bulles, BulleTemperature) and (
@@ -108,16 +116,19 @@ class Plotter:
                 self.ax2 = None
             self.ax.minorticks_on()
             first_plot = True
+
         # Set up label
-        lab = "%s" % (problem.name.replace("_", " "))
-        if self.time:
-            lab += ", time %.2g" % problem.time
-        if self.dx:
-            leg = to_scientific("%.2e" % problem.num_prop.dx)
-            lab += r", $\Delta x = %s$" % leg
-        if self.dt:
-            leg = to_scientific("%.2e" % problem.dt)
-            lab += r", $\Delta t = %s$" % leg
+        if kwargs['label'] is None:
+            lab = "%s" % (problem.name.replace("_", " "))
+            if self.time:
+                lab += ", time %.2g" % problem.time
+            if self.dx:
+                leg = to_scientific("%.2e" % problem.num_prop.dx)
+                lab += r", $\Delta x = %s$" % leg
+            if self.dt:
+                leg = to_scientific("%.2e" % problem.dt)
+                lab += r", $\Delta t = %s$" % leg
+            kwargs['label'] = lab
 
         # Set up decalage
         x0 = problem.time * problem.phy_prop.v
@@ -127,22 +138,32 @@ class Plotter:
             x0 = 0.0
 
         # Plot T
-        self.fig, self.ax = plot_temp(
-            problem, x0=x0, fig=self.fig, ax=self.ax, label=lab, **kwargs
+        self.fig, self.ax, c = plot_temp(
+            problem, x0=x0, fig=self.fig, ax=self.ax, **kwargs
         )
 
         # Plot lda gradT
         if self.lda_gradT and (self.ax2 is not None):
             xf_dec, lda_grad_T_dec = decale_perio(
-                problem.num_prop.x_f, problem.flux_diff, x0=x0
+                problem.num_prop.x_f,
+                problem.flux_diff,
+                Delta=problem.phy_prop.Delta,
+                x0=x0,
             )
+            if "c" not in kwargs.keys():
+                kwargs["c"] = c
             self.ax2.plot(xf_dec, lda_grad_T_dec, label=lab, **kwargs)
 
         # Plot flux conv
         if self.flux_conv and (self.ax3 is not None):
             xf_dec, flux_conv_dec = decale_perio(
-                problem.num_prop.x_f, problem.flux_conv, x0=x0
+                problem.num_prop.x_f,
+                problem.flux_conv,
+                Delta=problem.phy_prop.Delta,
+                x0=x0,
             )
+            if "c" not in kwargs.keys():
+                kwargs["c"] = c
             self.ax3.plot(xf_dec, flux_conv_dec, "--", label=self.flux_conv, **kwargs)
 
         ticks_major, ticks_minor, M1, Dx = get_ticks(problem, x0=x0)
@@ -161,6 +182,7 @@ class Plotter:
                 lda_gradT=self.lda_gradT,
                 flux_conv=self.flux_conv,
                 plot_Ti=plot_Ti,
+                color=c,
             )
 
         self.ax.legend(loc="upper right")
@@ -227,7 +249,7 @@ class Plotter:
                 self.ymini2, self.ymaxi2 = self.ax.get_ylim()
                 self.ax3.set_ymargin(0.0)
                 self.ax3.set_xlabel(r"$x / D_b$", size="x-large")
-                self.ax3.set_ylabel(r"$\lambda \nabla T$", size="x-large")
+                self.ax3.set_ylabel(r"$\rho C_p T$", size="x-large")
                 self.ax3.grid(b=True, which="major")
                 self.ax3.grid(b=True, which="minor", alpha=0.2)
                 for markers in problem.bulles():
@@ -309,12 +331,14 @@ class Plotter:
 
 def plot_temp(problem, fig=None, x0=0.0, ax=None, label=None, **kwargs):
     # fig.suptitle(problem.name.replace('_', ' '))
-    x_dec, T_dec = decale_perio(problem.num_prop.x, problem.T, x0, problem.bulles)
+    x_dec, T_dec = decale_perio(
+        problem.num_prop.x, problem.T, x0=x0, markers=problem.bulles
+    )
     c = ax.plot(x_dec, T_dec, label=label, **kwargs)
-    # col = c[-1].get_color()
+    col = c[-1].get_color()
     # maxi = max(np.max(problem.T), np.max(problem.I))
     # mini = min(np.min(problem.T), np.min(problem.I))
-    return fig, ax
+    return fig, ax, col
 
 
 # def plot_classic(problem, fig=None, ax=None, label=None):
@@ -341,6 +365,7 @@ def plot_temperature_bulles(
     lda_gradT=False,
     flux_conv=False,
     plot_Ti=False,
+    color=None,
 ):
     if flux_conv is True:
         label_conv = r"Flux convectif"
@@ -413,11 +438,13 @@ def plot_temperature_bulles(
             #         "+",
             #     )  # , label=r'$T_I$')
     if problem.time > 0.0 and plot_Ti and (ax is not None):
-        ax.plot(xil, Ti, "k+")  # , label=r"$T_I$")
-        ax.plot(x0l, Tig, "r+")  # , label=r"$T_g$")
-        ax.plot(x0l, Tid, "g+")  # , label=r"$T_d$")
+        ax.plot(xil, Ti, c=color, ls="", marker="+", ms=7.0)  # , label=r"$T_I$")
+        ax.plot(x0l, Tig, c=color, ls="", marker="^", ms=6.0)  # , label=r"$T_g$")
+        ax.plot(x0l, Tid, c=color, ls="", marker="s", ms=6.0)  # , label=r"$T_d$")
     if problem.time > 0.0 and lda_gradT and plot_Ti and (ax2 is not None):
-        ax2.plot(xil, lda_grad_Ti, "k+")  # , label=r"$\lambda \nabla T_I$")
+        ax2.plot(
+            xil, lda_grad_Ti, marker="+", ls="", c=color, ms=7.0
+        )  # , label=r"$\lambda \nabla T_I$")
         # ax2.set_xticks(problem.num_prop.x_f)
         # ax2.set_xticklabels([])
         # ax2.grid(b=True, which='major')
@@ -461,6 +488,8 @@ def get_ticks(problem, x0=0.0):
     else:
         Dx_minor = (M2 + problem.phy_prop.Delta - M1) / 4.0
         Dx_major = M2 + problem.phy_prop.Delta - M1
+        assert Dx_major > 0.
+        assert Dx_minor > 0.
     ticks_major = []
     ticks_minor = []
     mark = M1
@@ -485,7 +514,7 @@ def get_ticks(problem, x0=0.0):
     return ticks_major, ticks_minor, M1, Dx_major
 
 
-def decale_perio(x, T, x0=0.0, markers=None, plot=False):
+def decale_perio(x, T, Delta=None, x0=0.0, markers=None, plot=False):
     """
     décale de x0 vers la gauche la courbe T en interpolant entre les décalages direct de n*dx < x0 < (n+1)*dx
     avec la formule suivante : x_interp += (x0-n*dx)
@@ -495,13 +524,16 @@ def decale_perio(x, T, x0=0.0, markers=None, plot=False):
         plot:
         x:
         T:
+        Delta:
         x0:
 
     Returns:
         x et T decalé
     """
     dx = x[1] - x[0]
-    Delta = x[-1] + dx / 2.0
+    # Dans ce cas là on considère qu'on trace des valeurs au centre des mailles (Température)
+    if Delta is None:
+        Delta = x[-1] + dx / 2.0
     while x0 > Delta:
         x0 -= Delta
     n = math.ceil(x0 / dx - 10**-9)
@@ -573,24 +605,21 @@ def to_scientific(leg):
 
 class EnergiePlot:
     def __init__(self, e0=None):
-        self.fig = None
-        self.ax = None
+        self.fig, self.ax = plt.subplots(1)
+        self.fig.set_size_inches(9.5, 5)
+        self.ax.minorticks_on()
+        self.ax.grid(b=True, which="major")
+        self.ax.grid(b=True, which="minor", alpha=0.2)
+        self.ax.set_xlabel(r"$t [s]$")
+        self.ax.set_ylabel(r"$E_{tot} [J/m^3]$")
         self.e0 = e0
 
     def plot(self, t, e, label=None):
-        if self.fig is None:
-            self.fig, self.ax = plt.subplots(1)
-            self.fig.set_size_inches(9.5, 5)
-            self.ax.minorticks_on()
-            self.ax.grid(b=True, which="major")
-            self.ax.grid(b=True, which="minor", alpha=0.2)
-            self.ax.set_xlabel(r"$t [s]$")
-            self.ax.set_ylabel(r"$E_{tot} [J/m^3]$")
-            if self.e0 is None:
-                self.e0 = e[0]
+        if self.e0 is None:
+            self.e0 = e[0]
 
         self.ax.plot(t, e, label=label)
-        self.ax.legend()
+        self.ax.legend(loc='upper right')
         self.fig.tight_layout()
 
         n = len(e)
@@ -608,8 +637,12 @@ class EnergiePlot:
             print("=================")
         print("dE*/dt* = %g" % dedt_adim)
 
-    def plot_pb(self, pb, fac=1.0):
-        self.plot(pb.t, pb.E / fac, label=pb.name)
+    def plot_pb(self, pb: Problem, fac=None, label=None):
+        if fac is None:
+            fac = pb.phy_prop.Delta * pb.phy_prop.dS
+        if label is None:
+            label = pb.name
+        self.plot(pb.t, pb.E / fac, label=label)
 
     def add_E0(self):
         self.fig.canvas.draw_idle()

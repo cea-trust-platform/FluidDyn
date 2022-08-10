@@ -15,7 +15,7 @@
 
 import numpy as np
 from src.main import integrale_vol_div, interpolate_from_center_to_face_quick
-from numba.experimental import jitclass
+# from numba.experimental import jitclass
 from numba import float64  # import the types
 
 # from copy import copy
@@ -42,7 +42,7 @@ from numba import float64  # import the types
 #            ('ag', float64), ('ad', float64), ('dx', float64), ('vdt', float64), ('Tgc', float64), ('Tdc', float64),
 #            ('_dTdxg', float64), ('_dTdxd', float64), ('_d2Tdx2g', float64), ('_d2Tdx2d', float64),
 #            ('_d3Tdx3g', float64), ('_d3Tdx3d', float64), ('_T_f', float64[:]), ('_gradT_f', float64[:]),
-#            ('_T', float64[:]), ('grad_Tim12', float64), ('grad_Tip12', float64)])
+#            ('_T', float64[:]), ('time_integral', float64)])
 class CellsInterface:
     schema_conv: str
     schema_diff: str
@@ -120,8 +120,6 @@ class CellsInterface:
         self._d2Tdx2d = 0.0
         self._d3Tdx3g = 0.0
         self._d3Tdx3d = 0.0
-        self.grad_Tim12 = 0.0
-        self.grad_Tip12 = 0.0
         self.schema_conv = schema_conv
         self.schema_diff = schema_diff
         self.vdt = vdt
@@ -856,14 +854,14 @@ class CellsInterface:
         self._dTdxd = self._lda_gradTi / self.ldad
         self.Tg[-1] = self._Ti + self._dTdxg * self.dx * (0.5 - self.ag)
         self.Td[0] = self._Ti + self._dTdxd * self.dx * (self.ad - 0.5)
-        self.grad_Tim12 = self.pid_interp(
-            np.array([self.gradTg[1], self._lda_gradTi / self.ldag]),
-            np.array([1.0, self.ag]) * self.dx,
-        )
-        self.grad_Tip12 = self.pid_interp(
-            np.array([self._lda_gradTi / self.ldad, self.gradTd[1]]),
-            np.array([self.ad, 1.0]) * self.dx,
-        )
+        # self.grad_Tim12 = self.pid_interp(
+        #     np.array([self.gradTg[1], self._lda_gradTi / self.ldag]),
+        #     np.array([1.0, self.ag]) * self.dx,
+        # )
+        # self.grad_Tip12 = self.pid_interp(
+        #     np.array([self._lda_gradTi / self.ldad, self.gradTd[1]]),
+        #     np.array([self.ad, 1.0]) * self.dx,
+        # )
 
     def compute_from_Ti(self):
         """

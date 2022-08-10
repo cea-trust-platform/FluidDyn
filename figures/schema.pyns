@@ -1,0 +1,12 @@
+# PynSource Version 1.2
+{'type':'meta', 'info1':'Lorem ipsum dolor sit amet, consectetur adipiscing elit is latin. Comments are saved.'}
+{'type':'umlshape', 'id':'CellsInterface', 'x':51, 'y':40, 'width':157, 'height':284, 'attrs': 'T|alpha|dx||interp_type||ldad|ldag||rhocpd|rhocpg||schema_conv|schema_diff|time_integral|vdt', 'meths': 'compute_from_Ti|compute_from_Ti_ghost|compute_from_h_T'}
+{'type':'umlshape', 'id':'Bulles', 'x':316, 'y':492, 'width':143, 'height':164, 'attrs': 'Delta|diam|markers|alpha|n_bulles', 'meths': 'indicatrice_liquide|shift'}
+{'type':'umlshape', 'id':'PhysicalProperties', 'x':302, 'y':37, 'width':190, 'height':214, 'attrs': 'Delta|a_i|alpha|cas|dS|diff|lda1|lda2|rho_cp1|rho_cp2|v', 'meths': ''}
+{'type':'umlshape', 'id':'NumericalProperties', 'x':52, 'y':370, 'width':200, 'height':169, 'attrs': 'cfl_lim|dt_lim|dx_lim|fo_lim|schema|time_scheme|x|x_f', 'meths': ''}
+{'type':'umlshape', 'id':'Problem', 'x':514, 'y':128, 'width':213, 'height':434, 'attrs': 'E|I|Lda_h|T|bulles|cfl|dt|energy|flux_conv|flux_diff|iter|name|num_prop|phy_prop|rho_cp_a|rho_cp_f|rho_cp_h|t|time', 'meths': '_corrige_flux_coeff_interface|_euler_timestep|_rk3_timestep|_rk4_timestep|load_or_compute|timestep'}
+{'type':'umlshape', 'id':'T0', 'x':270, 'y':295, 'width':30, 'height':29, 'attrs': '', 'meths': ''}
+{'type':'edge', 'id':'Bulles_to_Problem', 'source':'Bulles', 'target':'Problem', 'uml_edge_type': 'composition'}
+{'type':'edge', 'id':'T0_to_Problem', 'source':'T0', 'target':'Problem', 'uml_edge_type': 'composition'}
+{'type':'edge', 'id':'NumericalProperties_to_Problem', 'source':'NumericalProperties', 'target':'Problem', 'uml_edge_type': 'composition'}
+{'type':'edge', 'id':'PhysicalProperties_to_Problem', 'source':'PhysicalProperties', 'target':'Problem', 'uml_edge_type': 'composition'}

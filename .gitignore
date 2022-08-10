@@ -4,3 +4,4 @@ venv-flu1d
 __pycache__
 doc/_build
 etudes_locales
+*.pkl

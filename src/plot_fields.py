@@ -479,15 +479,19 @@ def align_y_axis(ax1, ax2):
 
 
 def get_ticks(problem, x0=0.0):
+    Delta = problem.phy_prop.Delta
     M1, M2 = problem.bulles.markers[0] - x0
-    if M2 > M1:
-        Dx_minor = (M2 - M1) / 4.0
-        Dx_major = M2 - M1
-    else:
-        Dx_minor = (M2 + problem.phy_prop.Delta - M1) / 4.0
-        Dx_major = M2 + problem.phy_prop.Delta - M1
-        assert Dx_major > 0.
-        assert Dx_minor > 0.
+    if M2 < M1:
+        M2 += Delta
+    assert M2 > M1
+    Dx_major = M2 - M1
+    while M1 < 0.:
+        M1 += Delta
+        M2 += Delta
+    if M2 > Delta:
+        M2 -= Delta
+    assert Dx_major > 0.
+    Dx_minor = Dx_major / 4.0
     ticks_major = []
     ticks_minor = []
     mark = M1
@@ -495,7 +499,7 @@ def get_ticks(problem, x0=0.0):
         ticks_minor = [mark] + ticks_minor
         mark -= Dx_minor
     mark = M1 + Dx_minor
-    while mark < problem.phy_prop.Delta:
+    while mark < Delta:
         ticks_minor = ticks_minor + [mark]
         mark += Dx_minor
     mark = M1

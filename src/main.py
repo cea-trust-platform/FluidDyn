@@ -21,7 +21,7 @@ import os
 
 
 def integrale_vol_div(flux, dx):
-    return 1 / dx * (flux[1:] - flux[:-1])
+    return 1. / dx * (flux[1:] - flux[:-1])
 
 
 def interpolate(center_value, I=None, cl=1, schema="weno", cv_0=0.0, cv_n=0.0):
@@ -216,7 +216,7 @@ def interpolate_from_center_to_face_quick(a, cl=1, cv_0=0.0, cv_n=0.0):
     smax = np.where(t2 > t0, t2, t0)
     smin = np.where(t2 < t0, t2, t0)
     dmax = smax - smin
-    DMINFLOAT = 10.0**-30
+    DMINFLOAT = 10.0**-15
     ds = np.where(np.abs(dmax) > DMINFLOAT, dmax, 1.0)
     fram = np.where(np.abs(dmax) > DMINFLOAT, ((t1 - smin) / ds * 2.0 - 1.0) ** 3, 0.0)
     fram = np.where(
@@ -590,22 +590,22 @@ class NumericalProperties:
         schema="weno",
         time_scheme="euler",
         phy_prop=None,
+        Delta=None,
     ):
-        if phy_prop is None:
-            print(
-                "Attention : les valeurs par défaut ont été prises pour Delta et les autres params physiques"
-            )
-            phy_prop = PhysicalProperties()
+        if phy_prop is None and Delta is None:
+            raise Exception("Impossible sans phy_prop ou Delta")
+        if phy_prop is not None:
+            Delta = phy_prop.Delta
         self._cfl_lim = cfl
         self._fo_lim = fo
         self._schema = schema
         self._time_scheme = time_scheme
         self._dx_lim = dx
-        nx = int(phy_prop.Delta / dx)
-        dx = phy_prop.Delta / nx
+        nx = int(Delta / dx)
+        dx = Delta / nx
         self._dx = dx
-        self._x = np.linspace(dx / 2.0, phy_prop.Delta - dx / 2.0, nx)
-        self._x_f = np.linspace(0.0, phy_prop.Delta, nx + 1)
+        self._x = np.linspace(dx / 2.0, Delta - dx / 2.0, nx)
+        self._x_f = np.linspace(0.0, Delta, nx + 1)
         self._dt_min = dt
 
     @property

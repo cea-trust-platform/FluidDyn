@@ -1309,6 +1309,54 @@ class ProblemDiscontinuEcomme3D_ghost(Problem):
         # rho_cp_np1 * Tnp1 = rho_cp_n * Tn + dt (- int_S_rho_cp_T_u + int_S_lda_grad_T)
         self.T = (self.T * self.rho_cp_a + self.dt * drhocpTdt) / rho_cp_a_np1
 
+    def _rk3_timestep(self, debug=None, bool_debug=False):
+        dx = self.num_prop.dx
+        T_int = self.T.copy()
+        markers_int = self.bulles.copy()
+        markers_int_kp1 = self.bulles.copy()
+        K = 0.0
+        coeff_h = np.array([1.0 / 3, 5.0 / 12, 1.0 / 4])
+        coeff_dTdtm1 = np.array([0.0, -5.0 / 9, -153.0 / 128])
+        coeff_dTdt = np.array([1.0, 4.0 / 9, 15.0 / 32])
+        for step, h in enumerate(coeff_h):
+            I_f = markers_int.indicatrice_liquide(self.num_prop.x_f)
+            I = markers_int.indicatrice_liquide(self.num_prop.x)
+            rho_cp_f = (
+                    I_f * self.phy_prop.rho_cp1 + (1. - I_f) * self.phy_prop.rho_cp2
+            )
+            rho_cp_a = (
+                    I * self.phy_prop.rho_cp1 + (1. - I) * self.phy_prop.rho_cp2
+            )
+
+            markers_int_kp1.shift(self.phy_prop.v * h * self.dt)
+            I_kp1 = markers_int_kp1.indicatrice_liquide(self.num_prop.x)
+            rho_cp_a_kp1 = (
+                I_kp1 * self.phy_prop.rho_cp1 + (1.0 - I_kp1) * self.phy_prop.rho_cp2
+            )
+
+            flux_conv = rho_cp_f * self._compute_convection_flux(
+                T_int, markers_int, bool_debug, debug
+            )
+            flux_diff = self._compute_diffusion_flux(
+                T_int, markers_int, bool_debug, debug
+            )
+
+            self._corrige_flux_coeff_interface(
+                T_int, markers_int, flux_conv, flux_diff
+            )
+            self._echange_flux()
+            flux_diff[-1] = flux_diff[0]
+            flux_conv[-1] = flux_conv[0]
+            drhocpTdt = -integrale_vol_div(
+                flux_conv, dx
+            ) + self.phy_prop.diff * integrale_vol_div(flux_diff, dx)
+            # rho_cp_np1 * Tnp1 = rho_cp_n * Tn + dt (- int_S_rho_cp_T_u + int_S_lda_grad_T)
+            K = K * coeff_dTdtm1[step] + drhocpTdt
+            T_int = (T_int * rho_cp_a + self.dt * h * K / coeff_dTdt[step]) / rho_cp_a_kp1
+            markers_int.shift(self.phy_prop.v * h * self.dt)
+
+        self.T = T_int
+
     @property
     def name_cas(self):
         return "ESP 3D ghost, CN"  # + self.interp_type.replace('_', '-') + self.conv_interf.replace('_', '-')

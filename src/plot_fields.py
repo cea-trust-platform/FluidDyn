@@ -89,9 +89,7 @@ class Plotter:
             kwargs['label'] = dlabel
         # Set up of fig and ax
         if (self.fig is None) or (self.ax is None):
-            if isinstance(problem.bulles, BulleTemperature) and (
-                self.lda_gradT or self.flux_conv
-            ):
+            if self.lda_gradT or self.flux_conv:
                 self.fig, (self.ax, self.ax2) = plt.subplots(
                     2, sharex="all", **self.kwargs
                 )
@@ -101,14 +99,12 @@ class Plotter:
                 self.fig, self.ax = plt.subplots(1)
                 self.fig.set_size_inches(9.5, 5)
             if (
-                isinstance(problem.bulles, BulleTemperature)
-                and self.lda_gradT
+                self.lda_gradT
                 and self.flux_conv
             ):
                 self.ax3 = self.ax2.twinx()
             elif (
-                isinstance(problem.bulles, BulleTemperature)
-                and (not self.lda_gradT)
+                not self.lda_gradT
                 and self.flux_conv
             ):
                 self.ax3 = self.ax2
@@ -152,7 +148,7 @@ class Plotter:
             )
             if "c" not in kwargs.keys():
                 kwargs["c"] = c
-            self.ax2.plot(xf_dec, lda_grad_T_dec, label=lab, **kwargs)
+            self.ax2.plot(xf_dec, lda_grad_T_dec, **kwargs)
 
         # Plot flux conv
         if self.flux_conv and (self.ax3 is not None):
@@ -164,7 +160,8 @@ class Plotter:
             )
             if "c" not in kwargs.keys():
                 kwargs["c"] = c
-            self.ax3.plot(xf_dec, flux_conv_dec, "--", label=self.flux_conv, **kwargs)
+            kwargs['label'] = self.flux_conv
+            self.ax3.plot(xf_dec, flux_conv_dec, "--", **kwargs)
 
         ticks_major, ticks_minor, M1, Dx = get_ticks(problem, x0=x0)
 
@@ -327,6 +324,7 @@ class Plotter:
         elif self.ax3 is not None:
             self.ax3.set_ymargin(0.0)
         self.fig.tight_layout()
+        return c
 
 
 def plot_temp(problem, fig=None, x0=0.0, ax=None, label=None, **kwargs):

@@ -150,6 +150,11 @@ class ProblemDiscontinuEnergieTemperature(Problem):
             print(markers)
             raise NotImplementedError
 
+    def copy(self, pb):
+        super().copy(pb)
+        self.h = pb.h.copy()
+        self.flux_conv_energie = pb.flux_conv_ener.copy()
+
     def _corrige_interface(self):
         """
         Dans cette approche on calclue Ti et lda_gradTi à partir du système énergie température
@@ -319,6 +324,13 @@ class ProblemDiscontinuEnergieTemperatureInt(Problem):
         else:
             print(markers)
             raise NotImplementedError
+
+    def copy(self, pb):
+        super().copy(pb)
+        self.h = pb.h.copy()
+        self.flux_conv_ener = pb.flux_conv_ener.copy()
+        self.flux_diff_temp = pb.flux_diff_temp.copy()
+        self.ind_interf = pb.ind_interf.copy()
 
     def _corrige_interface(self):
         """
@@ -490,6 +502,11 @@ class ProblemDiscontinuE(Problem):
         if conv_interf is None:
             conv_interf = self.num_prop.schema
         self.conv_interf = conv_interf
+
+    def copy(self, pb):
+        super().copy(pb)
+        self.conv_interf = pb.conv_interf
+        self.interp_type = pb.interp_type
 
     def _init_bulles(self, markers=None):
         if markers is None:
@@ -712,6 +729,11 @@ class ProblemDiscontinuE_CN(Problem):
             conv_interf = self.num_prop.schema
         self.conv_interf = conv_interf
 
+    def copy(self, pb):
+        super().copy(pb)
+        self.conv_interf = pb.conv_interf
+        self.interp_type = pb.interp_type
+
     def _init_bulles(self, markers=None):
         if markers is None:
             return BulleTemperature(
@@ -871,6 +893,11 @@ class ProblemDiscontinuEsansq(Problem):
         if conv_interf is None:
             conv_interf = self.num_prop.schema
         self.conv_interf = conv_interf
+
+    def copy(self, pb):
+        super().copy(pb)
+        self.conv_interf = pb.conv_interf
+        self.interp_type = pb.interp_type
 
     def _init_bulles(self, markers=None):
         if markers is None:
@@ -1035,6 +1062,11 @@ class ProblemDiscontinuEcomme3D(Problem):
             conv_interf = self.num_prop.schema
         self.conv_interf = conv_interf
 
+    def copy(self, pb):
+        super().copy(pb)
+        self.conv_interf = pb.conv_interf
+        self.interp_type = pb.interp_type
+
     def _init_bulles(self, markers=None):
         if markers is None:
             return BulleTemperature(
@@ -1193,6 +1225,11 @@ class ProblemDiscontinuEcomme3D_ghost(Problem):
         self.conv_interf = conv_interf
         if not conv_interf.endswith("ghost"):
             raise (Exception("Le schema conv_interf doit etre du type ghost."))
+
+    def copy(self, pb):
+        super().copy(pb)
+        self.conv_interf = pb.conv_interf
+        self.interp_type = pb.interp_type
 
     def _init_bulles(self, markers=None):
         if markers is None:
@@ -1400,6 +1437,11 @@ class ProblemDiscontinuEcomme3D_ghost_exactSf(Problem):
         if not conv_interf.endswith("ghost"):
             raise (Exception("Le schema conv_interf doit etre du type ghost."))
 
+    def copy(self, pb):
+        super().copy(pb)
+        self.conv_interf = pb.conv_interf
+        self.interp_type = pb.interp_type
+
     def _init_bulles(self, markers=None):
         if markers is None:
             return BulleTemperature(
@@ -1561,6 +1603,11 @@ class ProblemDiscontinuEcomme3Davecq_ghost(Problem):
         self.conv_interf = conv_interf
         if not conv_interf.endswith("ghost"):
             raise (Exception("Le schema conv_interf doit etre du type ghost."))
+
+    def copy(self, pb):
+        super().copy(pb)
+        self.conv_interf = pb.conv_interf
+        self.interp_type = pb.interp_type
 
     def _init_bulles(self, markers=None):
         if markers is None:
@@ -1730,6 +1777,11 @@ class ProblemDiscontinuEcomme3Davecq_I(Problem):
         if not conv_interf.endswith("ghost"):
             raise (Exception("Le schema conv_interf doit etre du type ghost."))
 
+    def copy(self, pb):
+        super().copy(pb)
+        self.conv_interf = pb.conv_interf
+        self.interp_type = pb.interp_type
+
     def _init_bulles(self, markers=None):
         if markers is None:
             return BulleTemperature(
@@ -1898,6 +1950,11 @@ class ProblemDiscontinuEcomme3D_ghost_avecq_I_exactSf(Problem):
         if not conv_interf.endswith("ghost"):
             raise (Exception("Le schema conv_interf doit etre du type ghost."))
 
+    def copy(self, pb):
+        super().copy(pb)
+        self.conv_interf = pb.conv_interf
+        self.interp_type = pb.interp_type
+
     def _init_bulles(self, markers=None):
         if markers is None:
             return BulleTemperature(
@@ -2051,6 +2108,11 @@ class ProblemRhoCpDiscontinuE(Problem):
             conv_interf = self.num_prop.schema
         self.conv_interf = conv_interf
 
+    def copy(self, pb):
+        super().copy(pb)
+        self.conv_interf = pb.conv_interf
+        self.interp_type = pb.interp_type
+
     def _init_bulles(self, markers=None):
         if markers is None:
             return BulleTemperature(
@@ -2198,6 +2260,11 @@ class ProblemDiscontinuT(Problem):
         if conv_interf is None:
             conv_interf = self.num_prop.schema
         self.conv_interf = conv_interf
+
+    def copy(self, pb):
+        super().copy(pb)
+        self.conv_interf = pb.conv_interf
+        self.interp_type = pb.interp_type
 
     def _init_bulles(self, markers=None):
         if markers is None:
@@ -2374,6 +2441,16 @@ class ProblemDiscontinuSautdTdt(Problem):
                 % num_prop.time_scheme
             )
             self.num_prop._time_scheme = "euler"
+
+    def copy(self, pb):
+        super().copy(pb)
+        self.interp_type = pb.interp_type
+        self.deb = pb.deb
+        self.T_old = pb.T.copy()
+        self.delta_diff = pb.delta_diff
+        self.delta_conv = pb.delta_conv
+        self.delta_conv2 = pb.delta_conv2
+        self.int_Ti = pb.int_Ti
 
     def _init_bulles(self, markers=None):
         if markers is None:
@@ -2580,6 +2657,12 @@ class ProblemDiscontinuSepIntT(Problem):
         # Il est très creux.
         self.ind_interf = np.zeros_like(self.T)
 
+    def copy(self, pb):
+        super().copy(pb)
+        self.interp_type = pb.interp_type
+        self.conv_interf = pb.conv_interf
+        self.ind_interf = pb.ind_interf.copy()
+
     def _init_bulles(self, markers=None):
         if markers is None:
             return BulleTemperature(markers=markers, phy_prop=self.phy_prop)
@@ -2760,6 +2843,12 @@ class ProblemDiscontinuECorrige(Problem):
         # Il est très creux.
         self.ind_interf = np.zeros_like(self.T)
 
+    def copy(self, pb):
+        super().copy(pb)
+        self.interp_type = pb.interp_type
+        self.conv_interf = pb.conv_interf
+        self.ind_interf = pb.ind_interf.copy()
+
     def _init_bulles(self, markers=None):
         if markers is None:
             return BulleTemperature(markers=markers, phy_prop=self.phy_prop)
@@ -2923,6 +3012,14 @@ class ProblemDiscontinuCoupleConserv(Problem):
         else:
             self.interp_type = interp_type
         print(self.interp_type)
+
+    def copy(self, pb):
+        super().copy(pb)
+        self.interp_type = pb.interp_type
+        self.T_old = pb.T_old.copy()
+        self.flux_conv_ener = pb.flux_conv_ener.copy()
+        self.h = pb.h.copy()
+        self.h_old = pb.h_old.copy()
 
     def _init_bulles(self, markers=None):
         if markers is None:
@@ -3140,6 +3237,11 @@ class ProblemDiscontinuFT(Problem):
             print("interp type is :", self.interp_type)
         else:
             self.interp_type = interp_type
+
+    def copy(self, pb):
+        super().copy(pb)
+        self.interp_type = pb.interp_type
+        self.T_old = pb.T_old.copy()
 
     def _init_bulles(self, markers=None):
         if markers is None:

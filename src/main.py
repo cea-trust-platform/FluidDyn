@@ -17,6 +17,7 @@ import numpy as np
 from scipy import optimize as opt
 from copy import deepcopy
 import pickle
+from glob import glob
 import os
 
 
@@ -644,6 +645,17 @@ class NumericalProperties:
     def dx_lim(self):
         return self._dx_lim
 
+    def isequal(self, prop):
+        dic = {key: self.__dict__[key] == prop.__dict__[key] for key in self.__dict__}
+        for key in dic.keys():
+            if isinstance(dic[key], np.ndarray):
+                dic[key] = np.all(dic[key])
+        equal = np.all(list(dic.values()))
+        if not equal:
+            print("Attention, les propriétés numériques ne sont pas égales :")
+            print(dic)
+        return equal
+
 
 class Problem:
     bulles: Bulles
@@ -651,6 +663,10 @@ class Problem:
     phy_prop: PhysicalProperties
 
     def __init__(self, T0, markers=None, num_prop=None, phy_prop=None, name=None):
+        self._imposed_name = name
+        print()
+        print(self.name)
+        print("=" * len(self.name))
         if phy_prop is None:
             print("Attention, les propriétés physiques par défaut sont utilisées")
             phy_prop = PhysicalProperties()
@@ -668,10 +684,9 @@ class Problem:
         self.iter = 0
         self.flux_conv = np.zeros_like(self.num_prop.x_f)
         self.flux_diff = np.zeros_like(self.num_prop.x_f)
-        self._imposed_name = name
-        print("Db / dx = %.2i" % (self.bulles.diam / self.num_prop.dx))
         self.E = None
         self.t = None
+        print("Db / dx = %.2i" % (self.bulles.diam / self.num_prop.dx))
 
     def copy(self, pb):
         equal_prop = self.phy_prop.isequal(pb.phy_prop)
@@ -679,17 +694,24 @@ class Problem:
             raise Exception(
                 "Impossible de copier le Problème, il n'a pas les mm propriétés physiques"
             )
-        self.num_prop = deepcopy(self.num_prop)
+        equal_prop_num = self.num_prop.isequal(pb.num_prop)
+        if not equal_prop_num:
+            raise Exception(
+                "Impossible de copier le Problème, il n'a pas les mm propriétés numériques"
+            )
+        # self.num_prop = deepcopy(self.num_prop)
         self.bulles = deepcopy(pb.bulles)
         self.T = pb.T.copy()
         self.dt = pb.dt
         self.time = pb.time
-        self.I = pb.I.copy()
-        self.If = pb.If.copy()
+        # self.I = pb.I.copy()
+        # self.If = pb.If.copy()
+        self.I = self.update_I()
+        self.If = self.update_If()
         self.iter = pb.iter
         self.flux_conv = pb.flux_conv.copy()
         self.flux_diff = pb.flux_diff.copy()
-        print("Db / dx = %.2i" % (self.bulles.diam / self.num_prop.dx))
+        # print("Db / dx = %.2i" % (self.bulles.diam / self.num_prop.dx))
         self.E = pb.E.copy()
         self.t = pb.t.copy()
 
@@ -818,9 +840,6 @@ class Problem:
         debug=None,
         **kwargs
     ):
-        print()
-        print(self.name)
-        print("=" * len(self.name))
         if plotter is None:
             raise (Exception("plotter is a mandatory argument"))
         if (n is None) and (t_fin is None):
@@ -831,7 +850,7 @@ class Problem:
             n = int(t_fin / self.dt)
         if number_of_plots is not None:
             plot_for_each = int((n - 1) / number_of_plots)
-        if plot_for_each == 0:
+        if plot_for_each <= 0:
             plot_for_each = 1
         # if isinstance(plotter, list):
         #     for plott in plotter:
@@ -849,9 +868,6 @@ class Problem:
             self.t = np.r_[
                 self.t, np.linspace(self.time + self.dt, self.time + n * self.dt, n)
             ]
-            # self.E.resize((offset + 1 + n,), refcheck=False)
-            # self.t.resize((offset + 1 + n,), refcheck=False)
-            # self.t[offset:-1] = np.linspace(self.time + self.dt, self.time + n * self.dt, n).copy()
         for i in range(n):
             if self.num_prop.time_scheme == "euler":
                 self._euler_timestep(debug=debug, bool_debug=(i % plot_for_each == 0))
@@ -863,12 +879,20 @@ class Problem:
             self.time += self.dt
             self.iter += 1
             self.E[offset + i + 1] = self.energy
-            if (i % plot_for_each == 0) and ((i != 0) or (n == 1)):
+            # intermediary plots
+            if (i % plot_for_each == 0) and (i != 0) and (i != n-1):
                 if isinstance(plotter, list):
                     for plott in plotter:
                         plott.plot(self, **kwargs)
                 else:
                     plotter.plot(self, **kwargs)
+
+        # final plot
+        if isinstance(plotter, list):
+            for plott in plotter:
+                plott.plot(self, **kwargs)
+        else:
+            plotter.plot(self, **kwargs)
         return self.t, self.E
 
     def _echange_flux(self):
@@ -1024,30 +1048,29 @@ class Problem:
     ):
         if pb_name is None:
             pb_name = self.full_name
-        if not isinstance(plotter, list):
-            plotter = [plotter]
-        save_name = "References/%s_t_%f.pkl" % (pb_name, self.time + t_fin)
-        print(save_name)
-        if os.path.isfile(save_name):
-            with open(save_name, "rb") as f:
+
+        simu_name = SimuName(pb_name)
+        closer_simu, launch_time = simu_name.get_closer_simu(self.time + t_fin)
+
+        if closer_simu is not None:
+            with open(closer_simu, "rb") as f:
                 saved = pickle.load(f)
             self.copy(saved)
-            print("Reference was loaded")
-            for plot in plotter:
-                plot.plot(self, **kwargs)
-            t = self.t
-            E = self.E
-        else:
-            t, E = self.timestep(
-                t_fin=t_fin,
-                n=n,
-                number_of_plots=number_of_plots,
-                plotter=plotter,
-                debug=debug,
-                **kwargs
-            )
-            with open(save_name, "wb") as f:
-                pickle.dump(self, f)
+            print("reference %s was loaded, remaining time to compute : %f" % (closer_simu, launch_time))
+
+        t, E = self.timestep(
+            t_fin=launch_time,
+            n=n,
+            number_of_plots=number_of_plots,
+            plotter=plotter,
+            debug=debug,
+            **kwargs
+        )
+
+        save_name = simu_name.get_save_path(self.time)
+        with open(save_name, "wb") as f:
+            pickle.dump(self, f)
+
         return t, E
 
 
@@ -1234,3 +1257,39 @@ def get_T_creneau(x, markers=None, phy_prop=None):
         / (phy_prop.rho_cp1 * indic_liqu + phy_prop.rho_cp2 * (1.0 - indic_liqu))
     )
     return T
+
+
+class SimuName:
+    def __init__(self, name: str, directory=None):
+        self._name = name
+        if directory is None:
+            self.directory = 'References'
+        else:
+            self.directory = directory
+
+    @property
+    def name(self):
+        return self._name
+
+    def get_closer_simu(self, t: float):
+        simu_list = glob(self.directory + '/' + self.name + '_t_' + '*' + '.pkl')
+        print('Liste des simus similaires : ')
+        print(simu_list)
+        closer_time = 0.
+        closer_simu = None
+        for simu in simu_list:
+            time = self._get_time(simu)
+            if (time <= t) & (time > closer_time):
+                closer_time = time
+                closer_simu = simu
+        remaining_running_time = t - closer_time
+        assert remaining_running_time >= 0.
+        return closer_simu, remaining_running_time
+
+    @staticmethod
+    def _get_time(path_to_save_file: str) -> float:
+        time = path_to_save_file.split('_t_')[-1].split('.pkl')[0]
+        return round(float(time), 5)
+
+    def get_save_path(self, t) -> str:
+        return self.directory + '/' + self.name + '_t_%f' % round(t, 6) + '.pkl'

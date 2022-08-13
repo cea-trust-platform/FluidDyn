@@ -85,8 +85,8 @@ class Plotter:
 
     def plot(self, problem, plot_Ti=False, dlabel=None, **kwargs):
         first_plot = False
-        if 'label' not in kwargs.keys():
-            kwargs['label'] = dlabel
+        if "label" not in kwargs.keys():
+            kwargs["label"] = dlabel
         # Set up of fig and ax
         if (self.fig is None) or (self.ax is None):
             if self.lda_gradT or self.flux_conv:
@@ -98,15 +98,9 @@ class Plotter:
             else:
                 self.fig, self.ax = plt.subplots(1)
                 self.fig.set_size_inches(9.5, 5)
-            if (
-                self.lda_gradT
-                and self.flux_conv
-            ):
+            if self.lda_gradT and self.flux_conv:
                 self.ax3 = self.ax2.twinx()
-            elif (
-                not self.lda_gradT
-                and self.flux_conv
-            ):
+            elif not self.lda_gradT and self.flux_conv:
                 self.ax3 = self.ax2
                 self.ax3.minorticks_on()
                 self.ax2 = None
@@ -114,7 +108,7 @@ class Plotter:
             first_plot = True
 
         # Set up label
-        if kwargs['label'] is None:
+        if kwargs["label"] is None:
             lab = "%s" % (problem.name.replace("_", " "))
             if self.time:
                 lab += ", time %.2g" % problem.time
@@ -124,7 +118,7 @@ class Plotter:
             if self.dt:
                 leg = to_scientific("%.2e" % problem.dt)
                 lab += r", $\Delta t = %s$" % leg
-            kwargs['label'] = lab
+            kwargs["label"] = lab
 
         # Set up decalage
         x0 = problem.time * problem.phy_prop.v
@@ -160,7 +154,7 @@ class Plotter:
             )
             if "c" not in kwargs.keys():
                 kwargs["c"] = c
-            kwargs['label'] = self.flux_conv
+            kwargs["label"] = self.flux_conv
             self.ax3.plot(xf_dec, flux_conv_dec, "--", **kwargs)
 
         ticks_major, ticks_minor, M1, Dx = get_ticks(problem, x0=x0)
@@ -485,12 +479,12 @@ def get_ticks(problem, x0=0.0):
         M2 += Delta
     assert M2 > M1
     Dx_major = M2 - M1
-    while M1 < 0.:
+    while M1 < 0.0:
         M1 += Delta
         M2 += Delta
     if M2 > Delta:
         M2 -= Delta
-    assert Dx_major > 0.
+    assert Dx_major > 0.0
     Dx_minor = Dx_major / 4.0
     ticks_major = []
     ticks_minor = []
@@ -621,7 +615,7 @@ class EnergiePlot:
             self.e0 = e[0]
 
         self.ax.plot(t, e, label=label)
-        self.ax.legend(loc='upper right')
+        self.ax.legend(loc="upper right")
         self.fig.tight_layout()
 
         n = len(e)

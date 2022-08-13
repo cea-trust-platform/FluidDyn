@@ -21,7 +21,7 @@ import os
 
 
 def integrale_vol_div(flux, dx):
-    return 1. / dx * (flux[1:] - flux[:-1])
+    return 1.0 / dx * (flux[1:] - flux[:-1])
 
 
 def interpolate(center_value, I=None, cl=1, schema="weno", cv_0=0.0, cv_n=0.0):
@@ -399,7 +399,9 @@ def grad_center4(center_value, dx=1.0, cl=1):
 
 
 class Bulles:
-    def __init__(self, markers=None, phy_prop=None, n_bulle=None, Delta=1.0, alpha=0.06, a_i=None):
+    def __init__(
+        self, markers=None, phy_prop=None, n_bulle=None, Delta=1.0, alpha=0.06, a_i=None
+    ):
         self.diam = 0.0
         if phy_prop is not None:
             self.Delta = phy_prop.Delta
@@ -424,9 +426,7 @@ class Bulles:
             # Avec le taux de vide, on en déduit le diamètre d'une bulle. On va considérer que le taux de vide
             # s'exprime en 1D, cad : phy_prop.alpha = n*d*dS/(Dx*dS)
             self.diam = self.alpha * self.Delta / n_bulle
-            centers = np.linspace(
-                self.diam, self.Delta + self.diam, n_bulle + 1
-            )[:-1]
+            centers = np.linspace(self.diam, self.Delta + self.diam, n_bulle + 1)[:-1]
             for center in centers:
                 self.markers.append(
                     (center - self.diam / 2.0, center + self.diam / 2.0)
@@ -1013,7 +1013,14 @@ class Problem:
         self.T += np.sum(self.dt * coeff * np.array(K[1:]).T, axis=-1)
 
     def load_or_compute(
-        self, pb_name=None, t_fin=0.0, n=None, number_of_plots=1, plotter=None, debug=None, **kwargs
+        self,
+        pb_name=None,
+        t_fin=0.0,
+        n=None,
+        number_of_plots=1,
+        plotter=None,
+        debug=None,
+        **kwargs
     ):
         if pb_name is None:
             pb_name = self.full_name
@@ -1032,7 +1039,12 @@ class Problem:
             E = self.E
         else:
             t, E = self.timestep(
-                t_fin=t_fin, n=n, number_of_plots=number_of_plots, plotter=plotter, debug=debug, **kwargs
+                t_fin=t_fin,
+                n=n,
+                number_of_plots=number_of_plots,
+                plotter=plotter,
+                debug=debug,
+                **kwargs
             )
             with open(save_name, "wb") as f:
                 pickle.dump(self, f)

@@ -5,4 +5,4 @@ __pycache__
 doc/_build
 etudes_locales
 *.pkl
-etudes_html
+local

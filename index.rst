@@ -14,6 +14,7 @@ Sommaire
 
 .. toctree::
    :maxdepth: 4
+   :numbered:
 
    doc/installation.rst
    doc/Src_doc.rst

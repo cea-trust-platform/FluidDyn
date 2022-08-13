@@ -129,6 +129,7 @@ class ProblemDiscontinuEnergieTemperature(Problem):
         markers: les bulles
         num_prop: les propriétés numériques du calcul
         phy_prop: les propriétés physiques du calcul
+        
     """
 
     def __init__(self, T0, markers=None, num_prop=None, phy_prop=None, **kwargs):
@@ -296,6 +297,7 @@ class ProblemDiscontinuEnergieTemperatureInt(Problem):
         markers: les bulles
         num_prop: les propriétés numériques du calcul
         phy_prop: les propriétés physiques du calcul
+        
     """
 
     def __init__(self, T0, markers=None, num_prop=None, phy_prop=None, **kwargs):

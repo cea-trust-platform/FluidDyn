@@ -28,6 +28,13 @@
       ProblemDiscontinuCoupleConserv
       ProblemDiscontinuE
       ProblemDiscontinuECorrige
+      ProblemDiscontinuE_CN
+      ProblemDiscontinuEcomme3D
+      ProblemDiscontinuEcomme3D_ghost
+      ProblemDiscontinuEcomme3D_ghost_avecq_I_exactSf
+      ProblemDiscontinuEcomme3D_ghost_exactSf
+      ProblemDiscontinuEcomme3Davecq_I
+      ProblemDiscontinuEcomme3Davecq_ghost
       ProblemDiscontinuEnergieTemperature
       ProblemDiscontinuEnergieTemperatureInt
       ProblemDiscontinuEsansq

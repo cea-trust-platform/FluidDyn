@@ -23,6 +23,7 @@
       interpolate_from_center_to_face_center
       interpolate_from_center_to_face_center_h
       interpolate_from_center_to_face_quick
+      interpolate_from_center_to_face_quick_upwind_interface
       interpolate_from_center_to_face_upwind
       interpolate_from_center_to_face_weno
    

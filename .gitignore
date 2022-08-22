@@ -7,3 +7,4 @@ etudes_locales
 *.pkl
 local
 .coverage
+widget_state.json

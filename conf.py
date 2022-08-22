@@ -101,6 +101,7 @@ html_sidebars = {
         'searchbox.html',
     ]
 }
+html_favicon = "doc/_static/fav.png"
 
 
 # Theme options are theme-specific and customize the look and feel of a theme

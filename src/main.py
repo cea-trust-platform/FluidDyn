@@ -448,6 +448,7 @@ class Bulles:
             print("markers : ", self.markers)
             print("depasse : ", depasse)
             raise Exception("Les marqueurs dépassent du domaine")
+        self.init_markers = self.markers.copy()
 
     def __call__(self, *args, **kwargs):
         return self.markers
@@ -700,21 +701,27 @@ class Problem:
             raise Exception(
                 "Impossible de copier le Problème, il n'a pas les mm propriétés numériques"
             )
+        try:
+            equal_init_markers = np.all(self.bulles.init_markers == pb.bulles.init_markers)
+        except:
+            equal_init_markers = True
+            print("Attention, les markers initiaux ne sont pas enregistrés dans la référence")
+        if not equal_prop_num:
+            raise Exception(
+                "Impossible de copier le Problème, il n'a pas les mm markers de départ"
+            )
         # self.num_prop = deepcopy(self.num_prop)
         self.bulles = deepcopy(pb.bulles)
         self.T = pb.T.copy()
         self.dt = pb.dt
         self.time = pb.time
-        # self.I = pb.I.copy()
-        # self.If = pb.If.copy()
         self.I = self.update_I()
         self.If = self.update_If()
         self.iter = pb.iter
         self.flux_conv = pb.flux_conv.copy()
         self.flux_diff = pb.flux_diff.copy()
-        # print("Db / dx = %.2i" % (self.bulles.diam / self.num_prop.dx))
-        self.E = pb.E.copy()
         self.t = pb.t.copy()
+        self.E = pb.E.copy()
 
     def _init_bulles(self, markers=None):
         if markers is None:

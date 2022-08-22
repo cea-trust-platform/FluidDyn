@@ -4,7 +4,7 @@
 #
 
 # You can set these variables from the command line.
-SPHINXOPTS    = # pour tout relancer :-a -E
+SPHINXOPTS    = -a -E # pour tout relancer :-a -E
 SPHINXBUILD   = sphinx-build
 SPHINXPROJ    = Flu1dDyn
 SOURCEDIR     = .

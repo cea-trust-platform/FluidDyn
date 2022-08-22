@@ -111,7 +111,7 @@ def interpolate_from_center_to_face_center_h(center_value, cl=1, cv_0=0.0, cv_n=
     cent0 = ext_center[:-1]
     cent1 = ext_center[1:]
     zero = np.abs(cent1 + cent0) < 10**-10
-    interpolated_value = np.where(zero, 0., cent0 * cent1 / (cent1 + cent0) * 2.0)
+    interpolated_value = np.where(zero, 0.0, cent0 * cent1 / (cent1 + cent0) * 2.0)
     return interpolated_value
 
 
@@ -881,7 +881,7 @@ class Problem:
             self.iter += 1
             self.E[offset + i + 1] = self.energy
             # intermediary plots
-            if (i % plot_for_each == 0) and (i != 0) and (i != n-1):
+            if (i % plot_for_each == 0) and (i != 0) and (i != n - 1):
                 if isinstance(plotter, list):
                     for plott in plotter:
                         plott.plot(self, **kwargs)
@@ -1058,7 +1058,10 @@ class Problem:
                 saved = pickle.load(f)
             self.copy(saved)
             launch_time = t_fin - self.time
-            print("Loading ======> %s\nremaining time to compute : %f" % (closer_simu, launch_time))
+            print(
+                "Loading ======> %s\nremaining time to compute : %f"
+                % (closer_simu, launch_time)
+            )
         else:
             launch_time = t_fin - self.time
 
@@ -1267,7 +1270,7 @@ class SimuName:
     def __init__(self, name: str, directory=None):
         self._name = name
         if directory is None:
-            self.directory = 'References'
+            self.directory = "References"
         else:
             self.directory = directory
 
@@ -1276,10 +1279,10 @@ class SimuName:
         return self._name
 
     def get_closer_simu(self, t: float):
-        simu_list = glob(self.directory + '/' + self.name + '_t_' + '*' + '.pkl')
-        print('Liste des simus similaires : ')
+        simu_list = glob(self.directory + "/" + self.name + "_t_" + "*" + ".pkl")
+        print("Liste des simus similaires : ")
         print(simu_list)
-        closer_time = 0.
+        closer_time = 0.0
         closer_simu = None
         for simu in simu_list:
             time = self._get_time(simu)
@@ -1287,13 +1290,13 @@ class SimuName:
                 closer_time = time
                 closer_simu = simu
         remaining_running_time = t - closer_time
-        assert remaining_running_time >= 0.
+        assert remaining_running_time >= 0.0
         return closer_simu  # , remaining_running_time
 
     @staticmethod
     def _get_time(path_to_save_file: str) -> float:
-        time = path_to_save_file.split('_t_')[-1].split('.pkl')[0]
+        time = path_to_save_file.split("_t_")[-1].split(".pkl")[0]
         return round(float(time), 6)
 
     def get_save_path(self, t) -> str:
-        return self.directory + '/' + self.name + '_t_%f' % round(t, 6) + '.pkl'
+        return self.directory + "/" + self.name + "_t_%f" % round(t, 6) + ".pkl"

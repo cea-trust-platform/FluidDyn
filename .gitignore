@@ -6,3 +6,4 @@ doc/_build
 etudes_locales
 *.pkl
 local
+.coverage

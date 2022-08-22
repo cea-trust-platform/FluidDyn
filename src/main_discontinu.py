@@ -108,6 +108,129 @@ def get_prop(prop, i, liqu_a_gauche=True):
     return ldag, rhocpg, ag, ldad, rhocpd, ad
 
 
+class ProblemConserv2(Problem):
+    def __init__(self, T0, markers=None, num_prop=None, phy_prop=None, **kwargs):
+        super().__init__(
+            T0, markers=markers, num_prop=num_prop, phy_prop=phy_prop, **kwargs
+        )
+        if num_prop.time_scheme == "rk3":
+            print("RK3 is not implemented, changes to Euler")
+            self.num_prop._time_scheme = "euler"
+
+    @property
+    def name_cas(self):
+        return "EOFm"
+
+    def _euler_timestep(self, debug=None, bool_debug=False):
+        rho_cp_u = (
+                interpolate(self.rho_cp_a, I=self.I, schema=self.num_prop.schema)
+                * self.phy_prop.v
+        )
+        int_div_rho_cp_u = integrale_vol_div(rho_cp_u, self.num_prop.dx)
+        rho_cp_etoile = self.rho_cp_a + self.dt * int_div_rho_cp_u
+
+        self.flux_conv = (
+                interpolate(self.rho_cp_a * self.T, I=self.I, schema=self.num_prop.schema)
+                * self.phy_prop.v
+        )
+        int_div_rho_cp_T_u = integrale_vol_div(self.flux_conv, self.num_prop.dx)
+
+        self.flux_diff = interpolate(
+            self.Lda_h, I=self.I, schema=self.num_prop.schema
+        ) * grad(self.T, self.num_prop.dx)
+        int_div_lda_grad_T = integrale_vol_div(self.flux_diff, self.num_prop.dx)
+
+        if (debug is not None) and bool_debug:
+            debug.plot(
+                self.num_prop.x,
+                1.0 / self.rho_cp_h,
+                label="rho_cp_inv_h, time = %f" % self.time,
+                )
+            debug.plot(
+                self.num_prop.x,
+                int_div_lda_grad_T,
+                label="div_lda_grad_T, time = %f" % self.time,
+            )
+            debug.xticks(self.num_prop.x_f)
+            debug.grid(which="major")
+            maxi = max(np.max(int_div_lda_grad_T), np.max(1.0 / self.rho_cp_h))
+            mini = min(np.min(int_div_lda_grad_T), np.min(1.0 / self.rho_cp_h))
+            for markers in self.bulles():
+                debug.plot([markers[0]] * 2, [mini, maxi], "--")
+                debug.plot([markers[1]] * 2, [mini, maxi], "--")
+                debug.legend()
+        self.T += (
+                self.dt
+                / rho_cp_etoile
+                * (
+                        int_div_rho_cp_u * self.T
+                        + -int_div_rho_cp_T_u
+                        + self.phy_prop.diff * int_div_lda_grad_T
+                )
+        )
+
+    def _rk4_timestep(self, debug=None, bool_debug=False):
+        K = [np.array(0.0)]  # type: list[np.ndarray]
+        K_rhocp = [0.0]
+        rho_cp_T_u_l = []
+        lda_gradT_l = []
+        pas_de_temps = np.array([0, 0.5, 0.5, 1.0])
+        for h in pas_de_temps:
+            markers_int = self.bulles.copy()
+            markers_int.shift(self.phy_prop.v * self.dt * h)
+            temp_I = markers_int.indicatrice_liquide(self.num_prop.x)
+
+            # On s'occupe de calculer d_rho_cp
+
+            rho_cp = self.rho_cp_a + h * self.dt * K_rhocp[-1]
+            rho_cp_u = (
+                    interpolate(rho_cp, I=temp_I, schema=self.num_prop.schema)
+                    * self.phy_prop.v
+            )
+            int_div_rho_cp_u = integrale_vol_div(rho_cp_u, self.num_prop.dx)
+
+            rho_cp_etoile = rho_cp - int_div_rho_cp_u * self.dt * h
+
+            # On s'occupe de calculer d_rho_cp_T
+
+            T = self.T + h * self.dt * K[-1]
+            rho_cp_T_u = (
+                    interpolate(rho_cp * T, I=temp_I, schema=self.num_prop.schema)
+                    * self.phy_prop.v
+            )
+            rho_cp_T_u_l.append(rho_cp_T_u)
+            int_div_rho_cp_T_u = integrale_vol_div(rho_cp_T_u, self.num_prop.dx)
+
+            Lda_h = 1.0 / (
+                    temp_I / self.phy_prop.lda1 + (1.0 - temp_I) / self.phy_prop.lda2
+            )
+            lda_grad_T = interpolate(Lda_h, I=temp_I, schema="center_h") * grad(
+                T, self.num_prop.dx
+            )
+            lda_gradT_l.append(lda_grad_T)
+            int_div_lda_grad_T = integrale_vol_div(lda_grad_T, self.num_prop.dx)
+
+            K.append(
+                1.0
+                / rho_cp_etoile
+                * (
+                        T * int_div_rho_cp_u
+                        - int_div_rho_cp_T_u
+                        + self.phy_prop.diff * int_div_lda_grad_T
+                )
+            )
+
+        coeff = np.array([1.0 / 6, 1 / 3.0, 1 / 3.0, 1.0 / 6])
+        self.flux_conv = np.sum(coeff * np.array(rho_cp_T_u_l).T, axis=-1)
+        self.flux_diff = np.sum(coeff * np.array(lda_gradT_l).T, axis=-1)
+        d_rhocpT = np.sum(self.dt * coeff * np.array(K[1:]).T, axis=-1)
+        self.T += d_rhocpT
+
+    def _rk3_timestep(self, debug=None, bool_debug=False):
+        # TODO: a implémenter
+        raise NotImplementedError
+
+
 class ProblemDiscontinuEnergieTemperature(Problem):
     bulles: BulleTemperature
 

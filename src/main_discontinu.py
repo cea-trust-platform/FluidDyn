@@ -153,7 +153,7 @@ class ProblemDiscontinuEnergieTemperature(Problem):
     def copy(self, pb):
         super().copy(pb)
         self.h = pb.h.copy()
-        self.flux_conv_energie = pb.flux_conv_ener.copy()
+        self.flux_conv_energie = pb.flux_conv_energie.copy()
 
     def _corrige_interface(self):
         """
@@ -2467,7 +2467,7 @@ class ProblemDiscontinuSautdTdt(Problem):
             print(markers)
             raise NotImplementedError
 
-    def _corrige_interface_aymeric1(self):
+    def _corrige_interface(self):
         """
         Dans cette approche on calclue Ti et lda_gradTi soit en utilisant la continuité avec Tim1 et Tip1, soit en
         utilisant la continuité des lda_grad_T calculés avec Tim2, Tim1, Tip1 et Tip2.
@@ -2622,7 +2622,7 @@ class ProblemDiscontinuSautdTdt(Problem):
 
     def _euler_timestep(self, debug=None, bool_debug=False):
         super()._euler_timestep(debug=debug, bool_debug=bool_debug)
-        self._corrige_interface_aymeric1()
+        self._corrige_interface()
 
     @property
     def name_cas(self):

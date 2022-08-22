@@ -1083,12 +1083,12 @@ class CellsInterface:
             Rien mais met à jour self.grad_T et self.T_f
         """
         # On commence par calculer T_I et lda_grad_Ti en fonction de Tgc et Tdc :
-        EPSILON = 10**-10
+        EPSILON = 10**-6
         if self.ag < EPSILON:
             self._Ti, self._lda_gradTi = self._get_T_i_and_lda_grad_T_i(
                 self.Tg[-2],
                 T_mean,
-                (1.0 + self.ag) / 2.0 * self.dx,
+                (1.0 / 2.0 + self.ag) * self.dx,
                 self.ad / 2.0 * self.dx,
             )
         elif self.ad < EPSILON:
@@ -1096,7 +1096,7 @@ class CellsInterface:
                 T_mean,
                 self.Td[1],
                 self.ag / 2.0 * self.dx,
-                (1.0 + self.ad) / 2.0 * self.dx,
+                (1.0 / 2.0 + self.ad) * self.dx,
             )
         else:
             self._compute_Tgc_Tdc(h, T_mean)

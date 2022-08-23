@@ -25,6 +25,7 @@
    .. autosummary::
    
       BulleTemperature
+      ProblemConserv2
       ProblemDiscontinuCoupleConserv
       ProblemDiscontinuE
       ProblemDiscontinuECorrige

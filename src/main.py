@@ -434,6 +434,7 @@ class Bulles:
                     (center - self.diam / 2.0, center + self.diam / 2.0)
                 )
             self.markers = np.array(self.markers)
+            self.shift(self.Delta * 1./4)
         else:
             self.markers = np.array(markers).copy()
             mark1 = self.markers[0][1]
@@ -448,6 +449,7 @@ class Bulles:
             print("markers : ", self.markers)
             print("depasse : ", depasse)
             raise Exception("Les marqueurs dépassent du domaine")
+
         self.init_markers = self.markers.copy()
 
     def __call__(self, *args, **kwargs):
@@ -684,8 +686,8 @@ class Problem:
         self.I = self.update_I()
         self.If = self.update_If()
         self.iter = 0
-        self.flux_conv = np.zeros_like(self.num_prop.x_f)
-        self.flux_diff = np.zeros_like(self.num_prop.x_f)
+        self.flux_conv = Flux(np.zeros_like(self.num_prop.x_f))
+        self.flux_diff = Flux(np.zeros_like(self.num_prop.x_f))
         self.E = None
         self.t = None
         print("Db / dx = %.2i" % (self.bulles.diam / self.num_prop.dx))
@@ -706,7 +708,7 @@ class Problem:
         except:
             equal_init_markers = True
             print("Attention, les markers initiaux ne sont pas enregistrés dans la référence")
-        if not equal_prop_num:
+        if not equal_init_markers:
             raise Exception(
                 "Impossible de copier le Problème, il n'a pas les mm markers de départ"
             )
@@ -910,8 +912,8 @@ class Problem:
         Returns:
 
         """
-        self.flux_conv[-1] = self.flux_conv[0]
-        self.flux_diff[-1] = self.flux_diff[0]
+        self.flux_conv.perio()
+        self.flux_diff.perio()
 
     def _corrige_flux_coeff_interface(self, T, bulles, *args):
         """
@@ -931,7 +933,7 @@ class Problem:
     def _compute_convection_flux(self, T, bulles, bool_debug=False, debug=None):
         indic = bulles.indicatrice_liquide(self.num_prop.x)
         T_u = interpolate(T, I=indic, schema=self.num_prop.schema) * self.phy_prop.v
-        return T_u
+        return Flux(T_u)
 
     def _compute_diffusion_flux(self, T, bulles, bool_debug=False, debug=None):
         indic = bulles.indicatrice_liquide(self.num_prop.x)
@@ -954,7 +956,7 @@ class Problem:
             debug.set_xticks(self.num_prop.x_f)
             debug.grid(b=True, which="major")
             debug.legend()
-        return lda_grad_T
+        return Flux(lda_grad_T)
 
     def _euler_timestep(self, debug=None, bool_debug=False):
         dx = self.num_prop.dx
@@ -1031,8 +1033,8 @@ class Problem:
             # TODO: vérifier qu'il ne faudrait pas plutôt utiliser rho_cp^{n,k}
             rho_cp_inv_h = 1.0 / self.rho_cp_h
             self._corrige_flux_coeff_interface(T, markers_int, convection, conduction)
-            convection[-1] = convection[0]
-            conduction[-1] = conduction[0]
+            convection.perio()
+            conduction.perio()
             T_u_l.append(convection)
             lda_gradT_l.append(conduction)
             K.append(
@@ -1040,8 +1042,8 @@ class Problem:
                 + self.phy_prop.diff * rho_cp_inv_h * integrale_vol_div(conduction, dx)
             )
         coeff = np.array([1.0 / 6, 1 / 3.0, 1 / 3.0, 1.0 / 6])
-        self.flux_conv = np.sum(coeff * np.array(T_u_l).T, axis=-1)
-        self.flux_diff = np.sum(coeff * np.array(lda_gradT_l).T, axis=-1)
+        self.flux_conv = np.sum(coeff * Flux(T_u_l).T, axis=-1)
+        self.flux_diff = np.sum(coeff * Flux(lda_gradT_l).T, axis=-1)
         self.T += np.sum(self.dt * coeff * np.array(K[1:]).T, axis=-1)
 
     def load_or_compute(
@@ -1154,7 +1156,7 @@ class SimuName:
     def __init__(self, name: str, directory=None):
         self._name = name
         if directory is None:
-            self.directory = "References"
+            self.directory = "../References"
         else:
             self.directory = directory
 
@@ -1184,3 +1186,12 @@ class SimuName:
 
     def get_save_path(self, t) -> str:
         return self.directory + "/" + self.name + "_t_%f" % round(t, 6) + ".pkl"
+
+
+class Flux(np.ndarray):
+    def __new__(cls, input_array, *args, **kwargs):
+        obj = np.asarray(input_array, *args, **kwargs).view(cls)
+        return obj
+
+    def perio(self):
+        self[-1] = self[0]

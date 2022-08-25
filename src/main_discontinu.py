@@ -12,6 +12,7 @@
 # OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #
 ##############################################################################
+import numpy as np
 
 from src.main import *
 from src.cells_interface import *
@@ -31,6 +32,10 @@ class BulleTemperature(Bulles):
     """
 
     def __init__(self, markers=None, phy_prop=None, n_bulle=None, Delta=1.0, x=None):
+        if x is not None:
+            self.x = x
+        else:
+            raise Exception("x est un argument obligatoire")
         super().__init__(markers, phy_prop, n_bulle, Delta)
         self.T = np.zeros_like(self.markers)
         self.Tg = np.zeros_like(self.markers)
@@ -43,11 +48,7 @@ class BulleTemperature(Bulles):
         self.Ti = np.zeros_like(self.markers)
         self.cells = [0.0] * (2 * len(self.markers))  # type: list
         self.ind = None
-        if x is not None:
-            self.x = x
-            self._set_indices_markers(x)
-        else:
-            raise Exception("x est un argument obligatoire")
+        self._set_indices_markers(x)
 
     def _set_indices_markers(self, x):
         """
@@ -262,6 +263,7 @@ class ProblemDiscontinu(Problem):
 
         if isinstance(self.interp_type, InterfaceInterpolationBase):
             self.interpolation_interface = self.interp_type
+        # Le reste est hérité de l'ancienne manière de faire. À supprimer à terme.
         elif self.interp_type == 'Ti':
             self.interpolation_interface = InterfaceInterpolation1_0(dx=self.num_prop.dx)
         elif self.interp_type == 'Ti2':
@@ -287,6 +289,7 @@ class ProblemDiscontinu(Problem):
 
         if isinstance(conv_interf, FaceInterpolationBase):
             self.face_interpolation = conv_interf
+        # Le reste est hérité de l'ancienne manière de faire. À supprimer à terme.
         elif self.interp_type.endswith("_vol"):
             self.face_interpolation = FaceInterpolationQuick(vdt=self.phy_prop.v * self.dt, time_integral='exact')
         elif self.interp_type == "energie_temperature":
@@ -331,7 +334,7 @@ class ProblemDiscontinu(Problem):
             print(markers)
             raise NotImplementedError
 
-    def _corrige_flux_interface(self, T, bulles, *args):
+    def _corrige_flux_interfaces(self, T, bulles, *args):
         for i_bulle, (i_amont, i_aval) in enumerate(bulles.ind):
             # i_bulle sert à aller chercher les valeurs aux interfaces, i_amont et i_aval servent à aller chercher les valeurs sur
             # le maillage cartésien
@@ -361,7 +364,7 @@ class ProblemDiscontinu(Problem):
         # rho_cp_np1 * Tnp1 = rho_cp_n * Tn + dt (- int_S_rho_cp_T_u + int_S_lda_grad_T)
         return self.face_interpolation.rhocp_f * self.face_interpolation.T_f * self.phy_prop.v
 
-    def _get_new_flux_diff(self, flux_diff, stencil_interf):
+    def _get_new_flux_diff(self):
         # rho_cp_np1 * Tnp1 = rho_cp_n * Tn + dt (- int_S_rho_cp_T_u + int_S_lda_grad_T)
         return self.face_interpolation.lda_f * self.face_interpolation.gradT
 
@@ -379,7 +382,7 @@ class ProblemDiscontinu(Problem):
         self.flux_diff = self._compute_diffusion_flux(
             self.T, self.bulles, bool_debug, debug
         )
-        self._corrige_flux_interface(
+        self._corrige_flux_interfaces(
             self.T, self.bulles, self.flux_conv, self.flux_diff
         )
         self._echange_flux()
@@ -417,7 +420,7 @@ class ProblemDiscontinu(Problem):
                 T_int, markers_int, bool_debug, debug
             )
 
-            self._corrige_flux_interface(T_int, markers_int, flux_conv, flux_diff)
+            self._corrige_flux_interfaces(T_int, markers_int, flux_conv, flux_diff)
             self._echange_flux()
             flux_diff[-1] = flux_diff[0]
             flux_conv[-1] = flux_conv[0]
@@ -3599,3 +3602,4 @@ class ProblemDiscontinuFT(Problem):
     @property
     def name_cas(self):
         return "TFF "  # température front-fitting
+

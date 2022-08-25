@@ -222,8 +222,8 @@ class ProblemConserv2(Problem):
             )
 
         coeff = np.array([1.0 / 6, 1 / 3.0, 1 / 3.0, 1.0 / 6])
-        self.flux_conv = np.sum(coeff * np.array(rho_cp_T_u_l).T, axis=-1)
-        self.flux_diff = np.sum(coeff * np.array(lda_gradT_l).T, axis=-1)
+        self.flux_conv = np.sum(coeff * Flux(rho_cp_T_u_l).T, axis=-1)
+        self.flux_diff = np.sum(coeff * Flux(lda_gradT_l).T, axis=-1)
         d_rhocpT = np.sum(self.dt * coeff * np.array(K[1:]).T, axis=-1)
         self.T += d_rhocpT
 
@@ -422,8 +422,8 @@ class ProblemDiscontinu(Problem):
 
             self._corrige_flux_interfaces(T_int, markers_int, flux_conv, flux_diff)
             self._echange_flux()
-            flux_diff[-1] = flux_diff[0]
-            flux_conv[-1] = flux_conv[0]
+            flux_diff.perio()
+            flux_conv.perio()
             drhocpTdt = -integrale_vol_div(
                 flux_conv, dx
             ) + self.phy_prop.diff * integrale_vol_div(flux_diff, dx)
@@ -468,7 +468,7 @@ class ProblemDiscontinuEnergieTemperature(Problem):
     def __init__(self, T0, markers=None, num_prop=None, phy_prop=None, **kwargs):
         super().__init__(T0, markers, num_prop=num_prop, phy_prop=phy_prop, **kwargs)
         self.h = self.rho_cp_a * self.T
-        self.flux_conv_energie = np.zeros_like(self.flux_conv)
+        self.flux_conv_energie = Flux(np.zeros_like(self.flux_conv))
 
     def _init_bulles(self, markers=None):
         if markers is None:
@@ -641,8 +641,8 @@ class ProblemDiscontinuEnergieTemperatureInt(Problem):
     def __init__(self, T0, markers=None, num_prop=None, phy_prop=None, **kwargs):
         super().__init__(T0, markers, num_prop=num_prop, phy_prop=phy_prop, **kwargs)
         self.h = self.rho_cp_a * self.T
-        self.flux_conv_ener = np.zeros_like(self.flux_conv)
-        self.flux_diff_temp = np.zeros_like(self.flux_conv)
+        self.flux_conv_ener = Flux(np.zeros_like(self.flux_conv))
+        self.flux_diff_temp = Flux(np.zeros_like(self.flux_conv))
         self.ind_interf = np.zeros_like(self.T)
 
     def _init_bulles(self, markers=None):
@@ -765,8 +765,8 @@ class ProblemDiscontinuEnergieTemperatureInt(Problem):
 
         self._corrige_interface()
         self._echange_flux()
-        self.flux_diff_temp[-1] = self.flux_diff_temp[0]
-        self.flux_conv_ener[-1] = self.flux_conv_ener[0]
+        self.flux_diff_temp.perio()
+        self.flux_conv_ener.perio()
 
         int_div_T_u = integrale_vol_div(self.flux_conv, self.num_prop.dx)
         int_inv_rhocpf_div_ldaf_grad_T = integrale_vol_div(
@@ -1631,8 +1631,8 @@ class ProblemDiscontinuEcomme3D_ghost(Problem):
 
             self._corrige_flux_coeff_interface(T_int, markers_int, flux_conv, flux_diff)
             self._echange_flux()
-            flux_diff[-1] = flux_diff[0]
-            flux_conv[-1] = flux_conv[0]
+            flux_diff.perio()
+            flux_conv.perio()
             drhocpTdt = -integrale_vol_div(
                 flux_conv, dx
             ) + self.phy_prop.diff * integrale_vol_div(flux_diff, dx)
@@ -3045,7 +3045,7 @@ class ProblemDiscontinuSepIntT(Problem):
             self.T, self.bulles, self.flux_conv, flux_diff
         )
         self._echange_flux()
-        flux_diff[-1] = flux_diff[0]
+        flux_diff.perio()
         int_div_T_u = integrale_vol_div(self.flux_conv, self.num_prop.dx)
         int_inv_rhocpf_div_ldaf_grad_T = integrale_vol_div(flux_diff, self.num_prop.dx)
 

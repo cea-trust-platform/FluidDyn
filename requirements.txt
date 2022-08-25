@@ -1,5 +1,5 @@
 numpy~=1.19.5
-matplotlib~=3.3.4
+ipympl
 scipy~=1.5.4
 jupyterlab
 sympy~=1.8

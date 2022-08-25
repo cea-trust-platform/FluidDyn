@@ -79,7 +79,7 @@ def interpolate(center_value, I=None, cl=1, schema="weno", cv_0=0.0, cv_n=0.0):
     if cl == 1:
         if np.abs(interpolated_value[0] - interpolated_value[-1]) > 10**-10:
             raise Exception("Les flux entrants et sortants sont censés être identiques")
-    return interpolated_value
+    return Flux(interpolated_value)
 
 
 def interpolate_from_center_to_face_center(center_value, cl=1, cv_0=0.0, cv_n=0.0):
@@ -933,7 +933,7 @@ class Problem:
     def _compute_convection_flux(self, T, bulles, bool_debug=False, debug=None):
         indic = bulles.indicatrice_liquide(self.num_prop.x)
         T_u = interpolate(T, I=indic, schema=self.num_prop.schema) * self.phy_prop.v
-        return Flux(T_u)
+        return T_u
 
     def _compute_diffusion_flux(self, T, bulles, bool_debug=False, debug=None):
         indic = bulles.indicatrice_liquide(self.num_prop.x)
@@ -956,7 +956,7 @@ class Problem:
             debug.set_xticks(self.num_prop.x_f)
             debug.grid(b=True, which="major")
             debug.legend()
-        return Flux(lda_grad_T)
+        return lda_grad_T
 
     def _euler_timestep(self, debug=None, bool_debug=False):
         dx = self.num_prop.dx

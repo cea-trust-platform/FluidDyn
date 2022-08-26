@@ -668,9 +668,6 @@ class Problem:
 
     def __init__(self, T0, markers=None, num_prop=None, phy_prop=None, name=None):
         self._imposed_name = name
-        print()
-        print(self.name)
-        print("=" * len(self.name))
         if phy_prop is None:
             print("Attention, les propriétés physiques par défaut sont utilisées")
             phy_prop = PhysicalProperties()
@@ -680,6 +677,9 @@ class Problem:
         self.phy_prop = deepcopy(phy_prop)  # type: PhysicalProperties
         self.num_prop = deepcopy(num_prop)  # type: NumericalProperties
         self.bulles = self._init_bulles(markers)
+        print()
+        print(self.name)
+        print("=" * len(self.name))
         self.T = T0(self.num_prop.x, markers=self.bulles, phy_prop=self.phy_prop)
         self.dt = self.get_time()
         self.time = 0.0

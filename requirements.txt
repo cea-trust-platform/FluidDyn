@@ -2,10 +2,14 @@ numpy~=1.19.5
 ipympl
 scipy~=1.5.4
 jupyterlab
+nbconvert
 sympy~=1.8
 sphinx
 nbsphinx
-jupyter_sphinx
+jupyter-sphinx
 jupyter-contrib-nbextensions
 numba
 line-profiler
+pytest
+pytest-cov
+nbval

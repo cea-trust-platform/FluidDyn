@@ -36,6 +36,7 @@
    .. autosummary::
    
       Bulles
+      Flux
       NumericalProperties
       PhysicalProperties
       Problem

@@ -20,6 +20,8 @@ import pickle
 from glob import glob
 import os
 
+EPS = 10**-6
+
 
 def integrale_vol_div(flux, dx):
     return 1.0 / dx * (flux[1:] - flux[:-1])
@@ -110,7 +112,7 @@ def interpolate_from_center_to_face_center_h(center_value, cl=1, cv_0=0.0, cv_n=
         raise NotImplementedError
     cent0 = ext_center[:-1]
     cent1 = ext_center[1:]
-    zero = np.abs(cent1 + cent0) < 10**-10
+    zero = np.abs(cent1 + cent0) < EPS
     interpolated_value = np.where(zero, 0.0, cent0 * cent1 / (cent1 + cent0) * 2.0)
     return interpolated_value
 

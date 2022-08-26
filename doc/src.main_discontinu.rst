@@ -15,6 +15,7 @@
    
       cl_perio
       get_prop
+      get_stencil
    
    
 
@@ -26,6 +27,7 @@
    
       BulleTemperature
       ProblemConserv2
+      ProblemDiscontinu
       ProblemDiscontinuCoupleConserv
       ProblemDiscontinuE
       ProblemDiscontinuECorrige

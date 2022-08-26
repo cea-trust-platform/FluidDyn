@@ -1,6 +1,7 @@
 #! /bin/bash
 
 launch_all() {
+    [ -v FLU1D_ROOT ] || { echo "FLU1D_ROOT not set, env not sourced !"; exit; }
     cd $FLU1D_ROOT/local/ || exit
     rm ./*ipynb
     cp ../etudes/*ipynb .

@@ -232,9 +232,7 @@ class ProblemConserv2(Problem):
         raise NotImplementedError
 
 
-class ProblemDiscontinu(Problem):
-    bulles: BulleTemperature
-
+class ProblemDiscontinu(TimeProblem):
     def __init__(
             self,
             T0,
@@ -368,19 +366,8 @@ class ProblemDiscontinu(Problem):
         # rho_cp_np1 * Tnp1 = rho_cp_n * Tn + dt (- int_S_rho_cp_T_u + int_S_lda_grad_T)
         return self.face_interpolation.lda_f * self.face_interpolation.gradT
 
-    def _euler_timestep(self, debug=None, bool_debug=False):
-        bulles_np1 = self.bulles.copy()
-        bulles_np1.shift(self.phy_prop.v * self.dt)
-        I_np1 = bulles_np1.indicatrice_liquide(self.num_prop.x)
-        rho_cp_a_np1 = (
-                I_np1 * self.phy_prop.rho_cp1 + (1.0 - I_np1) * self.phy_prop.rho_cp2
-        )
-        drhocpTdt = self._compute_flux_and_get_integrale(debug, bool_debug)
-        # rho_cp_np1 * Tnp1 = rho_cp_n * Tn + dt (- int_S_rho_cp_T_u + int_S_lda_grad_T)
-        self.T = (self.T * self.rho_cp_a + self.dt * drhocpTdt) / rho_cp_a_np1
-
-    def _compute_flux_and_get_integrale(self, debug=None, bool_debug=False):
-        self.flux_conv = self.rho_cp_f * self._compute_convection_flux(
+    def compute_time_derivative(self, debug=None, bool_debug=False, **kwargs):
+        self.flux_conv = self.rho_cp.a(self.If) * self._compute_convection_flux(
             self.T, self.bulles, bool_debug, debug
         )
         self.flux_diff = self._compute_diffusion_flux(
@@ -395,32 +382,6 @@ class ProblemDiscontinu(Problem):
         ) + self.phy_prop.diff * integrale_vol_div(self.flux_diff, self.num_prop.dx)
         return drhocpTdt
 
-    def _rk3_timestep(self, debug=None, bool_debug=False):
-        K = 0.
-        for step, h in enumerate(self.coeff_h):
-            self.K = self._rk3_substep(h, K, self.coeff_dTdtm1[step], self.coeff_dTdt[step], debug, bool_debug)
-
-    def _rk3_substep(self, h, K, coeff_dTdtm1, coeff_dTdt, debug=None, bool_debug=False):
-        I_f = self.bulles.indicatrice_liquide(self.num_prop.x_f)
-        I = self.bulles.indicatrice_liquide(self.num_prop.x)
-        rho_cp_a = I * self.phy_prop.rho_cp1 + (1.0 - I) * self.phy_prop.rho_cp2
-
-        markers_kp1 = self.bulles.copy()
-        markers_kp1.shift(self.phy_prop.v * h * self.dt)
-        I_kp1 = markers_kp1.indicatrice_liquide(self.num_prop.x)
-        rho_cp_a_kp1 = (
-                I_kp1 * self.phy_prop.rho_cp1 + (1.0 - I_kp1) * self.phy_prop.rho_cp2
-        )
-
-        drhocpTdt = self._compute_flux_and_get_integrale(debug, bool_debug)
-        # rho_cp_np1 * Tnp1 = rho_cp_n * Tn + dt (- int_S_rho_cp_T_u + int_S_lda_grad_T)
-        K = K * coeff_dTdtm1 + drhocpTdt
-        self.T = (
-                        self.T * rho_cp_a + self.dt * h * K / coeff_dTdt
-                ) / rho_cp_a_kp1
-        self.bulles.shift(self.phy_prop.v * h * self.dt)
-        return K
-
     @property
     def name_cas(self):
         return self.name_sous_cas + ', ' + self.interpolation_interface.name + ", " + self.face_interpolation.name
@@ -428,22 +389,6 @@ class ProblemDiscontinu(Problem):
     @property
     def name_sous_cas(self):
         return 'Base'
-
-
-class RK3Timestep(TimestepBase):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.coeff_h = np.array([1.0 / 3, 5.0 / 12, 1.0 / 4])
-        self.coeff_dTdtm1 = np.array([0.0, -5.0 / 9, -153.0 / 128])
-        self.coeff_dTdt = np.array([1.0, 4.0 / 9, 15.0 / 32])
-        self.h = 0.
-        self.K = 0.
-
-    def step(self, pb: Problem, debug=None, bool_debug=False):
-        pb.markers_kp1 = pb.bulles.copy()
-        self.K = 0.0
-        for step, self.h in enumerate(self.coeff_h):
-            self.K = pb._rk3_substep(self.h, self.K, self.coeff_dTdtm1[step], self.coeff_dTdt[step], debug, bool_debug)
 
 
 class ProblemDiscontinuEnergieTemperature(Problem):

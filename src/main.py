@@ -14,11 +14,8 @@
 ##############################################################################
 
 import numpy as np
-from scipy import optimize as opt
 from copy import deepcopy
 import pickle
-from glob import glob
-from src.statistics import Statistics
 from src.interpolation_methods import interpolate, integrale_vol_div, grad, Flux
 
 EPS = 10**-6
@@ -286,6 +283,10 @@ class NumericalProperties:
 
 
 class StateProblem:
+    phy_prop: PhysicalProperties
+    num_prop: NumericalProperties
+    bulles: Bulles
+
     def __init__(self, T0, markers=None, num_prop=None, phy_prop=None, name=None):
         self._imposed_name = name
         if phy_prop is None:
@@ -517,188 +518,6 @@ class StateProblem:
             self.flux_diff, self.dx
         )
         return dTdt
-
-
-class TimeProblem(StateProblem):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.stat = Statistics()
-        self.timestep_method = self._init_timestep()
-
-    def _init_timestep(self):
-        if self.num_prop.time_scheme == 'euler':
-            timestep_method = EulerTimestep()
-        elif self.num_prop.time_scheme == 'rk3':
-            timestep_method = RK3Timestep()
-        else:
-            timestep_method = None
-        return timestep_method
-
-    def copy(self, pb):
-        super().copy(pb)
-        self.stat = deepcopy(pb.stat)
-
-    def timestep(
-            self,
-            n=None,
-            t_fin=None,
-            plot_for_each=1,
-            number_of_plots=None,
-            plotter=None,
-            debug=None,
-            **kwargs
-    ):
-        if plotter is None:
-            raise (Exception("plotter is a mandatory argument"))
-        if (n is None) and (t_fin is None):
-            raise NotImplementedError
-        elif (n is not None) and (t_fin is not None):
-            n = min(n, int(t_fin / self.dt))
-        elif t_fin is not None:
-            n = int(t_fin / self.dt)
-        if number_of_plots is not None:
-            plot_for_each = int((n - 1) / number_of_plots)
-        if plot_for_each <= 0:
-            plot_for_each = 1
-
-        self.stat.extend(n)
-        self.stat.collect(self.time, self.energy)
-
-        for i in range(n):
-            self.timestep_method.step(self, debug=debug, bool_debug=(i % plot_for_each == 0))
-            self.time += self.dt
-            self.iter += 1
-            self.stat.collect(self.time, self.energy)
-            # intermediary plots
-            if (i % plot_for_each == 0) and (i != 0) and (i != n - 1):
-                if isinstance(plotter, list):
-                    for plott in plotter:
-                        plott.plot(self, **kwargs)
-                else:
-                    plotter.plot(self, **kwargs)
-
-        # final plot
-        if isinstance(plotter, list):
-            for plott in plotter:
-                plott.plot(self, **kwargs)
-        else:
-            plotter.plot(self, **kwargs)
-        return self.stat.t, self.stat.E
-
-    def load_or_compute(
-            self,
-            pb_name=None,
-            t_fin=0.0,
-            **kwargs
-    ):
-        if pb_name is None:
-            pb_name = self.full_name
-
-        simu_name = SimuName(pb_name)
-        closer_simu = simu_name.get_closer_simu(self.time + t_fin)
-
-        if closer_simu is not None:
-            with open(closer_simu, "rb") as f:
-                saved = pickle.load(f)
-            self.copy(saved)
-            launch_time = t_fin - self.time
-            print(
-                "Loading ======> %s\nremaining time to compute : %f"
-                % (closer_simu, launch_time)
-            )
-        else:
-            launch_time = t_fin - self.time
-
-        t, E = self.timestep(
-            t_fin=launch_time,
-            **kwargs
-        )
-
-        save_name = simu_name.get_save_path(self.time)
-        with open(save_name, "wb") as f:
-            pickle.dump(self, f)
-
-        return t, E
-
-
-class TimestepBase:
-    def __init__(self, *args, **kwargs):
-        pass
-
-    def step(self, state: StateProblem, *args, **kwargs):
-        raise NotImplementedError
-
-
-class EulerTimestep(TimestepBase):
-    def step(self, pb: StateProblem, debug=None, bool_debug=False):
-        dTdt = pb.compute_time_derivative(debug=debug, bool_debug=bool_debug)
-        pb.T += pb.dt * dTdt
-        pb.update_markers()
-
-
-class RK3Timestep(TimestepBase):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, *kwargs)
-        self.K = 0.0
-        self.coeff_h = np.array([1.0 / 3, 5.0 / 12, 1.0 / 4])
-        self.coeff_dTdtm1 = np.array([0.0, -5.0 / 9, -153.0 / 128])
-        self.coeff_dTdt = np.array([1.0, 4.0 / 9, 15.0 / 32])
-
-    def step(self, pb: StateProblem, *args, **kwargs):
-        for step, h in enumerate(self.coeff_h):
-            self._rk3_substep(pb, h, self.coeff_dTdtm1[step], self.coeff_dTdt[step], *args, **kwargs)
-
-    def _rk3_substep(self, pb, h, coeff_dTdtm1, coeff_dTdt, *args, debug=None, bool_debug=False, **kwargs):
-        dTdt = pb.compute_time_derivative()
-        self.K = self.K * coeff_dTdtm1 + dTdt
-        if bool_debug and (debug is not None):
-            print("step : ", h)
-            print("dTdt : ", dTdt)
-            print("K    : ", self.K)
-        pb.T += h * pb.dt * self.K / coeff_dTdt  # coeff_dTdt est calculé de
-        pb.update_markers(h)
-
-
-class RK4Timestep(TimestepBase):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.pas_de_tempss = np.array([0.0, 0.5, 0.5, 1.0])
-        self.Ks = []
-
-    def step(self, pb: TimeProblem, *args, **kwargs):
-        K = [0.0]
-        T_u_l = []
-        lda_gradT_l = []
-        pas_de_temps = np.array([0.0, 0.5, 0.5, 1.0])
-        dx = pb.num_prop.dx
-        markers_int = pb.bulles.copy()
-        for h in pas_de_temps:
-            I_k = markers_int.indicatrice_liquide(pb.num_prop.x)
-            rho_cp_inv_h = 0.  #TODO a refaire
-            markers_int.shift(pb.phy_prop.v * h * pb.dt)
-
-            T = pb.T + h * pb.dt * K[-1]
-
-            convection = pb._compute_convection_flux(
-                T, markers_int, *args, **kwargs
-            )
-            conduction = pb._compute_diffusion_flux(T, markers_int, *args, **kwargs)
-            # TODO: vérifier qu'il ne faudrait pas plutôt utiliser rho_cp^{n,k}
-            rho_cp_inv_h = 1.0 / pb.rho_cp_h
-            pb._corrige_flux_coeff_interface(T, markers_int, convection, conduction)
-            convection.perio()
-            conduction.perio()
-            dTdt = (
-                -integrale_vol_div(convection, dx)
-                + pb.phy_prop.diff * rho_cp_inv_h * integrale_vol_div(conduction, dx)
-            )
-            T_u_l.append(convection)
-            lda_gradT_l.append(conduction)
-            K.append(dTdt)
-        coeff = np.array([1.0 / 6, 1 / 3.0, 1 / 3.0, 1.0 / 6])
-        self.flux_conv = np.sum(coeff * Flux(T_u_l).T, axis=-1)
-        self.flux_diff = np.sum(coeff * Flux(lda_gradT_l).T, axis=-1)
-        self.T += np.sum(self.dt * coeff * np.array(K[1:]).T, axis=-1)
 
 
 class Problem:
@@ -1128,104 +947,6 @@ class Problem:
             pickle.dump(self, f)
 
         return t, E
-
-
-def get_T(x, markers=None, phy_prop=None):
-    if phy_prop is None:
-        raise Exception
-    else:
-        lda_1 = phy_prop.lda1
-        lda_2 = phy_prop.lda2
-    dx = x[1] - x[0]
-    Delta = x[-1] + dx / 2.0
-    if markers is None:
-        marker = np.array([[0.25 * Delta, 0.75 * Delta]])
-    elif isinstance(markers, Bulles):
-        marker = markers.markers
-    else:
-        marker = markers.copy()
-
-    if len(marker) > 1:
-        raise Exception("Le cas pour plus d une bulle n est pas enore implémenté")
-    marker = marker.squeeze()
-    if marker[0] < marker[1]:
-        m = np.mean(marker)
-    else:
-        m = np.mean([marker[0], marker[1] + Delta])
-        if m > Delta:
-            m -= Delta
-    T1 = lda_2 * np.cos(2 * np.pi * (x - m) / Delta)
-    w = opt.fsolve(
-        lambda y: y * np.sin(2 * np.pi * y * (marker[0] - m) / Delta)
-        - np.sin(2 * np.pi * (marker[0] - m) / Delta),
-        np.array(1.0),
-    )
-    b = lda_2 * np.cos(2 * np.pi / Delta * (marker[0] - m)) - lda_1 * np.cos(
-        2 * np.pi * w / Delta * (marker[0] - m)
-    )
-    T2 = lda_1 * np.cos(w * 2 * np.pi * ((x - m) / Delta)) + b
-    T = T1.copy()
-    if marker[0] < marker[1]:
-        bulle = (x > marker[0]) & (x < marker[1])
-    else:
-        bulle = (x < marker[1]) | (x > marker[0])
-    T[bulle] = T2[bulle]
-    T -= np.min(T)
-    T /= np.max(T)
-    return T
-
-
-def get_T_creneau(x, markers=None, phy_prop=None):
-    if phy_prop is None:
-        raise Exception(
-            "Attetion, il faut des propriétés thermiques pour déterminer auto le nbre de bulles"
-        )
-    if markers is None:
-        markers = Bulles(markers=markers, phy_prop=phy_prop)
-    indic_liqu = markers.indicatrice_liquide(x)
-    # T = 1. dans la vapeur, 0. dans le liquide, et Tm = int rhoCpT / int rhoCp dans les mailles diph.
-    T = (
-        phy_prop.rho_cp2
-        * (1.0 - indic_liqu)
-        / (phy_prop.rho_cp1 * indic_liqu + phy_prop.rho_cp2 * (1.0 - indic_liqu))
-    )
-    return T
-
-
-class SimuName:
-    def __init__(self, name: str, directory=None):
-        self._name = name
-        if directory is None:
-            self.directory = "../References"
-        else:
-            self.directory = directory
-
-    @property
-    def name(self):
-        return self._name
-
-    def get_closer_simu(self, t: float):
-        simu_list = glob(self.directory + "/" + self.name + "_t_" + "*" + ".pkl")
-        print("Liste des simus similaires : ")
-        print(simu_list)
-        closer_time = 0.0
-        closer_simu = None
-        for simu in simu_list:
-            time = self._get_time(simu)
-            if (time <= t) & (time > closer_time):
-                closer_time = time
-                closer_simu = simu
-        remaining_running_time = t - closer_time
-        assert remaining_running_time >= 0.0
-        return closer_simu  # , remaining_running_time
-
-    @staticmethod
-    def _get_time(path_to_save_file: str) -> float:
-        time = path_to_save_file.split("_t_")[-1].split(".pkl")[0]
-        return round(float(time), 6)
-
-    def get_save_path(self, t) -> str:
-        return self.directory + "/" + self.name + "_t_%f" % round(t, 6) + ".pkl"
 
 
 class MonofluidVar:

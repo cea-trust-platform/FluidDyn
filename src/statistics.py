@@ -14,18 +14,23 @@
 ##############################################################################
 
 import numpy as np
+from src.main import StateProblem
 
 
 class Statistics:
     def __init__(self):
         self.t = None
         self.E = None
+        self.Tl = None
+        self.Tv = None
         self.n = 0
         self.step = 0
 
-    def collect(self, t, E):
-        self.t[self.step] = t
-        self.E[self.step] = E
+    def collect(self, pb: StateProblem):
+        self.t[self.step] = pb.time
+        self.E[self.step] = pb.energy
+        self.Tl[self.step] = np.sum(pb.T * pb.I) / np.sum(pb.I)
+        self.Tv[self.step] = np.sum(pb.T * (1.-pb.I)) / np.sum(1. - pb.I)
         self.step += 1
 
     def extend(self, longer_n):
@@ -35,9 +40,13 @@ class Statistics:
             self.step = 0
             self.t = np.zeros((longer_n + 1,))
             self.E = np.zeros((longer_n + 1,))
+            self.Tl = np.zeros((longer_n + 1,))
+            self.Tv = np.zeros((longer_n + 1,))
         else:
             self.step = self.E.size - 1
             self.E = np.r_[self.E, np.zeros((self.n,))]
             self.t = np.r_[self.t, np.zeros((self.n,))]
+            self.Tl = np.r_[self.Tl, np.zeros((self.n,))]
+            self.Tv = np.r_[self.Tv, np.zeros((self.n,))]
 
 

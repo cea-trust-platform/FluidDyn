@@ -55,7 +55,7 @@ class Bulles:
                     (center - self.diam / 2.0, center + self.diam / 2.0)
                 )
             self.markers = np.array(self.markers)
-            self.shift(self.Delta * 1./4)
+            self.shift(self.Delta * 1.0 / 4)
         else:
             self.markers = np.array(markers).copy()
             mark1 = self.markers[0][1]
@@ -344,7 +344,9 @@ class StateProblem:
         arrive_bulles = pb.bulles.copy()
         arrive_bulles.shift(-pb.t * pb.v)
         tolerance = 10**-6
-        equal_init_markers = np.all(np.abs(init_bulles.markers - arrive_bulles.markers) < tolerance)
+        equal_init_markers = np.all(
+            np.abs(init_bulles.markers - arrive_bulles.markers) < tolerance
+        )
         if not equal_init_markers:
             raise Exception(
                 "Impossible de copier le Problème, il n'a pas les mm markers de départ"
@@ -429,10 +431,10 @@ class StateProblem:
             dt_cfl = 10**15
         # nombre de fourier = 1. par défaut
         dt_fo = (
-                self.dx**2
-                / max(self.lda.l, self.lda.v)
-                * min(self.rho_cp.l, self.rho_cp.v)
-                * self.num_prop.fo_lim
+            self.dx**2
+            / max(self.lda.l, self.lda.v)
+            * min(self.rho_cp.l, self.rho_cp.v)
+            * self.num_prop.fo_lim
         )
         # dt_fo = dx**2/max(lda1/rho_cp1, lda2/rho_cp2)*fo
         # minimum des 3
@@ -452,7 +454,7 @@ class StateProblem:
     def energy_m(self):
         return np.sum(self.rho_cp.a(self.I) * self.T * self.dx) / self.phy_prop.Delta
 
-    def update_markers(self, h=1.):
+    def update_markers(self, h=1.0):
         self.bulles.shift(h * self.v * self.dt)
         self.I = self._update_I()
         self.If = self._update_If()
@@ -481,9 +483,9 @@ class StateProblem:
         return T_u
 
     def _compute_diffusion_flux(self, T, bulles, bool_debug=False, debug=None):
-        lda_grad_T = interpolate(self.lda.h(self.I), I=self.I, schema="center_h") * grad(
-            T, self.dx
-        )
+        lda_grad_T = interpolate(
+            self.lda.h(self.I), I=self.I, schema="center_h"
+        ) * grad(T, self.dx)
 
         if (debug is not None) and bool_debug:
             # debug.set_title('sous-pas de temps %f' % (len(K) - 2))
@@ -492,9 +494,7 @@ class StateProblem:
                 lda_grad_T,
                 label="lda_h grad T, time = %f" % self.time,
             )
-            debug.plot(
-                self.x_f, lda_grad_T, label="lda_grad_T, time = %f" % self.time
-            )
+            debug.plot(self.x_f, lda_grad_T, label="lda_grad_T, time = %f" % self.time)
             debug.set_xticks(self.x_f)
             debug.grid(b=True, which="major")
             debug.legend()
@@ -514,9 +514,7 @@ class StateProblem:
         self._echange_flux()
         dTdt = -integrale_vol_div(
             self.flux_conv, self.dx
-        ) + self.active_diff * rho_cp_inv_h * integrale_vol_div(
-            self.flux_diff, self.dx
-        )
+        ) + self.active_diff * rho_cp_inv_h * integrale_vol_div(self.flux_diff, self.dx)
         return dTdt
 
 
@@ -563,10 +561,14 @@ class Problem:
                 "Impossible de copier le Problème, il n'a pas les mm propriétés numériques"
             )
         try:
-            equal_init_markers = np.all(self.bulles.init_markers == pb.bulles.init_markers)
+            equal_init_markers = np.all(
+                self.bulles.init_markers == pb.bulles.init_markers
+            )
         except:
             equal_init_markers = True
-            print("Attention, les markers initiaux ne sont pas enregistrés dans la référence")
+            print(
+                "Attention, les markers initiaux ne sont pas enregistrés dans la référence"
+            )
         if not equal_init_markers:
             raise Exception(
                 "Impossible de copier le Problème, il n'a pas les mm markers de départ"
@@ -955,10 +957,15 @@ class MonofluidVar:
         self._val_vapeur = val_vapeur
 
     def a(self, indicatrice_liquide):
-        return self._val_liquid * indicatrice_liquide + self._val_vapeur * (1. - indicatrice_liquide)
+        return self._val_liquid * indicatrice_liquide + self._val_vapeur * (
+            1.0 - indicatrice_liquide
+        )
 
     def h(self, indicatrice_liquide):
-        return 1. / (indicatrice_liquide / self._val_liquid + (1. - indicatrice_liquide) / self._val_vapeur)
+        return 1.0 / (
+            indicatrice_liquide / self._val_liquid
+            + (1.0 - indicatrice_liquide) / self._val_vapeur
+        )
 
     @property
     def l(self):
@@ -972,7 +979,7 @@ class MonofluidVar:
         return MonofluidVar(self.l * other.l, self.v * other.v)
 
     def __divmod__(self, other):
-        assert (other.l != 0.) and (other.v != 0.)
+        assert (other.l != 0.0) and (other.v != 0.0)
         return MonofluidVar(self.l / other.l, self.v / other.v)
 
     def __add__(self, other):
@@ -980,4 +987,3 @@ class MonofluidVar:
 
     def __sub__(self, other):
         return MonofluidVar(self.l - other.l, self.v - other.v)
-

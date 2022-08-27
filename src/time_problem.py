@@ -36,7 +36,9 @@ class TimeProblem:
         self.problem_state = problem_state
         if stat is None:
             stat = Statistics()
-        self.timestep_scheme = self._init_timestep(self.problem_state.num_prop.time_scheme)
+        self.timestep_scheme = self._init_timestep(
+            self.problem_state.num_prop.time_scheme
+        )
         self.stat = stat
         if plotter is None:
             plotter = Plotter()
@@ -44,9 +46,9 @@ class TimeProblem:
 
     @staticmethod
     def _init_timestep(time_scheme_name: str):
-        if time_scheme_name == 'euler':
+        if time_scheme_name == "euler":
             timestep_method = EulerTimestep()
-        elif time_scheme_name == 'rk3':
+        elif time_scheme_name == "rk3":
             timestep_method = RK3Timestep()
         else:
             raise NotImplementedError
@@ -57,14 +59,14 @@ class TimeProblem:
         self.stat = deepcopy(pb.stat)
 
     def timestep(
-            self,
-            n=None,
-            t_fin=None,
-            plot_for_each=1,
-            number_of_plots=None,
-            plotter=None,
-            debug=None,
-            **kwargs
+        self,
+        n=None,
+        t_fin=None,
+        plot_for_each=1,
+        number_of_plots=None,
+        plotter=None,
+        debug=None,
+        **kwargs
     ):
         n = self._get_iteration_number(n, t_fin)
 
@@ -79,7 +81,9 @@ class TimeProblem:
         self.stat.collect(self.problem_state)
 
         for i in range(n):
-            self.timestep_scheme.step(self.problem_state, debug=debug, bool_debug=(i % plot_for_each == 0))
+            self.timestep_scheme.step(
+                self.problem_state, debug=debug, bool_debug=(i % plot_for_each == 0)
+            )
             self.stat.collect(self.problem_state)
             # intermediary plots
             if (i % plot_for_each == 0) and (i != 0) and (i != n - 1):
@@ -109,12 +113,7 @@ class TimeProblem:
             plot_for_each = 1
         return plot_for_each
 
-    def load_or_compute(
-            self,
-            pb_name=None,
-            t_fin=0.0,
-            **kwargs
-    ):
+    def load_or_compute(self, pb_name=None, t_fin=0.0, **kwargs):
         if pb_name is None:
             pb_name = self.problem_state.full_name
 
@@ -133,15 +132,12 @@ class TimeProblem:
         else:
             launch_time = t_fin - self.problem_state.time
 
-        t, E = self.timestep(
-            t_fin=launch_time,
-            **kwargs
-        )
+        t, E = self.timestep(t_fin=launch_time, **kwargs)
 
         save_name = simu_name.get_save_path(self.problem_state.time)
         with open(save_name, "wb") as f:
             pickle.dump(self.problem_state, f)
-        with open('statistics_' + save_name, "wb") as f:
+        with open("statistics_" + save_name, "wb") as f:
             pickle.dump(self.stat, f)
 
         return t, E

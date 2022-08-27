@@ -30,7 +30,7 @@ class Statistics:
         self.t[self.step] = pb.time
         self.E[self.step] = pb.energy
         self.Tl[self.step] = np.sum(pb.T * pb.I) / np.sum(pb.I)
-        self.Tv[self.step] = np.sum(pb.T * (1.-pb.I)) / np.sum(1. - pb.I)
+        self.Tv[self.step] = np.sum(pb.T * (1.0 - pb.I)) / np.sum(1.0 - pb.I)
         self.step += 1
 
     def extend(self, longer_n):
@@ -48,5 +48,3 @@ class Statistics:
             self.t = np.r_[self.t, np.zeros((self.n,))]
             self.Tl = np.r_[self.Tl, np.zeros((self.n,))]
             self.Tv = np.r_[self.Tv, np.zeros((self.n,))]
-
-

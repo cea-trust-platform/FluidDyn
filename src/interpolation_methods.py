@@ -162,13 +162,13 @@ def interpolate_from_center_to_face_weno(a, cl=1, cv_0=0.0, cv_n=0.0):
     f3 = 1.0 / 3 * uj + 5.0 / 6 * ujp1 - 1.0 / 6 * ujp2
     eps = np.array(10.0**-6)
     b1 = (
-            13.0 / 12 * (ujm2 - 2 * ujm1 + uj) ** 2
-            + 1.0 / 4 * (ujm2 - 4 * ujm1 + 3 * uj) ** 2
+        13.0 / 12 * (ujm2 - 2 * ujm1 + uj) ** 2
+        + 1.0 / 4 * (ujm2 - 4 * ujm1 + 3 * uj) ** 2
     )
     b2 = 13.0 / 12 * (ujm1 - 2 * uj + ujp1) ** 2 + 1.0 / 4 * (ujm1 - ujp1) ** 2
     b3 = (
-            13.0 / 12 * (uj - 2 * ujp1 + ujp2) ** 2
-            + 1.0 / 4 * (3 * uj - 4 * ujp1 + ujp2) ** 2
+        13.0 / 12 * (uj - 2 * ujp1 + ujp2) ** 2
+        + 1.0 / 4 * (3 * uj - 4 * ujp1 + ujp2) ** 2
     )
     w1 = 1.0 / 10 / (eps + b1) ** 2
     w2 = 3.0 / 5 / (eps + b2) ** 2
@@ -233,7 +233,7 @@ def interpolate_from_center_to_face_quick(a, cl=1, cv_0=0.0, cv_n=0.0):
 
 
 def interpolate_from_center_to_face_quick_upwind_interface(
-        a, I, cl=1, cv_0=0.0, cv_n=0.0
+    a, I, cl=1, cv_0=0.0, cv_n=0.0
 ):
     """
     Quick scheme and upwind at the interface, in this case upwind is always on the left side.
@@ -284,7 +284,7 @@ def interpolate_from_center_to_face_quick_upwind_interface(
 
 
 def interpolate_center_value_weno_to_face_upwind_interface(
-        a, I, cl=1, cv_0=0.0, cv_n=0.0
+    a, I, cl=1, cv_0=0.0, cv_n=0.0
 ):
     """
     interpolate the center value a[i] at the face res[i+1] (corresponding to the upwind scheme) on diphasic cells
@@ -375,23 +375,23 @@ def grad_center4(center_value, dx=1.0, cl=1):
         raise NotImplementedError
     gradient = np.zeros(center_value.shape[0] + 1)
     gradient[2:-2] = (
-                             9.0 / 8 * (center_value[2:-1] - center_value[1:-2])
-                             - 1.0 / 24 * (center_value[3:] - center_value[:-4])
-                     ) / dx
+        9.0 / 8 * (center_value[2:-1] - center_value[1:-2])
+        - 1.0 / 24 * (center_value[3:] - center_value[:-4])
+    ) / dx
     if cl == 1:
         gradient[0] = (
-                              9.0 / 8 * (center_value[0] - center_value[-1])
-                              - 1 / 24 * (center_value[1] - center_value[-2])
-                      ) / dx
+            9.0 / 8 * (center_value[0] - center_value[-1])
+            - 1 / 24 * (center_value[1] - center_value[-2])
+        ) / dx
         gradient[-1] = gradient[0]  # periodicity
         gradient[1] = (
-                              9.0 / 8 * (center_value[1] - center_value[0])
-                              - 1 / 24 * (center_value[2] - center_value[-1])
-                      ) / dx
+            9.0 / 8 * (center_value[1] - center_value[0])
+            - 1 / 24 * (center_value[2] - center_value[-1])
+        ) / dx
         gradient[-2] = (
-                               9.0 / 8 * (center_value[-1] - center_value[-2])
-                               - 1 / 24 * (center_value[0] - center_value[-3])
-                       ) / dx
+            9.0 / 8 * (center_value[-1] - center_value[-2])
+            - 1 / 24 * (center_value[0] - center_value[-3])
+        ) / dx
     else:
         raise NotImplementedError
     return gradient

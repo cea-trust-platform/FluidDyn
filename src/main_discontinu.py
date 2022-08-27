@@ -124,15 +124,15 @@ class ProblemConserv2(Problem):
 
     def _euler_timestep(self, debug=None, bool_debug=False):
         rho_cp_u = (
-                interpolate(self.rho_cp_a, I=self.I, schema=self.num_prop.schema)
-                * self.phy_prop.v
+            interpolate(self.rho_cp_a, I=self.I, schema=self.num_prop.schema)
+            * self.phy_prop.v
         )
         int_div_rho_cp_u = integrale_vol_div(rho_cp_u, self.num_prop.dx)
         rho_cp_etoile = self.rho_cp_a + self.dt * int_div_rho_cp_u
 
         self.flux_conv = (
-                interpolate(self.rho_cp_a * self.T, I=self.I, schema=self.num_prop.schema)
-                * self.phy_prop.v
+            interpolate(self.rho_cp_a * self.T, I=self.I, schema=self.num_prop.schema)
+            * self.phy_prop.v
         )
         int_div_rho_cp_T_u = integrale_vol_div(self.flux_conv, self.num_prop.dx)
 
@@ -146,7 +146,7 @@ class ProblemConserv2(Problem):
                 self.num_prop.x,
                 1.0 / self.rho_cp_h,
                 label="rho_cp_inv_h, time = %f" % self.time,
-                )
+            )
             debug.plot(
                 self.num_prop.x,
                 int_div_lda_grad_T,
@@ -161,13 +161,13 @@ class ProblemConserv2(Problem):
                 debug.plot([markers[1]] * 2, [mini, maxi], "--")
                 debug.legend()
         self.T += (
-                self.dt
-                / rho_cp_etoile
-                * (
-                        int_div_rho_cp_u * self.T
-                        + -int_div_rho_cp_T_u
-                        + self.phy_prop.diff * int_div_lda_grad_T
-                )
+            self.dt
+            / rho_cp_etoile
+            * (
+                int_div_rho_cp_u * self.T
+                + -int_div_rho_cp_T_u
+                + self.phy_prop.diff * int_div_lda_grad_T
+            )
         )
 
     def _rk4_timestep(self, debug=None, bool_debug=False):
@@ -185,8 +185,8 @@ class ProblemConserv2(Problem):
 
             rho_cp = self.rho_cp_a + h * self.dt * K_rhocp[-1]
             rho_cp_u = (
-                    interpolate(rho_cp, I=temp_I, schema=self.num_prop.schema)
-                    * self.phy_prop.v
+                interpolate(rho_cp, I=temp_I, schema=self.num_prop.schema)
+                * self.phy_prop.v
             )
             int_div_rho_cp_u = integrale_vol_div(rho_cp_u, self.num_prop.dx)
 
@@ -196,14 +196,14 @@ class ProblemConserv2(Problem):
 
             T = self.T + h * self.dt * K[-1]
             rho_cp_T_u = (
-                    interpolate(rho_cp * T, I=temp_I, schema=self.num_prop.schema)
-                    * self.phy_prop.v
+                interpolate(rho_cp * T, I=temp_I, schema=self.num_prop.schema)
+                * self.phy_prop.v
             )
             rho_cp_T_u_l.append(rho_cp_T_u)
             int_div_rho_cp_T_u = integrale_vol_div(rho_cp_T_u, self.num_prop.dx)
 
             Lda_h = 1.0 / (
-                    temp_I / self.phy_prop.lda1 + (1.0 - temp_I) / self.phy_prop.lda2
+                temp_I / self.phy_prop.lda1 + (1.0 - temp_I) / self.phy_prop.lda2
             )
             lda_grad_T = interpolate(Lda_h, I=temp_I, schema="center_h") * grad(
                 T, self.num_prop.dx
@@ -215,9 +215,9 @@ class ProblemConserv2(Problem):
                 1.0
                 / rho_cp_etoile
                 * (
-                        T * int_div_rho_cp_u
-                        - int_div_rho_cp_T_u
-                        + self.phy_prop.diff * int_div_lda_grad_T
+                    T * int_div_rho_cp_u
+                    - int_div_rho_cp_T_u
+                    + self.phy_prop.diff * int_div_lda_grad_T
                 )
             )
 
@@ -234,14 +234,14 @@ class ProblemConserv2(Problem):
 
 class ProblemDiscontinu(TimeProblem):
     def __init__(
-            self,
-            T0,
-            markers=None,
-            num_prop=None,
-            phy_prop=None,
-            interp_type=None,
-            conv_interf=None,
-            **kwargs
+        self,
+        T0,
+        markers=None,
+        num_prop=None,
+        phy_prop=None,
+        interp_type=None,
+        conv_interf=None,
+        **kwargs
     ):
         super().__init__(T0, markers, num_prop=num_prop, phy_prop=phy_prop, **kwargs)
         if num_prop.time_scheme == "rk3":
@@ -262,26 +262,40 @@ class ProblemDiscontinu(TimeProblem):
         if isinstance(self.interp_type, InterfaceInterpolationBase):
             self.interpolation_interface = self.interp_type
         # Le reste est hérité de l'ancienne manière de faire. À supprimer à terme.
-        elif self.interp_type == 'Ti':
-            self.interpolation_interface = InterfaceInterpolation1_0(dx=self.num_prop.dx)
-        elif self.interp_type == 'Ti2':
+        elif self.interp_type == "Ti":
+            self.interpolation_interface = InterfaceInterpolation1_0(
+                dx=self.num_prop.dx
+            )
+        elif self.interp_type == "Ti2":
             self.interpolation_interface = InterfaceInterpolation2(dx=self.num_prop.dx)
         elif self.interp_type == "Ti2_vol":
-            self.interpolation_interface = InterfaceInterpolation2(dx=self.num_prop.dx, volume_integration=True)
+            self.interpolation_interface = InterfaceInterpolation2(
+                dx=self.num_prop.dx, volume_integration=True
+            )
         elif self.interp_type == "Ti3":
             self.interpolation_interface = InterfaceInterpolation3(dx=self.num_prop.dx)
         elif self.interp_type == "Ti3_vol":
-            self.interpolation_interface = InterfaceInterpolation3(dx=self.num_prop.dx, volume_integration=True)
+            self.interpolation_interface = InterfaceInterpolation3(
+                dx=self.num_prop.dx, volume_integration=True
+            )
         elif self.interp_type == "Ti3_1_vol":
             raise NotImplementedError
         elif self.interp_type == "gradTi":
-            self.interpolation_interface = InterfaceInterpolationContinuousFlux1(dx=self.num_prop.dx)
+            self.interpolation_interface = InterfaceInterpolationContinuousFlux1(
+                dx=self.num_prop.dx
+            )
         elif self.interp_type == "gradTi2":
-            self.interpolation_interface = InterfaceInterpolationContinuousFlux2(dx=self.num_prop.dx)
+            self.interpolation_interface = InterfaceInterpolationContinuousFlux2(
+                dx=self.num_prop.dx
+            )
         elif self.interp_type == "energie_temperature":
-            self.interpolation_interface = InterfaceInterpolationEnergieTemperature(dx=self.num_prop.dx)
+            self.interpolation_interface = InterfaceInterpolationEnergieTemperature(
+                dx=self.num_prop.dx
+            )
         elif self.interp_type == "integrale":
-            self.interpolation_interface = InterfaceInterpolationIntegral(dx=self.num_prop.dx)
+            self.interpolation_interface = InterfaceInterpolationIntegral(
+                dx=self.num_prop.dx
+            )
         else:
             raise NotImplementedError
 
@@ -289,21 +303,37 @@ class ProblemDiscontinu(TimeProblem):
             self.face_interpolation = conv_interf
         # Le reste est hérité de l'ancienne manière de faire. À supprimer à terme.
         elif self.interp_type.endswith("_vol"):
-            self.face_interpolation = FaceInterpolationQuick(vdt=self.phy_prop.v * self.dt, time_integral='exact')
+            self.face_interpolation = FaceInterpolationQuick(
+                vdt=self.phy_prop.v * self.dt, time_integral="exact"
+            )
         elif self.interp_type == "energie_temperature":
-            self.face_interpolation = FaceInterpolationQuick(vdt=self.phy_prop.v * self.dt, time_integral='exact')
+            self.face_interpolation = FaceInterpolationQuick(
+                vdt=self.phy_prop.v * self.dt, time_integral="exact"
+            )
         elif self.conv_interf == "weno":
-            self.face_interpolation = FaceInterpolationQuick(vdt=self.phy_prop.v * self.dt, time_integral='exact')
+            self.face_interpolation = FaceInterpolationQuick(
+                vdt=self.phy_prop.v * self.dt, time_integral="exact"
+            )
         elif self.conv_interf == "quick":
-            self.face_interpolation = FaceInterpolationQuick(vdt=self.phy_prop.v * self.dt, time_integral='exact')
+            self.face_interpolation = FaceInterpolationQuick(
+                vdt=self.phy_prop.v * self.dt, time_integral="exact"
+            )
         elif self.conv_interf == "quick_ghost":
-            self.face_interpolation = FaceInterpolationQuickGhost(vdt=self.phy_prop.v * self.dt, time_integral='exact')
+            self.face_interpolation = FaceInterpolationQuickGhost(
+                vdt=self.phy_prop.v * self.dt, time_integral="exact"
+            )
         elif self.conv_interf == "quick_upwind_ghost":
-            self.face_interpolation = FaceInterpolationQuickUpwindGhost(vdt=self.phy_prop.v * self.dt, time_integral='exact')
+            self.face_interpolation = FaceInterpolationQuickUpwindGhost(
+                vdt=self.phy_prop.v * self.dt, time_integral="exact"
+            )
         elif self.conv_interf == "upwind":
-            self.face_interpolation = FaceInterpolationUpwind(vdt=self.phy_prop.v * self.dt, time_integral='exact')
+            self.face_interpolation = FaceInterpolationUpwind(
+                vdt=self.phy_prop.v * self.dt, time_integral="exact"
+            )
         elif self.conv_interf == "amont_centre":
-            self.face_interpolation = FaceInterpolationAmontCentre(vdt=self.phy_prop.v * self.dt, time_integral='exact')
+            self.face_interpolation = FaceInterpolationAmontCentre(
+                vdt=self.phy_prop.v * self.dt, time_integral="exact"
+            )
         else:
             raise NotImplementedError
 
@@ -315,7 +345,9 @@ class ProblemDiscontinu(TimeProblem):
             self.interpolation_interface = deepcopy(pb.interpolation_interface)
             self.face_interpolation = deepcopy(pb.face_interpolation)
         except AttributeError:
-            print("Pas d'interpolation chargée, attention la sauvegarde est probablement trop vieille")
+            print(
+                "Pas d'interpolation chargée, attention la sauvegarde est probablement trop vieille"
+            )
 
     def _init_bulles(self, markers=None) -> BulleTemperature:
         if markers is None:
@@ -339,10 +371,14 @@ class ProblemDiscontinu(TimeProblem):
             for ist, i in enumerate((i_amont, i_aval)):
                 stencil_interf = list(cl_perio(len(T), i))
                 ldag, rhocpg, ag, ldad, rhocpd, ad = get_prop(
-                    self, i, liqu_a_gauche= (i == i_amont)
+                    self, i, liqu_a_gauche=(i == i_amont)
                 )
-                self.interpolation_interface.interpolate(T[stencil_interf], ag, ldag, ldad)
-                self.face_interpolation.interpolate_on_faces(self.interpolation_interface, rhocpg, rhocpd)
+                self.interpolation_interface.interpolate(
+                    T[stencil_interf], ag, ldag, ldad
+                )
+                self.face_interpolation.interpolate_on_faces(
+                    self.interpolation_interface, rhocpg, rhocpd
+                )
                 self._corrige_flux_une_interface(stencil_interf, *args)
                 self.bulles.post(self.interpolation_interface, i_bulle, ist)
 
@@ -360,7 +396,11 @@ class ProblemDiscontinu(TimeProblem):
 
     def _get_new_flux_conv(self):
         # rho_cp_np1 * Tnp1 = rho_cp_n * Tn + dt (- int_S_rho_cp_T_u + int_S_lda_grad_T)
-        return self.face_interpolation.rhocp_f * self.face_interpolation.T_f * self.phy_prop.v
+        return (
+            self.face_interpolation.rhocp_f
+            * self.face_interpolation.T_f
+            * self.phy_prop.v
+        )
 
     def _get_new_flux_diff(self):
         # rho_cp_np1 * Tnp1 = rho_cp_n * Tn + dt (- int_S_rho_cp_T_u + int_S_lda_grad_T)
@@ -384,11 +424,17 @@ class ProblemDiscontinu(TimeProblem):
 
     @property
     def name_cas(self):
-        return self.name_sous_cas + ', ' + self.interpolation_interface.name + ", " + self.face_interpolation.name
+        return (
+            self.name_sous_cas
+            + ", "
+            + self.interpolation_interface.name
+            + ", "
+            + self.face_interpolation.name
+        )
 
     @property
     def name_sous_cas(self):
-        return 'Base'
+        return "Base"
 
 
 class ProblemDiscontinuEnergieTemperature(Problem):
@@ -762,14 +808,10 @@ class ProblemDiscontinuEbis(ProblemDiscontinu):
         phy_prop: les propriétés physiques du calcul
     """
 
-    def __init__(
-            self,
-            *args,
-            interp_type='Ti',
-            conv_interf='quick',
-            **kwargs
-    ):
-        super().__init__(*args, interp_type=interp_type, conv_interf=conv_interf, **kwargs)
+    def __init__(self, *args, interp_type="Ti", conv_interf="quick", **kwargs):
+        super().__init__(
+            *args, interp_type=interp_type, conv_interf=conv_interf, **kwargs
+        )
         # if num_prop.time_scheme == "rk3":
         #     print("RK3 is not implemented, changes to Euler")
         #     self.num_prop._time_scheme = "euler"
@@ -782,7 +824,11 @@ class ProblemDiscontinuEbis(ProblemDiscontinu):
 
     def _get_new_flux_conv(self):
         # rho_cp_np1 * Tnp1 = rho_cp_n * Tn + dt (- int_S_rho_cp_T_u + int_S_lda_grad_T)
-        return self.face_interpolation.rhocp_f * self.face_interpolation.T_f * self.phy_prop.v
+        return (
+            self.face_interpolation.rhocp_f
+            * self.face_interpolation.T_f
+            * self.phy_prop.v
+        )
 
     def _get_new_flux_diff(self):
         # rho_cp_np1 * Tnp1 = rho_cp_n * Tn + dt (- int_S_rho_cp_T_u + int_S_lda_grad_T)
@@ -794,7 +840,7 @@ class ProblemDiscontinuEbis(ProblemDiscontinu):
         bulles_np1.shift(self.phy_prop.v * self.dt)
         I_np1 = bulles_np1.indicatrice_liquide(self.num_prop.x)
         rho_cp_a_np1 = (
-                I_np1 * self.phy_prop.rho_cp1 + (1.0 - I_np1) * self.phy_prop.rho_cp2
+            I_np1 * self.phy_prop.rho_cp1 + (1.0 - I_np1) * self.phy_prop.rho_cp2
         )
         self.flux_conv = self.rho_cp_f * self._compute_convection_flux(
             self.T, self.bulles, bool_debug, debug
@@ -830,7 +876,7 @@ class ProblemDiscontinuEbis(ProblemDiscontinu):
             markers_int_kp1.shift(self.phy_prop.v * h * self.dt)
             I_kp1 = markers_int_kp1.indicatrice_liquide(self.num_prop.x)
             rho_cp_a_kp1 = (
-                    I_kp1 * self.phy_prop.rho_cp1 + (1.0 - I_kp1) * self.phy_prop.rho_cp2
+                I_kp1 * self.phy_prop.rho_cp1 + (1.0 - I_kp1) * self.phy_prop.rho_cp2
             )
 
             flux_conv = rho_cp_f * self._compute_convection_flux(
@@ -850,15 +896,15 @@ class ProblemDiscontinuEbis(ProblemDiscontinu):
             # rho_cp_np1 * Tnp1 = rho_cp_n * Tn + dt (- int_S_rho_cp_T_u + int_S_lda_grad_T)
             K = K * coeff_dTdtm1[step] + drhocpTdt
             T_int = (
-                            T_int * rho_cp_a + self.dt * h * K / coeff_dTdt[step]
-                    ) / rho_cp_a_kp1
+                T_int * rho_cp_a + self.dt * h * K / coeff_dTdt[step]
+            ) / rho_cp_a_kp1
             markers_int.shift(self.phy_prop.v * h * self.dt)
 
         self.T = T_int
 
     @property
     def name_sous_cas(self):
-        return 'ESP'
+        return "ESP"
 
 
 class ProblemDiscontinuE(Problem):
@@ -3674,4 +3720,3 @@ class ProblemDiscontinuFT(Problem):
     @property
     def name_cas(self):
         return "TFF "  # température front-fitting
-

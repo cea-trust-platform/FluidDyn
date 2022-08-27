@@ -29,7 +29,7 @@ def get_T(x, markers=None, phy_prop=None):
     T1 = lda_2 * np.cos(2 * np.pi * (x - m) / Delta)
     w = opt.fsolve(
         lambda y: y * np.sin(2 * np.pi * y * (marker[0] - m) / Delta)
-                  - np.sin(2 * np.pi * (marker[0] - m) / Delta),
+        - np.sin(2 * np.pi * (marker[0] - m) / Delta),
         np.array(1.0),
     )
     b = lda_2 * np.cos(2 * np.pi / Delta * (marker[0] - m)) - lda_1 * np.cos(
@@ -57,8 +57,8 @@ def get_T_creneau(x, markers=None, phy_prop=None):
     indic_liqu = markers.indicatrice_liquide(x)
     # T = 1. dans la vapeur, 0. dans le liquide, et Tm = int rhoCpT / int rhoCp dans les mailles diph.
     T = (
-            phy_prop.rho_cp2
-            * (1.0 - indic_liqu)
-            / (phy_prop.rho_cp1 * indic_liqu + phy_prop.rho_cp2 * (1.0 - indic_liqu))
+        phy_prop.rho_cp2
+        * (1.0 - indic_liqu)
+        / (phy_prop.rho_cp1 * indic_liqu + phy_prop.rho_cp2 * (1.0 - indic_liqu))
     )
     return T

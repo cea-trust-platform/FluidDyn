@@ -29,11 +29,23 @@ class RK3Timestep(TimestepBase):
 
     def step(self, pb: StateProblem, *args, **kwargs):
         for step, h in enumerate(self.coeff_h):
-            self._rk3_substep(pb, h, self.coeff_dTdtm1[step], self.coeff_dTdt[step], *args, **kwargs)
+            self._rk3_substep(
+                pb, h, self.coeff_dTdtm1[step], self.coeff_dTdt[step], *args, **kwargs
+            )
         pb.time += pb.dt
         pb.iter += 1
 
-    def _rk3_substep(self, pb, h, coeff_dTdtm1, coeff_dTdt, *args, debug=None, bool_debug=False, **kwargs):
+    def _rk3_substep(
+        self,
+        pb,
+        h,
+        coeff_dTdtm1,
+        coeff_dTdt,
+        *args,
+        debug=None,
+        bool_debug=False,
+        **kwargs
+    ):
         dTdt = pb.compute_time_derivative()
         self.K = self.K * coeff_dTdtm1 + dTdt
         if bool_debug and (debug is not None):
@@ -59,24 +71,21 @@ class RK4Timestep(TimestepBase):
         markers_int = pb.bulles.copy()
         for h in pas_de_temps:
             I_k = markers_int.indicatrice_liquide(pb.num_prop.x)
-            rho_cp_inv_h = 1. / pb.rho_cp.h(I_k)
+            rho_cp_inv_h = 1.0 / pb.rho_cp.h(I_k)
             markers_int.shift(pb.phy_prop.v * h * pb.dt)
 
             T = pb.T + h * pb.dt * K[-1]
 
             # TODO: bouger ça dans la classe StateProblem
-            convection = pb._compute_convection_flux(
-                T, markers_int, *args, **kwargs
-            )
+            convection = pb._compute_convection_flux(T, markers_int, *args, **kwargs)
             conduction = pb._compute_diffusion_flux(T, markers_int, *args, **kwargs)
             # TODO: vérifier qu'il ne faudrait pas plutôt utiliser rho_cp^{n,k}
             pb._corrige_flux_coeff_interface(T, markers_int, convection, conduction)
             convection.perio()
             conduction.perio()
-            dTdt = (
-                    -integrale_vol_div(convection, dx)
-                    + pb.phy_prop.diff * rho_cp_inv_h * integrale_vol_div(conduction, dx)
-            )
+            dTdt = -integrale_vol_div(
+                convection, dx
+            ) + pb.phy_prop.diff * rho_cp_inv_h * integrale_vol_div(conduction, dx)
             T_u_l.append(convection)
             lda_gradT_l.append(conduction)
             K.append(dTdt)
@@ -98,7 +107,17 @@ class EulerEnergieTimestep(EulerTimestep):
 
 
 class RK3EnergieTimestep(RK3Timestep):
-    def _rk3_substep(self, pb: StateProblem, h, coeff_dTdtm1, coeff_dTdt, debug=None, bool_debug=False, *args, **kwargs):
+    def _rk3_substep(
+        self,
+        pb: StateProblem,
+        h,
+        coeff_dTdtm1,
+        coeff_dTdt,
+        debug=None,
+        bool_debug=False,
+        *args,
+        **kwargs
+    ):
         rho_cp_a = pb.rho_cp.a(pb.I)
         markers_kp1 = pb.bulles.copy()
         markers_kp1.shift(pb.v * h * pb.dt)
@@ -106,7 +125,5 @@ class RK3EnergieTimestep(RK3Timestep):
         rho_cp_a_kp1 = pb.rho_cp.a(I_kp1)
         drhocpTdt = pb.compute_time_derivative(debug, bool_debug)
         self.K = self.K * coeff_dTdtm1 + drhocpTdt
-        pb.T = (
-                       pb.T * rho_cp_a + pb.dt * h * self.K / coeff_dTdt
-               ) / rho_cp_a_kp1
+        pb.T = (pb.T * rho_cp_a + pb.dt * h * self.K / coeff_dTdt) / rho_cp_a_kp1
         pb.update_markers(h)

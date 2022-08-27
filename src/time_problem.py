@@ -13,14 +13,12 @@
 #
 ##############################################################################
 
-import pickle
-from copy import deepcopy
 from glob import glob
 
-from src.main import StateProblem
-from src.plot_fields import Plotter
-from src.statistics import Statistics
 from src.time_scheme import EulerTimestep, RK3Timestep, TimestepBase
+from src.main_discontinu import *
+from src.statistics import Statistics
+from src.plot_fields import Plotter
 
 
 class TimeProblem:

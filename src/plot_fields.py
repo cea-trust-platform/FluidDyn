@@ -14,10 +14,11 @@
 ##############################################################################
 
 import math
-from src.main_discontinu import *
 from src.main import *
+from src.main_discontinu import get_prop, BulleTemperature
 
 from matplotlib import rc
+import matplotlib.pyplot as plt
 
 rc("text", usetex=True)
 rc("font", size=18)
@@ -28,9 +29,6 @@ rc("figure", max_open_warning=50)
 # rc("figure", dpi=200)
 rc("savefig", dpi=300)
 rc("legend", loc="upper right")
-
-
-import matplotlib.pyplot as plt
 
 
 class Plotter:
@@ -382,9 +380,7 @@ def plot_temperature_bulles(
             Tig.append(problem.bulles.Tg[i_int, j])
             Tid.append(problem.bulles.Td[i_int, j])
             lda_grad_Ti.append(problem.bulles.lda_grad_T[i_int, j])
-            ldag, rhocpg, ag, ldad, rhocpd, ad = get_prop(
-                problem, i, liqu_a_gauche=(not j)
-            )
+            ldag, rhocpg, ag, ldad, rhocpd, ad = get_prop(problem, i, liqu_a_gauche=(not j))
             if quiver and (ax is not None):
                 if i > 1:
                     ax.quiver(
@@ -538,7 +534,7 @@ def decale_perio(x, T, Delta=None, x0=0.0, markers=None, plot=False):
     if plot:
         plt.figure()
         plt.plot(x, T_decale, label="Tn")
-        T_np1 = np.r_[T[n + 1 :], T[: n + 1]]
+        T_np1 = np.r_[T[n + 1:], T[: n + 1]]
         plt.plot(x, T_np1, label="Tnp1")
         plt.plot(x_decale, T_decale, label="T decale")
 

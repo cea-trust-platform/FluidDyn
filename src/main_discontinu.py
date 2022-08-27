@@ -81,7 +81,7 @@ class BulleTemperature(Bulles):
         super().shift(dx)
         self._set_indices_markers(self.x)
 
-    def post(self, cells, i_int: int, ist: int):
+    def post(self, cells: CellsInterface, i_int: int, ist: int):
         self.cells[2 * i_int + ist] = cells
         self.lda_grad_T[i_int, ist] = cells.lda_gradTi
         self.T[i_int, ist] = cells.Ti
@@ -91,21 +91,21 @@ class BulleTemperature(Bulles):
         self.gradTd[i_int, ist] = cells.gradTd[0]
 
 
-def get_prop(prop, i, liqu_a_gauche=True):
+def get_prop(prob: StateProblem, i, liqu_a_gauche=True):
     if liqu_a_gauche:
-        ldag = prop.phy_prop.lda1
-        rhocpg = prop.phy_prop.rho_cp1
-        ldad = prop.phy_prop.lda2
-        rhocpd = prop.phy_prop.rho_cp2
-        ag = prop.I[i]
-        ad = 1.0 - prop.I[i]
+        ldag = prob.lda.l
+        rhocpg = prob.rho_cp.l
+        ldad = prob.lda.v
+        rhocpd = prob.rho_cp.v
+        ag = prob.I[i]
+        ad = 1.0 - prob.I[i]
     else:
-        ldag = prop.phy_prop.lda2
-        rhocpg = prop.phy_prop.rho_cp2
-        ldad = prop.phy_prop.lda1
-        rhocpd = prop.phy_prop.rho_cp1
-        ag = 1.0 - prop.I[i]
-        ad = prop.I[i]
+        ldag = prob.lda.v
+        rhocpg = prob.rho_cp.v
+        ldad = prob.lda.l
+        rhocpd = prob.rho_cp.l
+        ag = 1.0 - prob.I[i]
+        ad = prob.I[i]
     return ldag, rhocpg, ag, ldad, rhocpd, ad
 
 
@@ -232,7 +232,9 @@ class ProblemConserv2(Problem):
         raise NotImplementedError
 
 
-class ProblemDiscontinu(TimeProblem):
+class ProblemDiscontinu(StateProblem):
+    bulles: BulleTemperature
+
     def __init__(
         self,
         T0,
@@ -370,9 +372,7 @@ class ProblemDiscontinu(TimeProblem):
             # le maillage cartésien
             for ist, i in enumerate((i_amont, i_aval)):
                 stencil_interf = list(cl_perio(len(T), i))
-                ldag, rhocpg, ag, ldad, rhocpd, ad = get_prop(
-                    self, i, liqu_a_gauche=(i == i_amont)
-                )
+                ldag, rhocpg, ag, ldad, rhocpd, ad = get_prop(self, i, liqu_a_gauche=(i == i_amont))
                 self.interpolation_interface.interpolate(
                     T[stencil_interf], ag, ldag, ldad
                 )
@@ -507,9 +507,7 @@ class ProblemDiscontinuEnergieTemperature(Problem):
 
                 # On calcule gradTg, gradTi, Ti, gradTd
 
-                ldag, rhocpg, ag, ldad, rhocpd, ad = get_prop(
-                    self, i, liqu_a_gauche=from_liqu_to_vap
-                )
+                ldag, rhocpg, ag, ldad, rhocpd, ad = get_prop(self, i, liqu_a_gauche=from_liqu_to_vap)
                 cells = CellsInterface(
                     ldag,
                     ldad,
@@ -685,9 +683,7 @@ class ProblemDiscontinuEnergieTemperatureInt(Problem):
 
                 # On calcule gradTg, gradTi, Ti, gradTd
 
-                ldag, rhocpg, ag, ldad, rhocpd, ad = get_prop(
-                    self, i, liqu_a_gauche=from_liqu_to_vap
-                )
+                ldag, rhocpg, ag, ldad, rhocpd, ad = get_prop(self, i, liqu_a_gauche=from_liqu_to_vap)
                 cells = CellsInterface(
                     ldag,
                     ldad,
@@ -1001,9 +997,7 @@ class ProblemDiscontinuE(Problem):
 
                 # On calcule gradTg, gradTi, Ti, gradTd
 
-                ldag, rhocpg, ag, ldad, rhocpd, ad = get_prop(
-                    self, i, liqu_a_gauche=from_liqu_to_vap
-                )
+                ldag, rhocpg, ag, ldad, rhocpd, ad = get_prop(self, i, liqu_a_gauche=from_liqu_to_vap)
                 cells = CellsInterface(
                     ldag,
                     ldad,
@@ -1165,9 +1159,7 @@ class ProblemDiscontinuE_CN(Problem):
 
                 # On calcule gradTg, gradTi, Ti, gradTd
 
-                ldag, rhocpg, ag, ldad, rhocpd, ad = get_prop(
-                    self, i, liqu_a_gauche=from_liqu_to_vap
-                )
+                ldag, rhocpg, ag, ldad, rhocpd, ad = get_prop(self, i, liqu_a_gauche=from_liqu_to_vap)
                 cells = CellsInterface(
                     ldag,
                     ldad,
@@ -1330,9 +1322,7 @@ class ProblemDiscontinuEsansq(Problem):
 
                 # On calcule gradTg, gradTi, Ti, gradTd
 
-                ldag, rhocpg, ag, ldad, rhocpd, ad = get_prop(
-                    self, i, liqu_a_gauche=from_liqu_to_vap
-                )
+                ldag, rhocpg, ag, ldad, rhocpd, ad = get_prop(self, i, liqu_a_gauche=from_liqu_to_vap)
                 cells = CellsInterface(
                     ldag,
                     ldad,
@@ -1498,9 +1488,7 @@ class ProblemDiscontinuEcomme3D(Problem):
 
                 # On calcule gradTg, gradTi, Ti, gradTd
 
-                ldag, rhocpg, ag, ldad, rhocpd, ad = get_prop(
-                    self, i, liqu_a_gauche=from_liqu_to_vap
-                )
+                ldag, rhocpg, ag, ldad, rhocpd, ad = get_prop(self, i, liqu_a_gauche=from_liqu_to_vap)
                 cells = CellsInterface(
                     ldag,
                     ldad,
@@ -1662,9 +1650,7 @@ class ProblemDiscontinuEcomme3D_ghost(Problem):
 
                 # On calcule gradTg, gradTi, Ti, gradTd
 
-                ldag, rhocpg, ag, ldad, rhocpd, ad = get_prop(
-                    self, i, liqu_a_gauche=from_liqu_to_vap
-                )
+                ldag, rhocpg, ag, ldad, rhocpd, ad = get_prop(self, i, liqu_a_gauche=from_liqu_to_vap)
                 cells = CellsInterface(
                     ldag,
                     ldad,
@@ -1873,9 +1859,7 @@ class ProblemDiscontinuEcomme3D_ghost_exactSf(Problem):
 
                 # On calcule gradTg, gradTi, Ti, gradTd
 
-                ldag, rhocpg, ag, ldad, rhocpd, ad = get_prop(
-                    self, i, liqu_a_gauche=from_liqu_to_vap
-                )
+                ldag, rhocpg, ag, ldad, rhocpd, ad = get_prop(self, i, liqu_a_gauche=from_liqu_to_vap)
                 cells = CellsInterface(
                     ldag,
                     ldad,
@@ -2040,9 +2024,7 @@ class ProblemDiscontinuEcomme3Davecq_ghost(Problem):
 
                 # On calcule gradTg, gradTi, Ti, gradTd
 
-                ldag, rhocpg, ag, ldad, rhocpd, ad = get_prop(
-                    self, i, liqu_a_gauche=from_liqu_to_vap
-                )
+                ldag, rhocpg, ag, ldad, rhocpd, ad = get_prop(self, i, liqu_a_gauche=from_liqu_to_vap)
                 cells = CellsInterface(
                     ldag,
                     ldad,
@@ -2213,9 +2195,7 @@ class ProblemDiscontinuEcomme3Davecq_I(Problem):
 
                 # On calcule gradTg, gradTi, Ti, gradTd
 
-                ldag, rhocpg, ag, ldad, rhocpd, ad = get_prop(
-                    self, i, liqu_a_gauche=from_liqu_to_vap
-                )
+                ldag, rhocpg, ag, ldad, rhocpd, ad = get_prop(self, i, liqu_a_gauche=from_liqu_to_vap)
                 cells = CellsInterface(
                     ldag,
                     ldad,
@@ -2386,9 +2366,7 @@ class ProblemDiscontinuEcomme3D_ghost_avecq_I_exactSf(Problem):
 
                 # On calcule gradTg, gradTi, Ti, gradTd
 
-                ldag, rhocpg, ag, ldad, rhocpd, ad = get_prop(
-                    self, i, liqu_a_gauche=from_liqu_to_vap
-                )
+                ldag, rhocpg, ag, ldad, rhocpd, ad = get_prop(self, i, liqu_a_gauche=from_liqu_to_vap)
                 cells = CellsInterface(
                     ldag,
                     ldad,
@@ -2544,9 +2522,7 @@ class ProblemRhoCpDiscontinuE(Problem):
 
                 # On calcule gradTg, gradTi, Ti, gradTd
 
-                ldag, rhocpg, ag, ldad, rhocpd, ad = get_prop(
-                    self, i, liqu_a_gauche=from_liqu_to_vap
-                )
+                ldag, rhocpg, ag, ldad, rhocpd, ad = get_prop(self, i, liqu_a_gauche=from_liqu_to_vap)
                 # Ici on ne prend pas en compte la température, seule la correction des coefficients nous intéresse
                 cells = CellsInterface(
                     ldag,
@@ -2698,9 +2674,7 @@ class ProblemDiscontinuT(Problem):
 
                 # On calcule gradTg, gradTi, Ti, gradTd
 
-                ldag, rhocpg, ag, ldad, rhocpd, ad = get_prop(
-                    self, i, liqu_a_gauche=from_liqu_to_vap
-                )
+                ldag, rhocpg, ag, ldad, rhocpd, ad = get_prop(self, i, liqu_a_gauche=from_liqu_to_vap)
                 cells = CellsInterface(
                     ldag,
                     ldad,
@@ -2882,9 +2856,7 @@ class ProblemDiscontinuSautdTdt(Problem):
 
                 # On calcule gradTg, gradTi, Ti, gradTd
 
-                ldag, rhocpg, ag, ldad, rhocpd, ad = get_prop(
-                    self, i, liqu_a_gauche=from_liqu_to_vap
-                )
+                ldag, rhocpg, ag, ldad, rhocpd, ad = get_prop(self, i, liqu_a_gauche=from_liqu_to_vap)
                 cells = CellsInterface(
                     ldag,
                     ldad,
@@ -3094,9 +3066,7 @@ class ProblemDiscontinuSepIntT(Problem):
 
                 # On calcule gradTg, gradTi, Ti, gradTd
 
-                ldag, rhocpg, ag, ldad, rhocpd, ad = get_prop(
-                    self, i, liqu_a_gauche=from_liqu_to_vap
-                )
+                ldag, rhocpg, ag, ldad, rhocpd, ad = get_prop(self, i, liqu_a_gauche=from_liqu_to_vap)
                 cells = CellsInterface(
                     ldag,
                     ldad,
@@ -3278,9 +3248,7 @@ class ProblemDiscontinuECorrige(Problem):
 
                 # On calcule gradTg, gradTi, Ti, gradTd
 
-                ldag, rhocpg, ag, ldad, rhocpd, ad = get_prop(
-                    self, i, liqu_a_gauche=from_liqu_to_vap
-                )
+                ldag, rhocpg, ag, ldad, rhocpd, ad = get_prop(self, i, liqu_a_gauche=from_liqu_to_vap)
                 a1 = self.I[i0]
                 cells = CellsInterface(
                     ldag,
@@ -3448,9 +3416,7 @@ class ProblemDiscontinuCoupleConserv(Problem):
 
                 # On calcule gradTg, gradTi, Ti, gradTd
 
-                ldag, rhocpg, ag, ldad, rhocpd, ad = get_prop(
-                    self, i, liqu_a_gauche=from_liqu_to_vap
-                )
+                ldag, rhocpg, ag, ldad, rhocpd, ad = get_prop(self, i, liqu_a_gauche=from_liqu_to_vap)
                 cells = CellsInterface(
                     ldag,
                     ldad,
@@ -3675,9 +3641,7 @@ class ProblemDiscontinuFT(Problem):
 
                 # On calcule gradTg, gradTi, Ti, gradTd
 
-                ldag, rhocpg, ag, ldad, rhocpd, ad = get_prop(
-                    self, i, liqu_a_gauche=from_liqu_to_vap
-                )
+                ldag, rhocpg, ag, ldad, rhocpd, ad = get_prop(self, i, liqu_a_gauche=from_liqu_to_vap)
                 cells_ft = CellsSuiviInterface(
                     ldag,
                     ldad,

@@ -1,4 +1,5 @@
 import numpy as np
+from scipy import optimize as opt
 from src.main import Bulles
 
 

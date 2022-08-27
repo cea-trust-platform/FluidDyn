@@ -8,8 +8,10 @@ sphinx
 nbsphinx
 jupyter-sphinx
 jupyter-contrib-nbextensions
-numba
+numba~=0.53.1
 line-profiler
 pytest
 pytest-cov
 nbval
+
+matplotlib~=3.3.4

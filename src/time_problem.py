@@ -27,8 +27,7 @@ class TimeProblem:
     stat: Statistics
     plotter: Plotter
 
-    def __init__(self, problem_state=None, stat=None, plotter=None, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(self, *args, problem_state=None, stat=None, plotter=None, **kwargs):
         if problem_state is None:
             problem_state = StateProblem(*args, **kwargs)
         self.problem_state = problem_state

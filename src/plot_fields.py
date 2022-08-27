@@ -595,30 +595,19 @@ def to_scientific(leg):
     return leg
 
 
-class EnergiePlot:
-    def __init__(self, e0=None):
+class TimePlot:
+    def __init__(self):
         self.fig, self.ax = plt.subplots(1)
         self.fig.set_size_inches(9.5, 5)
         self.ax.minorticks_on()
         self.ax.grid(b=True, which="major")
         self.ax.grid(b=True, which="minor", alpha=0.2)
         self.ax.set_xlabel(r"$t [s]$")
-        self.ax.set_ylabel(r"$E_{tot} [J/m^3]$")
-        self.e0 = e0
 
     def plot(self, t, e, label=None):
-        if self.e0 is None:
-            self.e0 = e[0]
-
         self.ax.plot(t, e, label=label)
         self.ax.legend(loc="upper right")
         self.fig.tight_layout()
-
-        n = len(e)
-        i0 = int(n / 5)
-        dedt_adim = (
-            (e[-1] - e[i0]) / (t[-1] - t[i0]) * (t[1] - t[0]) / self.e0
-        )  # on a mult
 
         print()
         if label is not None:
@@ -627,6 +616,25 @@ class EnergiePlot:
         else:
             print("Calcul sans label")
             print("=================")
+
+
+class EnergiePlot(TimePlot):
+    def __init__(self, e0=None):
+        super().__init__()
+        self.ax.set_ylabel(r"$E_{tot} [J/m^3]$")
+        self.e0 = e0
+
+    def plot(self, t, e, label=None):
+        if self.e0 is None:
+            self.e0 = e[0]
+
+        super().plot(t, e, label)
+
+        n = len(e)
+        i0 = int(n / 5)
+        dedt_adim = (
+                (e[-1] - e[i0]) / (t[-1] - t[i0]) * (t[1] - t[0]) / self.e0
+        )  # on a mult
         print("dE*/dt* = %g" % dedt_adim)
 
     def plot_pb(self, pb: Problem, fac=None, label=None):
@@ -635,6 +643,13 @@ class EnergiePlot:
         if label is None:
             label = pb.name
         self.plot(pb.t, pb.E / fac, label=label)
+
+    def plot_tpb(self, tpb, fac=None, label=None):
+        if fac is None:
+            fac = tpb.problem_state.Delta * tpb.problem_state.phy_prop.dS
+        if label is None:
+            label = tpb.problem_state.name
+        self.plot(tpb.stat.t, tpb.stat.E / fac, label=label)
 
     def add_E0(self):
         self.fig.canvas.draw_idle()
@@ -645,3 +660,40 @@ class EnergiePlot:
         self.ax.set_yticks(ticks)
         self.ax.set_yticklabels(labels)
         self.fig.tight_layout()
+
+
+class TemperaturePlot(TimePlot):
+    def __init__(self, Tfinal=None):
+        super().__init__()
+        self.ax.set_ylabel(r"$T_{k} [K]$")
+        self.Tfinal = Tfinal
+
+    def plot(self, t, T, label=None):
+        super().plot(t, T, label)
+
+        n = len(T)
+        i0 = int(n / 5)
+        dedt_adim = (
+                (T[-1] - T[i0]) / (t[-1] - t[i0])
+        )  # on a mult
+        print("dT/dt = %g" % dedt_adim)
+
+    def plot_tpb(self, tpb, label=None):
+        if self.Tfinal is None:
+            self.Tfinal = tpb.problem_state.T_final
+        if label is None:
+            label = ', ' + tpb.problem_state.name
+        self.plot(tpb.stat.t, tpb.stat.Tl, label=r'$T_l$' + label)
+        self.plot(tpb.stat.t, tpb.stat.Tv, label=r'$T_v$' + label)
+
+    def add_T_final(self):
+        self.fig.canvas.draw_idle()
+        labels = [item.get_text() for item in self.ax.get_yticklabels()]
+        ticks = list(self.ax.get_yticks())
+        ticks.append(self.Tfinal)
+        labels.append(r"$T_f$")
+        self.ax.set_yticks(ticks)
+        self.ax.set_yticklabels(labels)
+        self.fig.tight_layout()
+
+

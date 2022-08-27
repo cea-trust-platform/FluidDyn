@@ -12,6 +12,7 @@
 # OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #
 ##############################################################################
+
 import numpy as np
 
 from src.main import *
@@ -81,7 +82,7 @@ class BulleTemperature(Bulles):
         super().shift(dx)
         self._set_indices_markers(self.x)
 
-    def post(self, cells: CellsInterface, i_int: int, ist: int):
+    def post(self, cells: InterfaceCellsBase, i_int: int, ist: int):
         self.cells[2 * i_int + ist] = cells
         self.lda_grad_T[i_int, ist] = cells.lda_gradTi
         self.T[i_int, ist] = cells.Ti
@@ -232,7 +233,7 @@ class ProblemConserv2(Problem):
         raise NotImplementedError
 
 
-class ProblemDiscontinu(StateProblem):
+class StateProblemDiscontinu(StateProblem):
     bulles: BulleTemperature
 
     def __init__(
@@ -366,9 +367,10 @@ class ProblemDiscontinu(StateProblem):
             print(markers)
             raise NotImplementedError
 
-    def _corrige_flux_interfaces(self, T, bulles, *args):
+    def _corrige_flux_coeff_interface(self, T, bulles, **kwargs):
         for i_bulle, (i_amont, i_aval) in enumerate(bulles.ind):
-            # i_bulle sert à aller chercher les valeurs aux interfaces, i_amont et i_aval servent à aller chercher les valeurs sur
+            # i_bulle sert à aller chercher les valeurs aux interfaces,
+            # i_amont et i_aval servent à aller chercher les valeurs sur
             # le maillage cartésien
             for ist, i in enumerate((i_amont, i_aval)):
                 stencil_interf = list(cl_perio(len(T), i))
@@ -379,8 +381,18 @@ class ProblemDiscontinu(StateProblem):
                 self.face_interpolation.interpolate_on_faces(
                     self.interpolation_interface, rhocpg, rhocpd
                 )
-                self._corrige_flux_une_interface(stencil_interf, *args)
+                self._corrige_flux_une_interface(stencil_interf)
                 self.bulles.post(self.interpolation_interface, i_bulle, ist)
+
+    @property
+    def name_cas(self):
+        return (
+                self.name_sous_cas
+                + ", "
+                + self.interpolation_interface.name
+                + ", "
+                + self.face_interpolation.name
+        )
 
     @staticmethod
     def _corrige_flux_local(flux, get_new_flux, stencil_interf):
@@ -389,52 +401,104 @@ class ProblemDiscontinu(StateProblem):
         ind_flux_corrige = stencil_interf[stencil_new_flux]
         flux[ind_flux_corrige] = new_flux[stencil_new_flux]
 
-    def _corrige_flux_une_interface(self, stencil_interf, flux_conv, flux_diff, *args):
+    def _corrige_flux_une_interface(self, stencil_interf, *args):
         # Correction des cellules i0 - 1 à i0 + 1 inclue
-        self._corrige_flux_local(flux_conv, self._get_new_flux_conv, stencil_interf)
-        self._corrige_flux_local(flux_diff, self._get_new_flux_diff, stencil_interf)
+        self._corrige_flux_local(self.flux_conv, self._get_new_flux_conv, stencil_interf)
+        self._corrige_flux_local(self.flux_diff, self._get_new_flux_diff, stencil_interf)
 
     def _get_new_flux_conv(self):
-        # rho_cp_np1 * Tnp1 = rho_cp_n * Tn + dt (- int_S_rho_cp_T_u + int_S_lda_grad_T)
-        return (
-            self.face_interpolation.rhocp_f
-            * self.face_interpolation.T_f
-            * self.phy_prop.v
-        )
+        raise NotImplementedError
 
     def _get_new_flux_diff(self):
-        # rho_cp_np1 * Tnp1 = rho_cp_n * Tn + dt (- int_S_rho_cp_T_u + int_S_lda_grad_T)
-        return self.face_interpolation.lda_f * self.face_interpolation.gradT
+        raise NotImplementedError
 
     def compute_time_derivative(self, debug=None, bool_debug=False, **kwargs):
-        self.flux_conv = self.rho_cp.a(self.If) * self._compute_convection_flux(
-            self.T, self.bulles, bool_debug, debug
-        )
-        self.flux_diff = self._compute_diffusion_flux(
-            self.T, self.bulles, bool_debug, debug
-        )
-        self._corrige_flux_interfaces(
-            self.T, self.bulles, self.flux_conv, self.flux_diff
-        )
-        self._echange_flux()
-        drhocpTdt = -integrale_vol_div(
-            self.flux_conv, self.num_prop.dx
-        ) + self.phy_prop.diff * integrale_vol_div(self.flux_diff, self.num_prop.dx)
-        return drhocpTdt
-
-    @property
-    def name_cas(self):
-        return (
-            self.name_sous_cas
-            + ", "
-            + self.interpolation_interface.name
-            + ", "
-            + self.face_interpolation.name
-        )
+        raise NotImplementedError
 
     @property
     def name_sous_cas(self):
-        return "Base"
+        raise NotImplementedError
+
+
+class StateProblemDiscontinuEnergieTemperature(StateProblemDiscontinu):
+    bulles: BulleTemperature
+
+    """
+    Cette classe résout le problème en couplant une équation sur la température et une équation sur l'énergie
+    interne au niveau des interfaces.
+    On a donc un tableau T et un tableau h
+
+        - on calcule dans les mailles diphasiques Tgc et Tdc les températures au centres de la partie remplie par la
+        phase à gauche et la partie remplie par la phase à droite.
+        - on en déduit en interpolant des flux aux faces
+        - on met à jour T et h avec des flux exprimés de manière monophasique.
+
+    Le problème de cette formulation est qu'elle fait intervenir l'équation sur la température alors qu'on sait
+    que cette équation n'est pas terrible.
+
+    """
+
+    def __init__(self, T0, markers=None, num_prop=None, phy_prop=None, **kwargs):
+        super().__init__(T0, markers, num_prop=num_prop, phy_prop=phy_prop, **kwargs)
+        self.h = self.rho_cp.a(self.I) * self.T
+        self.flux_conv_energie = Flux(np.zeros_like(self.flux_conv))  # type: Flux
+
+    def copy(self, pb):
+        super().copy(pb)
+        self.h = pb.h.copy()
+        self.flux_conv_energie = pb.flux_conv_energie.copy()
+
+    def _corrige_flux_une_interface(self, stencil_interf, *args):
+        self._corrige_flux_local(self.flux_conv, self._get_new_flux_conv, stencil_interf)
+        self._corrige_flux_local(self.flux_diff, self._get_new_flux_diff, stencil_interf)
+        self._corrige_flux_local(self.flux_conv_energie, self._get_new_flux_conv_energie, stencil_interf)
+
+    def _echange_flux(self):
+        super()._echange_flux()
+        self.flux_conv_energie.perio()
+
+    def _get_new_flux_conv(self):
+        return (
+                self.face_interpolation.T_f
+                * self.phy_prop.v
+        )
+
+    def _get_new_flux_conv_energie(self):
+        return (
+                self.face_interpolation.rhocp_f *
+                self.face_interpolation.T_f
+                * self.phy_prop.v
+        )
+
+    def _get_new_flux_diff(self):
+        return self.face_interpolation.lda_f * self.face_interpolation.gradT
+
+    def compute_time_derivative(self, debug=None, bool_debug=False, **kwargs):
+        self.flux_conv = (
+                interpolate(self.T, I=self.I, schema=self.num_prop.schema) * self.phy_prop.v
+        )
+        self.flux_conv_energie = (
+                interpolate(self.h, I=self.I, schema=self.num_prop.schema) * self.phy_prop.v
+        )
+        self.flux_diff = interpolate(
+            self.lda.h(self.I), I=self.I, schema=self.num_prop.schema
+        ) * grad(self.T, self.num_prop.dx)
+
+        self._corrige_flux_coeff_interface(self.T, self.bulles)
+        self._echange_flux()
+
+        int_div_T_u = integrale_vol_div(self.flux_conv, self.num_prop.dx)
+        int_div_rho_cp_T_u = integrale_vol_div(self.flux_conv_energie, self.num_prop.dx)
+        int_div_lda_grad_T = integrale_vol_div(self.flux_diff, self.num_prop.dx)
+        rho_cp_inv_h = 1.0 / self.rho_cp.h(self.I)
+
+        dTdt = -int_div_T_u + self.active_diff * rho_cp_inv_h * int_div_lda_grad_T
+        dhdt = -int_div_rho_cp_T_u + self.active_diff * int_div_lda_grad_T
+        return dTdt, dhdt
+
+    @property
+    def name_sous_cas(self):
+        return "Energie-Température"
 
 
 class ProblemDiscontinuEnergieTemperature(Problem):
@@ -453,12 +517,6 @@ class ProblemDiscontinuEnergieTemperature(Problem):
     Le problème de cette formulation est qu'elle fait intervenir l'équation sur la température alors qu'on sait
     que cette équation n'est pas terrible.
 
-    Args:
-        T0: la fonction initiale de température
-        markers: les bulles
-        num_prop: les propriétés numériques du calcul
-        phy_prop: les propriétés physiques du calcul
-        
     """
 
     def __init__(self, T0, markers=None, num_prop=None, phy_prop=None, **kwargs):
@@ -606,6 +664,110 @@ class ProblemDiscontinuEnergieTemperature(Problem):
     @property
     def name_cas(self):
         return "Energie température "
+
+
+class StateProblemDiscontinuEnergieTemperatureInt(StateProblemDiscontinu):
+    bulles: BulleTemperature
+
+    """
+    Cette classe résout le problème en couplant une équation sur la température et une équation sur l'énergie
+    interne au niveau des interfaces.
+    On a donc un tableau T et un tableau h
+
+        - on calcule dans les mailles diphasiques Tgc et Tdc les températures au centres de la partie remplie par la
+        phase à gauche et la partie remplie par la phase à droite.
+        - on en déduit en interpolant des flux aux faces
+        - on met à jour T et h avec des flux exprimés de manière monophasique.
+
+    """
+
+    def __init__(self, T0, markers=None, num_prop=None, phy_prop=None, **kwargs):
+        super().__init__(T0, markers, num_prop=num_prop, phy_prop=phy_prop, **kwargs)
+        self.h = self.rho_cp.a(self.I) * self.T
+        self.flux_conv_energie = Flux(np.zeros_like(self.flux_conv))
+        self.flux_diff_temp = Flux(np.zeros_like(self.flux_conv))
+        self.ind_interf = np.zeros_like(self.T)
+
+    def copy(self, pb):
+        super().copy(pb)
+        self.h = pb.h.copy()
+        self.flux_conv_energie = pb.flux_conv_energie.copy()
+        self.flux_diff_temp = pb.flux_diff_temp.copy()
+        self.ind_interf = pb.ind_interf.copy()
+
+    def _corrige_flux_une_interface(self, stencil_interf, *args):
+        # Tnp1 = Tn + dt (- int_S_rho_cp_T_u + int_S_lda_grad_T
+        #                 - delta * I2 * (rhocp2 - rhocpa) - [rhocp] * int_S_Ti_v_n2_dS) / rhocpa
+        self._corrige_flux_local(self.flux_conv, self._get_new_flux_conv, stencil_interf)
+        self._corrige_flux_local(self.flux_diff, self._get_new_flux_diff, stencil_interf)
+        self._corrige_flux_local(self.flux_conv_energie, self._get_new_flux_conv_energie, stencil_interf)
+        self._corrige_flux_local(self.flux_diff_temp, self._get_new_flux_diff_temp, stencil_interf)
+        self.ind_interf[stencil_interf[3]] = self._get_terme_saut()
+
+    def _get_terme_saut(self):
+        return (
+                (1.0 / self.face_interpolation.rhocpg - 1.0 / self.face_interpolation.rhocpd) *
+                self.interpolation_interface.lda_gradTi
+        )
+
+    def _get_new_flux_conv(self):
+        return self.face_interpolation.T_f * self.v
+
+    def _get_new_flux_diff(self):
+        return self.face_interpolation.lda_f * self.face_interpolation.gradT
+
+    def _get_new_flux_conv_energie(self):
+        return (
+            self.face_interpolation.T_f * self.face_interpolation.rhocp_f * self.v
+        )
+
+    def _get_new_flux_diff_temp(self):
+        return (
+            self.face_interpolation.lda_f / self.face_interpolation.rhocp_f * self.face_interpolation.T_f
+        )
+
+    def compute_time_derivative(self, debug=None, bool_debug=False, **kwargs):
+        self.flux_conv = (
+                interpolate(self.T, I=self.I, schema=self.num_prop.schema) * self.phy_prop.v
+        )
+        self.flux_conv_energie = (
+                interpolate(self.h, I=self.I, schema=self.num_prop.schema) * self.phy_prop.v
+        )
+        self.flux_diff = interpolate(
+            self.lda.h(self.I), I=self.I, schema=self.num_prop.schema
+        ) * grad(self.T, self.num_prop.dx)
+        # Attention, l'interpolation suivante n'est valide que dans le cas de deux cellules monophasiques adjacentes
+        # elle nécessite impérativement la correction aux faces mitoyennes de l'interface.
+        self.flux_diff_temp = interpolate(
+            self.lda.h(self.I) / self.rho_cp.a(self.I), I=self.I, schema=self.num_prop.schema
+        ) * grad(self.T, self.num_prop.dx)
+
+        self.ind_interf[:] = 0.
+        self._corrige_flux_coeff_interface(self.T, self.bulles)
+        self._echange_flux()
+        self.flux_diff_temp.perio()
+        self.flux_conv_energie.perio()
+
+        int_div_T_u = integrale_vol_div(self.flux_conv, self.num_prop.dx)
+        int_inv_rhocpf_div_ldaf_grad_T = integrale_vol_div(
+            self.flux_diff_temp, self.num_prop.dx
+        )
+        int_div_rho_cp_T_u = integrale_vol_div(self.flux_conv_energie, self.num_prop.dx)
+        int_div_lda_grad_T = integrale_vol_div(self.flux_diff, self.num_prop.dx)
+
+        dTdt = (
+                -int_div_T_u
+                + self.phy_prop.diff * int_inv_rhocpf_div_ldaf_grad_T
+                + self.phy_prop.diff / self.num_prop.dx * self.ind_interf
+        )
+        dhdt = (
+                -int_div_rho_cp_T_u + self.phy_prop.diff * int_div_lda_grad_T
+        )
+        return dTdt, dhdt
+
+    @property
+    def name_sous_cas(self):
+        return "Energie-TSV"
 
 
 class ProblemDiscontinuEnergieTemperatureInt(Problem):
@@ -781,7 +943,7 @@ class ProblemDiscontinuEnergieTemperatureInt(Problem):
         return "Energie température couplé"
 
 
-class ProblemDiscontinuEbis(ProblemDiscontinu):
+class StateProblemDiscontinuE(StateProblemDiscontinu):
     T: np.ndarray
     I: np.ndarray
     bulles: BulleTemperature
@@ -813,94 +975,40 @@ class ProblemDiscontinuEbis(ProblemDiscontinu):
         #     self.num_prop._time_scheme = "euler"
         # self.T_old = self.T.copy()
 
-    def _corrige_flux_une_interface(self, stencil_interf, flux_conv, flux_diff, *args):
+    def _corrige_flux_une_interface(self, stencil_interf, *args):
         # Correction des cellules i0 - 1 à i0 + 1 inclue
-        self._corrige_flux_local(flux_conv, self._get_new_flux_conv, stencil_interf)
-        self._corrige_flux_local(flux_diff, self._get_new_flux_diff, stencil_interf)
+        self._corrige_flux_local(self.flux_conv, self._get_new_flux_conv, stencil_interf)
+        self._corrige_flux_local(self.flux_diff, self._get_new_flux_diff, stencil_interf)
 
     def _get_new_flux_conv(self):
         # rho_cp_np1 * Tnp1 = rho_cp_n * Tn + dt (- int_S_rho_cp_T_u + int_S_lda_grad_T)
         return (
-            self.face_interpolation.rhocp_f
-            * self.face_interpolation.T_f
-            * self.phy_prop.v
+                self.face_interpolation.rhocp_f
+                * self.face_interpolation.T_f
+                * self.phy_prop.v
         )
 
     def _get_new_flux_diff(self):
         # rho_cp_np1 * Tnp1 = rho_cp_n * Tn + dt (- int_S_rho_cp_T_u + int_S_lda_grad_T)
         return self.face_interpolation.lda_f * self.face_interpolation.gradT
 
-    def _euler_timestep(self, debug=None, bool_debug=False):
-        dx = self.num_prop.dx
-        bulles_np1 = self.bulles.copy()
-        bulles_np1.shift(self.phy_prop.v * self.dt)
-        I_np1 = bulles_np1.indicatrice_liquide(self.num_prop.x)
-        rho_cp_a_np1 = (
-            I_np1 * self.phy_prop.rho_cp1 + (1.0 - I_np1) * self.phy_prop.rho_cp2
-        )
-        self.flux_conv = self.rho_cp_f * self._compute_convection_flux(
+    def compute_time_derivative(self, debug=None, bool_debug=False, **kwargs):
+        self.flux_conv = self.rho_cp.a(self.If) * self._compute_convection_flux(
             self.T, self.bulles, bool_debug, debug
         )
         self.flux_diff = self._compute_diffusion_flux(
             self.T, self.bulles, bool_debug, debug
         )
-        self._corrige_flux_interfaces(
-            self.T, self.bulles, self.flux_conv, self.flux_diff
-        )
+        self._corrige_flux_coeff_interface(self.T, self.bulles)
         self._echange_flux()
         drhocpTdt = -integrale_vol_div(
-            self.flux_conv, dx
-        ) + self.phy_prop.diff * integrale_vol_div(self.flux_diff, dx)
-        # rho_cp_np1 * Tnp1 = rho_cp_n * Tn + dt (- int_S_rho_cp_T_u + int_S_lda_grad_T)
-        self.T = (self.T * self.rho_cp_a + self.dt * drhocpTdt) / rho_cp_a_np1
-
-    def _rk3_timestep(self, debug=None, bool_debug=False):
-        dx = self.num_prop.dx
-        T_int = self.T.copy()
-        markers_int = self.bulles.copy()
-        markers_int_kp1 = self.bulles.copy()
-        K = 0.0
-        coeff_h = np.array([1.0 / 3, 5.0 / 12, 1.0 / 4])
-        coeff_dTdtm1 = np.array([0.0, -5.0 / 9, -153.0 / 128])
-        coeff_dTdt = np.array([1.0, 4.0 / 9, 15.0 / 32])
-        for step, h in enumerate(coeff_h):
-            I_f = markers_int.indicatrice_liquide(self.num_prop.x_f)
-            I = markers_int.indicatrice_liquide(self.num_prop.x)
-            rho_cp_f = I_f * self.phy_prop.rho_cp1 + (1.0 - I_f) * self.phy_prop.rho_cp2
-            rho_cp_a = I * self.phy_prop.rho_cp1 + (1.0 - I) * self.phy_prop.rho_cp2
-
-            markers_int_kp1.shift(self.phy_prop.v * h * self.dt)
-            I_kp1 = markers_int_kp1.indicatrice_liquide(self.num_prop.x)
-            rho_cp_a_kp1 = (
-                I_kp1 * self.phy_prop.rho_cp1 + (1.0 - I_kp1) * self.phy_prop.rho_cp2
-            )
-
-            flux_conv = rho_cp_f * self._compute_convection_flux(
-                T_int, markers_int, bool_debug, debug
-            )
-            flux_diff = self._compute_diffusion_flux(
-                T_int, markers_int, bool_debug, debug
-            )
-
-            self._corrige_flux_interfaces(T_int, markers_int, flux_conv, flux_diff)
-            self._echange_flux()
-            flux_diff.perio()
-            flux_conv.perio()
-            drhocpTdt = -integrale_vol_div(
-                flux_conv, dx
-            ) + self.phy_prop.diff * integrale_vol_div(flux_diff, dx)
-            # rho_cp_np1 * Tnp1 = rho_cp_n * Tn + dt (- int_S_rho_cp_T_u + int_S_lda_grad_T)
-            K = K * coeff_dTdtm1[step] + drhocpTdt
-            T_int = (
-                T_int * rho_cp_a + self.dt * h * K / coeff_dTdt[step]
-            ) / rho_cp_a_kp1
-            markers_int.shift(self.phy_prop.v * h * self.dt)
-
-        self.T = T_int
+            self.flux_conv, self.num_prop.dx
+        ) + self.phy_prop.diff * integrale_vol_div(self.flux_diff, self.num_prop.dx)
+        return drhocpTdt
 
     @property
     def name_sous_cas(self):
-        return "ESP"
+        return "Energie"
 
 
 class ProblemDiscontinuE(Problem):

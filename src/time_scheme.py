@@ -63,36 +63,37 @@ class RK4Timestep(TimestepBase):
         self.Ks = []
 
     def step(self, pb: StateProblem, *args, **kwargs):
-        K = [0.0]
-        T_u_l = []
-        lda_gradT_l = []
-        pas_de_temps = np.array([0.0, 0.5, 0.5, 1.0])
-        dx = pb.num_prop.dx
-        markers_int = pb.bulles.copy()
-        for h in pas_de_temps:
-            I_k = markers_int.indicatrice_liquide(pb.num_prop.x)
-            rho_cp_inv_h = 1.0 / pb.rho_cp.h(I_k)
-            markers_int.shift(pb.phy_prop.v * h * pb.dt)
-
-            T = pb.T + h * pb.dt * K[-1]
-
-            # TODO: bouger ça dans la classe StateProblem
-            convection = pb._compute_convection_flux(T, markers_int, *args, **kwargs)
-            conduction = pb._compute_diffusion_flux(T, markers_int, *args, **kwargs)
-            # TODO: vérifier qu'il ne faudrait pas plutôt utiliser rho_cp^{n,k}
-            pb._corrige_flux_coeff_interface(T, markers_int, convection, conduction)
-            convection.perio()
-            conduction.perio()
-            dTdt = -integrale_vol_div(
-                convection, dx
-            ) + pb.phy_prop.diff * rho_cp_inv_h * integrale_vol_div(conduction, dx)
-            T_u_l.append(convection)
-            lda_gradT_l.append(conduction)
-            K.append(dTdt)
-        coeff = np.array([1.0 / 6, 1 / 3.0, 1 / 3.0, 1.0 / 6])
-        self.flux_conv = np.sum(coeff * Flux(T_u_l).T, axis=-1)
-        self.flux_diff = np.sum(coeff * Flux(lda_gradT_l).T, axis=-1)
-        self.T += np.sum(self.dt * coeff * np.array(K[1:]).T, axis=-1)
+        return NotImplementedError
+        # K = [0.0]
+        # T_u_l = []
+        # lda_gradT_l = []
+        # pas_de_temps = np.array([0.0, 0.5, 0.5, 1.0])
+        # dx = pb.num_prop.dx
+        # markers_int = pb.bulles.copy()
+        # for h in pas_de_temps:
+        #     I_k = markers_int.indicatrice_liquide(pb.num_prop.x)
+        #     rho_cp_inv_h = 1.0 / pb.rho_cp.h(I_k)
+        #     markers_int.shift(pb.phy_prop.v * h * pb.dt)
+        #
+        #     T = pb.T + h * pb.dt * K[-1]
+        #
+        #     # TODO: bouger ça dans la classe StateProblem
+        #     convection = pb._compute_convection_flux(T, markers_int, *args, **kwargs)
+        #     conduction = pb._compute_diffusion_flux(T, markers_int, *args, **kwargs)
+        #     # TODO: vérifier qu'il ne faudrait pas plutôt utiliser rho_cp^{n,k}
+        #     pb._corrige_flux_coeff_interface(T, markers_int, convection, conduction)
+        #     convection.perio()
+        #     conduction.perio()
+        #     dTdt = -integrale_vol_div(
+        #         convection, dx
+        #     ) + pb.phy_prop.diff * rho_cp_inv_h * integrale_vol_div(conduction, dx)
+        #     T_u_l.append(convection)
+        #     lda_gradT_l.append(conduction)
+        #     K.append(dTdt)
+        # coeff = np.array([1.0 / 6, 1 / 3.0, 1 / 3.0, 1.0 / 6])
+        # self.flux_conv = np.sum(coeff * Flux(T_u_l).T, axis=-1)
+        # self.flux_diff = np.sum(coeff * Flux(lda_gradT_l).T, axis=-1)
+        # self.T += np.sum(self.dt * coeff * np.array(K[1:]).T, axis=-1)
 
 
 class EulerEnergieTimestep(EulerTimestep):

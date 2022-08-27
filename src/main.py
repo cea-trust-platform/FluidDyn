@@ -54,9 +54,9 @@ class StateProblem:
 
     def _init_from_phy_prop(self, phy_prop: PhysicalProperties):
         self.phy_prop = deepcopy(phy_prop)
-        self.Delta = self.phy_prop.Delta
-        self.v = self.phy_prop.v
-        self.active_diff = self.phy_prop.diff
+        self.Delta = self.phy_prop.Delta  # type: float
+        self.v = self.phy_prop.v  # type: float
+        self.active_diff = self.phy_prop.diff  # type: float
         self.lda = MonofluidVar(phy_prop.lda1, phy_prop.lda2)
         self.rho_cp = MonofluidVar(phy_prop.rho_cp1, phy_prop.rho_cp2)
 
@@ -162,7 +162,7 @@ class StateProblem:
         i_f = self.bulles.indicatrice_liquide(self.x_f)
         return i_f
 
-    def get_time(self):
+    def get_time(self) -> float:
         # nombre CFL = 1. par défaut
         if self.v > 10 ** (-12):
             dt_cfl = self.dx / self.v * self.num_prop.cfl_lim
@@ -188,6 +188,10 @@ class StateProblem:
     @property
     def energy(self):
         return np.sum(self.rho_cp.a(self.I) * self.T * self.phy_prop.dS * self.dx)
+
+    @property
+    def T_final(self):
+        return np.sum(self.rho_cp.a(self.I) * self.T) / np.sum(self.rho_cp.a(self.I))
 
     @property
     def energy_m(self):

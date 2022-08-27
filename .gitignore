@@ -9,3 +9,4 @@ local
 .coverage
 widget_state.json
 sync.sh
+doc/src.*

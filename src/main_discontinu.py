@@ -348,17 +348,17 @@ class ProblemDiscontinu(Problem):
                 self._corrige_flux_une_interface(stencil_interf, *args)
                 self.bulles.post(self.interpolation_interface, i_bulle, ist)
 
-    def _corrige_flux_une_interface(self, stencil_interf, flux_conv, flux_diff, *args):
-        # Correction des cellules i0 - 1 à i0 + 1 inclue
-        self._corrige_flux_local(flux_conv, self._get_new_flux_conv, stencil_interf)
-        self._corrige_flux_local(flux_diff, self._get_new_flux_diff, stencil_interf)
-
     @staticmethod
     def _corrige_flux_local(flux, get_new_flux, stencil_interf):
         new_flux = get_new_flux()
         stencil_new_flux = get_stencil(new_flux)
         ind_flux_corrige = stencil_interf[stencil_new_flux]
         flux[ind_flux_corrige] = new_flux[stencil_new_flux]
+
+    def _corrige_flux_une_interface(self, stencil_interf, flux_conv, flux_diff, *args):
+        # Correction des cellules i0 - 1 à i0 + 1 inclue
+        self._corrige_flux_local(flux_conv, self._get_new_flux_conv, stencil_interf)
+        self._corrige_flux_local(flux_diff, self._get_new_flux_diff, stencil_interf)
 
     def _get_new_flux_conv(self):
         # rho_cp_np1 * Tnp1 = rho_cp_n * Tn + dt (- int_S_rho_cp_T_u + int_S_lda_grad_T)
@@ -369,13 +369,17 @@ class ProblemDiscontinu(Problem):
         return self.face_interpolation.lda_f * self.face_interpolation.gradT
 
     def _euler_timestep(self, debug=None, bool_debug=False):
-        dx = self.num_prop.dx
         bulles_np1 = self.bulles.copy()
         bulles_np1.shift(self.phy_prop.v * self.dt)
         I_np1 = bulles_np1.indicatrice_liquide(self.num_prop.x)
         rho_cp_a_np1 = (
                 I_np1 * self.phy_prop.rho_cp1 + (1.0 - I_np1) * self.phy_prop.rho_cp2
         )
+        drhocpTdt = self._compute_flux_and_get_integrale(debug, bool_debug)
+        # rho_cp_np1 * Tnp1 = rho_cp_n * Tn + dt (- int_S_rho_cp_T_u + int_S_lda_grad_T)
+        self.T = (self.T * self.rho_cp_a + self.dt * drhocpTdt) / rho_cp_a_np1
+
+    def _compute_flux_and_get_integrale(self, debug=None, bool_debug=False):
         self.flux_conv = self.rho_cp_f * self._compute_convection_flux(
             self.T, self.bulles, bool_debug, debug
         )
@@ -387,58 +391,59 @@ class ProblemDiscontinu(Problem):
         )
         self._echange_flux()
         drhocpTdt = -integrale_vol_div(
-            self.flux_conv, dx
-        ) + self.phy_prop.diff * integrale_vol_div(self.flux_diff, dx)
-        # rho_cp_np1 * Tnp1 = rho_cp_n * Tn + dt (- int_S_rho_cp_T_u + int_S_lda_grad_T)
-        self.T = (self.T * self.rho_cp_a + self.dt * drhocpTdt) / rho_cp_a_np1
+            self.flux_conv, self.num_prop.dx
+        ) + self.phy_prop.diff * integrale_vol_div(self.flux_diff, self.num_prop.dx)
+        return drhocpTdt
 
     def _rk3_timestep(self, debug=None, bool_debug=False):
-        dx = self.num_prop.dx
-        T_int = self.T.copy()
-        markers_int = self.bulles.copy()
-        markers_int_kp1 = self.bulles.copy()
-        K = 0.0
-        coeff_h = np.array([1.0 / 3, 5.0 / 12, 1.0 / 4])
-        coeff_dTdtm1 = np.array([0.0, -5.0 / 9, -153.0 / 128])
-        coeff_dTdt = np.array([1.0, 4.0 / 9, 15.0 / 32])
-        for step, h in enumerate(coeff_h):
-            I_f = markers_int.indicatrice_liquide(self.num_prop.x_f)
-            I = markers_int.indicatrice_liquide(self.num_prop.x)
-            rho_cp_f = I_f * self.phy_prop.rho_cp1 + (1.0 - I_f) * self.phy_prop.rho_cp2
-            rho_cp_a = I * self.phy_prop.rho_cp1 + (1.0 - I) * self.phy_prop.rho_cp2
+        K = 0.
+        for step, h in enumerate(self.coeff_h):
+            self.K = self._rk3_substep(h, K, self.coeff_dTdtm1[step], self.coeff_dTdt[step], debug, bool_debug)
 
-            markers_int_kp1.shift(self.phy_prop.v * h * self.dt)
-            I_kp1 = markers_int_kp1.indicatrice_liquide(self.num_prop.x)
-            rho_cp_a_kp1 = (
-                    I_kp1 * self.phy_prop.rho_cp1 + (1.0 - I_kp1) * self.phy_prop.rho_cp2
-            )
+    def _rk3_substep(self, h, K, coeff_dTdtm1, coeff_dTdt, debug=None, bool_debug=False):
+        I_f = self.bulles.indicatrice_liquide(self.num_prop.x_f)
+        I = self.bulles.indicatrice_liquide(self.num_prop.x)
+        rho_cp_a = I * self.phy_prop.rho_cp1 + (1.0 - I) * self.phy_prop.rho_cp2
 
-            flux_conv = rho_cp_f * self._compute_convection_flux(
-                T_int, markers_int, bool_debug, debug
-            )
-            flux_diff = self._compute_diffusion_flux(
-                T_int, markers_int, bool_debug, debug
-            )
+        markers_kp1 = self.bulles.copy()
+        markers_kp1.shift(self.phy_prop.v * h * self.dt)
+        I_kp1 = markers_kp1.indicatrice_liquide(self.num_prop.x)
+        rho_cp_a_kp1 = (
+                I_kp1 * self.phy_prop.rho_cp1 + (1.0 - I_kp1) * self.phy_prop.rho_cp2
+        )
 
-            self._corrige_flux_interfaces(T_int, markers_int, flux_conv, flux_diff)
-            self._echange_flux()
-            flux_diff.perio()
-            flux_conv.perio()
-            drhocpTdt = -integrale_vol_div(
-                flux_conv, dx
-            ) + self.phy_prop.diff * integrale_vol_div(flux_diff, dx)
-            # rho_cp_np1 * Tnp1 = rho_cp_n * Tn + dt (- int_S_rho_cp_T_u + int_S_lda_grad_T)
-            K = K * coeff_dTdtm1[step] + drhocpTdt
-            T_int = (
-                            T_int * rho_cp_a + self.dt * h * K / coeff_dTdt[step]
-                    ) / rho_cp_a_kp1
-            markers_int.shift(self.phy_prop.v * h * self.dt)
-
-        self.T = T_int
+        drhocpTdt = self._compute_flux_and_get_integrale(debug, bool_debug)
+        # rho_cp_np1 * Tnp1 = rho_cp_n * Tn + dt (- int_S_rho_cp_T_u + int_S_lda_grad_T)
+        K = K * coeff_dTdtm1 + drhocpTdt
+        self.T = (
+                        self.T * rho_cp_a + self.dt * h * K / coeff_dTdt
+                ) / rho_cp_a_kp1
+        self.bulles.shift(self.phy_prop.v * h * self.dt)
+        return K
 
     @property
     def name_cas(self):
-        return "Energie, " + self.interpolation_interface.name + ", " + self.face_interpolation.name
+        return self.name_sous_cas + ', ' + self.interpolation_interface.name + ", " + self.face_interpolation.name
+
+    @property
+    def name_sous_cas(self):
+        return 'Base'
+
+
+class RK3Timestep(TimestepBase):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.coeff_h = np.array([1.0 / 3, 5.0 / 12, 1.0 / 4])
+        self.coeff_dTdtm1 = np.array([0.0, -5.0 / 9, -153.0 / 128])
+        self.coeff_dTdt = np.array([1.0, 4.0 / 9, 15.0 / 32])
+        self.h = 0.
+        self.K = 0.
+
+    def step(self, pb: Problem, debug=None, bool_debug=False):
+        pb.markers_kp1 = pb.bulles.copy()
+        self.K = 0.0
+        for step, self.h in enumerate(self.coeff_h):
+            self.K = pb._rk3_substep(self.h, self.K, self.coeff_dTdtm1[step], self.coeff_dTdt[step], debug, bool_debug)
 
 
 class ProblemDiscontinuEnergieTemperature(Problem):
@@ -787,6 +792,128 @@ class ProblemDiscontinuEnergieTemperatureInt(Problem):
     @property
     def name_cas(self):
         return "Energie température couplé"
+
+
+class ProblemDiscontinuEbis(ProblemDiscontinu):
+    T: np.ndarray
+    I: np.ndarray
+    bulles: BulleTemperature
+
+    """
+    Résolution en énergie.
+    Cette classe résout le problème en 3 étapes :
+
+        - on calcule le nouveau T comme avant (avec un stencil de 1 à proximité des interfaces par simplicité)
+        - on calcule précisemment T1 et T2 ansi que les bons flux aux faces, on met à jour T
+        - on met à jour T_i et lda_grad_T_i
+
+    Elle résout donc le problème de manière complètement monophasique et recolle à l'interface en imposant la
+    continuité de lda_grad_T et T à l'interface.
+
+    Args:
+        T0: la fonction initiale de température
+        markers: les bulles
+        num_prop: les propriétés numériques du calcul
+        phy_prop: les propriétés physiques du calcul
+    """
+
+    def __init__(
+            self,
+            *args,
+            interp_type='Ti',
+            conv_interf='quick',
+            **kwargs
+    ):
+        super().__init__(*args, interp_type=interp_type, conv_interf=conv_interf, **kwargs)
+        # if num_prop.time_scheme == "rk3":
+        #     print("RK3 is not implemented, changes to Euler")
+        #     self.num_prop._time_scheme = "euler"
+        # self.T_old = self.T.copy()
+
+    def _corrige_flux_une_interface(self, stencil_interf, flux_conv, flux_diff, *args):
+        # Correction des cellules i0 - 1 à i0 + 1 inclue
+        self._corrige_flux_local(flux_conv, self._get_new_flux_conv, stencil_interf)
+        self._corrige_flux_local(flux_diff, self._get_new_flux_diff, stencil_interf)
+
+    def _get_new_flux_conv(self):
+        # rho_cp_np1 * Tnp1 = rho_cp_n * Tn + dt (- int_S_rho_cp_T_u + int_S_lda_grad_T)
+        return self.face_interpolation.rhocp_f * self.face_interpolation.T_f * self.phy_prop.v
+
+    def _get_new_flux_diff(self):
+        # rho_cp_np1 * Tnp1 = rho_cp_n * Tn + dt (- int_S_rho_cp_T_u + int_S_lda_grad_T)
+        return self.face_interpolation.lda_f * self.face_interpolation.gradT
+
+    def _euler_timestep(self, debug=None, bool_debug=False):
+        dx = self.num_prop.dx
+        bulles_np1 = self.bulles.copy()
+        bulles_np1.shift(self.phy_prop.v * self.dt)
+        I_np1 = bulles_np1.indicatrice_liquide(self.num_prop.x)
+        rho_cp_a_np1 = (
+                I_np1 * self.phy_prop.rho_cp1 + (1.0 - I_np1) * self.phy_prop.rho_cp2
+        )
+        self.flux_conv = self.rho_cp_f * self._compute_convection_flux(
+            self.T, self.bulles, bool_debug, debug
+        )
+        self.flux_diff = self._compute_diffusion_flux(
+            self.T, self.bulles, bool_debug, debug
+        )
+        self._corrige_flux_interfaces(
+            self.T, self.bulles, self.flux_conv, self.flux_diff
+        )
+        self._echange_flux()
+        drhocpTdt = -integrale_vol_div(
+            self.flux_conv, dx
+        ) + self.phy_prop.diff * integrale_vol_div(self.flux_diff, dx)
+        # rho_cp_np1 * Tnp1 = rho_cp_n * Tn + dt (- int_S_rho_cp_T_u + int_S_lda_grad_T)
+        self.T = (self.T * self.rho_cp_a + self.dt * drhocpTdt) / rho_cp_a_np1
+
+    def _rk3_timestep(self, debug=None, bool_debug=False):
+        dx = self.num_prop.dx
+        T_int = self.T.copy()
+        markers_int = self.bulles.copy()
+        markers_int_kp1 = self.bulles.copy()
+        K = 0.0
+        coeff_h = np.array([1.0 / 3, 5.0 / 12, 1.0 / 4])
+        coeff_dTdtm1 = np.array([0.0, -5.0 / 9, -153.0 / 128])
+        coeff_dTdt = np.array([1.0, 4.0 / 9, 15.0 / 32])
+        for step, h in enumerate(coeff_h):
+            I_f = markers_int.indicatrice_liquide(self.num_prop.x_f)
+            I = markers_int.indicatrice_liquide(self.num_prop.x)
+            rho_cp_f = I_f * self.phy_prop.rho_cp1 + (1.0 - I_f) * self.phy_prop.rho_cp2
+            rho_cp_a = I * self.phy_prop.rho_cp1 + (1.0 - I) * self.phy_prop.rho_cp2
+
+            markers_int_kp1.shift(self.phy_prop.v * h * self.dt)
+            I_kp1 = markers_int_kp1.indicatrice_liquide(self.num_prop.x)
+            rho_cp_a_kp1 = (
+                    I_kp1 * self.phy_prop.rho_cp1 + (1.0 - I_kp1) * self.phy_prop.rho_cp2
+            )
+
+            flux_conv = rho_cp_f * self._compute_convection_flux(
+                T_int, markers_int, bool_debug, debug
+            )
+            flux_diff = self._compute_diffusion_flux(
+                T_int, markers_int, bool_debug, debug
+            )
+
+            self._corrige_flux_interfaces(T_int, markers_int, flux_conv, flux_diff)
+            self._echange_flux()
+            flux_diff.perio()
+            flux_conv.perio()
+            drhocpTdt = -integrale_vol_div(
+                flux_conv, dx
+            ) + self.phy_prop.diff * integrale_vol_div(flux_diff, dx)
+            # rho_cp_np1 * Tnp1 = rho_cp_n * Tn + dt (- int_S_rho_cp_T_u + int_S_lda_grad_T)
+            K = K * coeff_dTdtm1[step] + drhocpTdt
+            T_int = (
+                            T_int * rho_cp_a + self.dt * h * K / coeff_dTdt[step]
+                    ) / rho_cp_a_kp1
+            markers_int.shift(self.phy_prop.v * h * self.dt)
+
+        self.T = T_int
+
+    @property
+    def name_sous_cas(self):
+        return 'ESP'
 
 
 class ProblemDiscontinuE(Problem):

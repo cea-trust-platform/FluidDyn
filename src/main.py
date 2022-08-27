@@ -18,13 +18,13 @@ from scipy import optimize as opt
 from copy import deepcopy
 import pickle
 from glob import glob
-import os
+from src.statistics import Statistics
 
 EPS = 10**-6
 
 
 def integrale_vol_div(flux, dx):
-    return 1.0 / dx * (flux[1:] - flux[:-1])
+    return 1.0 / dx * (flux[1:] - flux[:-1]).view(np.ndarray)
 
 
 def interpolate(center_value, I=None, cl=1, schema="weno", cv_0=0.0, cv_n=0.0):
@@ -663,6 +663,418 @@ class NumericalProperties:
         return equal
 
 
+class StateProblem:
+    def __init__(self, T0, markers=None, num_prop=None, phy_prop=None, name=None):
+        self._imposed_name = name
+        if phy_prop is None:
+            print("Attention, les propriétés physiques par défaut sont utilisées")
+            phy_prop = PhysicalProperties()
+        if num_prop is None:
+            print("Attention, les propriétés numériques par défaut sont utilisées")
+            num_prop = NumericalProperties()
+
+        self._init_from_phy_prop(phy_prop)
+        self._init_from_num_prop(num_prop)
+        self.bulles = self._init_bulles(markers)
+
+        print()
+        print(self.name)
+        print("=" * len(self.name))
+        self.T = T0(self.x, markers=self.bulles, phy_prop=self.phy_prop)
+        self.dt = self.get_time()
+        self.time = 0.0
+        self.I = self._update_I()
+        self.If = self._update_If()
+        self.iter = 0
+        self.flux_conv = Flux(np.zeros_like(self.x_f))
+        self.flux_diff = Flux(np.zeros_like(self.x_f))
+        print("Db / dx = %.2i" % (self.bulles.diam / self.dx))
+
+    def _init_from_phy_prop(self, phy_prop: PhysicalProperties):
+        self.phy_prop = deepcopy(phy_prop)
+        self.Delta = self.phy_prop.Delta
+        self.v = self.phy_prop.v
+        self.active_diff = self.phy_prop.diff
+        self.lda = MonofluidVar(phy_prop.lda1, phy_prop.lda2)
+        self.rho_cp = MonofluidVar(phy_prop.rho_cp1, phy_prop.rho_cp2)
+
+    def _init_from_num_prop(self, num_prop: NumericalProperties):
+        self.num_prop = deepcopy(num_prop)
+        self.x = self.num_prop.x
+        self.x_f = self.num_prop.x_f
+        self.dx = self.num_prop.dx
+
+    def copy(self, pb):
+        equal_prop = self.phy_prop.isequal(pb.phy_prop)
+        if not equal_prop:
+            raise Exception(
+                "Impossible de copier le Problème, il n'a pas les mm propriétés physiques"
+            )
+        equal_prop_num = self.num_prop.isequal(pb.num_prop)
+        if not equal_prop_num:
+            raise Exception(
+                "Impossible de copier le Problème, il n'a pas les mm propriétés numériques"
+            )
+        init_bulles = self.bulles.copy()
+        init_bulles.shift(-self.time * self.v)
+        pb_bulles = pb.bulles.copy()
+        arrive_bulles = pb.bulles.copy()
+        arrive_bulles.shift(-pb.t * pb.v)
+        tolerance = 10**-6
+        equal_init_markers = np.all(np.abs(init_bulles.markers - arrive_bulles.markers) < tolerance)
+        if not equal_init_markers:
+            raise Exception(
+                "Impossible de copier le Problème, il n'a pas les mm markers de départ"
+            )
+
+        self.bulles = deepcopy(pb_bulles)
+        self.T = pb.T.copy()
+        self.dt = pb.dt
+        self.time = pb.time
+        self.I = self._update_I()
+        self.If = self._update_If()
+        self.iter = pb.iter
+        self.flux_conv = pb.flux_conv.copy()
+        self.flux_diff = pb.flux_diff.copy()
+
+    def _init_bulles(self, markers=None):
+        if markers is None:
+            return Bulles(markers=markers, phy_prop=self.phy_prop)
+        elif isinstance(markers, Bulles):
+            return markers.copy()
+        else:
+            print(markers)
+            raise NotImplementedError
+
+    @property
+    def full_name(self):
+        return "%s, %s" % (self.name, self.char)
+
+    @property
+    def name(self):
+        if self._imposed_name is None:
+            return self.name_cas
+        else:
+            return self._imposed_name
+
+    @property
+    def name_cas(self):
+        return "TOF"
+
+    @property
+    def char(self):
+        if self.v == 0.0:
+            return "%s, %s, dx = %g, dt = %.2g" % (
+                self.num_prop.time_scheme,
+                self.num_prop.schema,
+                self.dx,
+                self.dt,
+            )
+        elif self.phy_prop.diff == 0.0:
+            return "%s, %s, dx = %g, cfl = %g" % (
+                self.num_prop.time_scheme,
+                self.num_prop.schema,
+                self.dx,
+                self.cfl,
+            )
+        else:
+            return "%s, %s, dx = %g, dt = %.2g, cfl = %g" % (
+                self.num_prop.time_scheme,
+                self.num_prop.schema,
+                self.dx,
+                self.dt,
+                self.cfl,
+            )
+
+    @property
+    def cfl(self):
+        return self.v * self.dt / self.dx
+
+    def _update_I(self):
+        i = self.bulles.indicatrice_liquide(self.x)
+        return i
+
+    def _update_If(self):
+        i_f = self.bulles.indicatrice_liquide(self.x_f)
+        return i_f
+
+    def get_time(self):
+        # nombre CFL = 1. par défaut
+        if self.v > 10 ** (-12):
+            dt_cfl = self.dx / self.v * self.num_prop.cfl_lim
+        else:
+            dt_cfl = 10**15
+        # nombre de fourier = 1. par défaut
+        dt_fo = (
+                self.dx**2
+                / max(self.lda.l, self.lda.v)
+                * min(self.rho_cp.l, self.rho_cp.v)
+                * self.num_prop.fo_lim
+        )
+        # dt_fo = dx**2/max(lda1/rho_cp1, lda2/rho_cp2)*fo
+        # minimum des 3
+        list_dt = [self.num_prop.dt_min, dt_cfl, dt_fo]
+        i_dt = np.argmin(list_dt)
+        temps = ["dt min", "dt cfl", "dt fourier"][i_dt]
+        dt = list_dt[i_dt]
+        print(temps)
+        print(dt)
+        return dt
+
+    @property
+    def energy(self):
+        return np.sum(self.rho_cp.a(self.I) * self.T * self.phy_prop.dS * self.dx)
+
+    @property
+    def energy_m(self):
+        return np.sum(self.rho_cp.a(self.I) * self.T * self.dx) / self.phy_prop.Delta
+
+    def update_markers(self, h=1.):
+        self.bulles.shift(h * self.v * self.dt)
+        self.I = self._update_I()
+        self.If = self._update_If()
+
+    def _echange_flux(self):
+        self.flux_conv.perio()
+        self.flux_diff.perio()
+
+    def _corrige_flux_coeff_interface(self, T, bulles, *args):
+        """
+        Cette méthode sert à corriger dans les versions discontinues de Problem directement les flux et ainsi de
+        garantir la conservation.
+
+        Args:
+            flux_conv:
+            flux_diff:
+            coeff_diff:
+
+        Returns:
+            Corrige les flux et coeff sur place
+        """
+        pass
+
+    def _compute_convection_flux(self, T, bulles, bool_debug=False, debug=None):
+        T_u = interpolate(T, I=self.I, schema=self.num_prop.schema) * self.v
+        return T_u
+
+    def _compute_diffusion_flux(self, T, bulles, bool_debug=False, debug=None):
+        lda_grad_T = interpolate(self.lda.h(self.I), I=self.I, schema="center_h") * grad(
+            T, self.dx
+        )
+
+        if (debug is not None) and bool_debug:
+            # debug.set_title('sous-pas de temps %f' % (len(K) - 2))
+            debug.plot(
+                self.x_f,
+                lda_grad_T,
+                label="lda_h grad T, time = %f" % self.time,
+            )
+            debug.plot(
+                self.x_f, lda_grad_T, label="lda_grad_T, time = %f" % self.time
+            )
+            debug.set_xticks(self.x_f)
+            debug.grid(b=True, which="major")
+            debug.legend()
+        return lda_grad_T
+
+    def compute_time_derivative(self, bool_debug=False, debug=None, *args, **kwargs):
+        rho_cp_inv_h = 1.0 / self.rho_cp.h(self.I)
+        self.flux_conv = self._compute_convection_flux(
+            self.T, self.bulles, bool_debug, debug
+        )
+        self.flux_diff = self._compute_diffusion_flux(
+            self.T, self.bulles, bool_debug, debug
+        )
+        self._corrige_flux_coeff_interface(
+            self.T, self.bulles, self.flux_conv, self.flux_diff
+        )
+        self._echange_flux()
+        dTdt = -integrale_vol_div(
+            self.flux_conv, self.dx
+        ) + self.active_diff * rho_cp_inv_h * integrale_vol_div(
+            self.flux_diff, self.dx
+        )
+        return dTdt
+
+
+class TimeProblem(StateProblem):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.stat = Statistics()
+        if self.num_prop.time_scheme == 'euler':
+            self.timestep_method = EulerTimestep()
+        elif self.num_prop.time_scheme == 'rk3':
+            self.timestep_method = RK3Timestep()
+        else:
+            raise NotImplementedError
+
+    def copy(self, pb):
+        super().copy(pb)
+        self.stat = deepcopy(pb.stat)
+
+    def timestep(
+            self,
+            n=None,
+            t_fin=None,
+            plot_for_each=1,
+            number_of_plots=None,
+            plotter=None,
+            debug=None,
+            **kwargs
+    ):
+        if plotter is None:
+            raise (Exception("plotter is a mandatory argument"))
+        if (n is None) and (t_fin is None):
+            raise NotImplementedError
+        elif (n is not None) and (t_fin is not None):
+            n = min(n, int(t_fin / self.dt))
+        elif t_fin is not None:
+            n = int(t_fin / self.dt)
+        if number_of_plots is not None:
+            plot_for_each = int((n - 1) / number_of_plots)
+        if plot_for_each <= 0:
+            plot_for_each = 1
+
+        self.stat.extend(n)
+        self.stat.collect(self.time, self.energy)
+
+        for i in range(n):
+            self.timestep_method.step(self, debug=debug, bool_debug=(i % plot_for_each == 0))
+            self.time += self.dt
+            self.iter += 1
+            self.stat.collect(self.time, self.energy)
+            # intermediary plots
+            if (i % plot_for_each == 0) and (i != 0) and (i != n - 1):
+                if isinstance(plotter, list):
+                    for plott in plotter:
+                        plott.plot(self, **kwargs)
+                else:
+                    plotter.plot(self, **kwargs)
+
+        # final plot
+        if isinstance(plotter, list):
+            for plott in plotter:
+                plott.plot(self, **kwargs)
+        else:
+            plotter.plot(self, **kwargs)
+        return self.stat.t, self.stat.E
+
+    def load_or_compute(
+            self,
+            pb_name=None,
+            t_fin=0.0,
+            **kwargs
+    ):
+        if pb_name is None:
+            pb_name = self.full_name
+
+        simu_name = SimuName(pb_name)
+        closer_simu = simu_name.get_closer_simu(self.time + t_fin)
+
+        if closer_simu is not None:
+            with open(closer_simu, "rb") as f:
+                saved = pickle.load(f)
+            self.copy(saved)
+            launch_time = t_fin - self.time
+            print(
+                "Loading ======> %s\nremaining time to compute : %f"
+                % (closer_simu, launch_time)
+            )
+        else:
+            launch_time = t_fin - self.time
+
+        t, E = self.timestep(
+            t_fin=launch_time,
+            **kwargs
+        )
+
+        save_name = simu_name.get_save_path(self.time)
+        with open(save_name, "wb") as f:
+            pickle.dump(self, f)
+
+        return t, E
+
+
+class TimestepBase:
+    def __init__(self, *args, **kwargs):
+        pass
+
+    def step(self, state: StateProblem, *args, **kwargs):
+        raise NotImplementedError
+
+
+class EulerTimestep(TimestepBase):
+    def step(self, pb: StateProblem, debug=None, bool_debug=False):
+        dTdt = pb.compute_time_derivative(debug=debug, bool_debug=bool_debug)
+        pb.T += pb.dt * dTdt
+        pb.update_markers()
+
+
+class RK3Timestep(TimestepBase):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, *kwargs)
+        self.K = 0.0
+        self.coeff_h = np.array([1.0 / 3, 5.0 / 12, 1.0 / 4])
+        self.coeff_dTdtm1 = np.array([0.0, -5.0 / 9, -153.0 / 128])
+        self.coeff_dTdt = np.array([1.0, 4.0 / 9, 15.0 / 32])
+
+    def step(self, pb: StateProblem, *args, **kwargs):
+        for step, h in enumerate(self.coeff_h):
+            self._rk3_substep(pb, h, self.coeff_dTdtm1[step], self.coeff_dTdt[step], *args, **kwargs)
+            pb.update_markers(h)
+
+    def _rk3_substep(self, pb, h, coeff_dTdtm1, coeff_dTdt, *args, debug=None, bool_debug=False, **kwargs):
+        dTdt = pb.compute_time_derivative()
+        self.K = self.K * coeff_dTdtm1 + dTdt
+        if bool_debug and (debug is not None):
+            print("step : ", h)
+            print("dTdt : ", dTdt)
+            print("K    : ", self.K)
+        pb.T += h * pb.dt * self.K / coeff_dTdt  # coeff_dTdt est calculé de
+
+
+class RK4Timestep(TimestepBase):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.pas_de_tempss = np.array([0.0, 0.5, 0.5, 1.0])
+        self.Ks = []
+
+    def step(self, pb: TimeProblem, *args, **kwargs):
+        K = [0.0]
+        T_u_l = []
+        lda_gradT_l = []
+        pas_de_temps = np.array([0.0, 0.5, 0.5, 1.0])
+        dx = pb.num_prop.dx
+        markers_int = pb._bulles.copy()
+        for h in pas_de_temps:
+            I_k = markers_int.indicatrice_liquide(pb.num_prop.x)
+            rho_cp_inv_h = 0.  #TODO a refaire
+            markers_int.shift(pb.phy_prop.v * h * pb.dt)
+
+            T = pb.T + h * pb.dt * K[-1]
+
+            convection = pb._compute_convection_flux(
+                T, markers_int, *args, **kwargs
+            )
+            conduction = pb._compute_diffusion_flux(T, markers_int, *args, **kwargs)
+            # TODO: vérifier qu'il ne faudrait pas plutôt utiliser rho_cp^{n,k}
+            rho_cp_inv_h = 1.0 / pb.rho_cp_h
+            pb._corrige_flux_coeff_interface(T, markers_int, convection, conduction)
+            convection.perio()
+            conduction.perio()
+            dTdt = (
+                -integrale_vol_div(convection, dx)
+                + pb.phy_prop.diff * rho_cp_inv_h * integrale_vol_div(conduction, dx)
+            )
+            T_u_l.append(convection)
+            lda_gradT_l.append(conduction)
+            K.append(dTdt)
+        coeff = np.array([1.0 / 6, 1 / 3.0, 1 / 3.0, 1.0 / 6])
+        self.flux_conv = np.sum(coeff * Flux(T_u_l).T, axis=-1)
+        self.flux_diff = np.sum(coeff * Flux(lda_gradT_l).T, axis=-1)
+        self.T += np.sum(self.dt * coeff * np.array(K[1:]).T, axis=-1)
+
+
 class Problem:
     bulles: Bulles
     num_prop: NumericalProperties
@@ -1197,3 +1609,37 @@ class Flux(np.ndarray):
 
     def perio(self):
         self[-1] = self[0]
+
+
+class MonofluidVar:
+    def __init__(self, val_liquid, val_vapeur):
+        self._val_liquid = val_liquid
+        self._val_vapeur = val_vapeur
+
+    def a(self, indicatrice_liquide):
+        return self._val_liquid * indicatrice_liquide + self._val_vapeur * (1. - indicatrice_liquide)
+
+    def h(self, indicatrice_liquide):
+        return 1. / (indicatrice_liquide / self._val_liquid + (1. - indicatrice_liquide) / self._val_vapeur)
+
+    @property
+    def l(self):
+        return self._val_liquid
+
+    @property
+    def v(self):
+        return self._val_vapeur
+
+    def __mul__(self, other):
+        return MonofluidVar(self.l * other.l, self.v * other.v)
+
+    def __divmod__(self, other):
+        assert (other.l != 0.) and (other.v != 0.)
+        return MonofluidVar(self.l / other.l, self.v / other.v)
+
+    def __add__(self, other):
+        return MonofluidVar(self.l + other.l, self.v + other.v)
+
+    def __sub__(self, other):
+        return MonofluidVar(self.l - other.l, self.v - other.v)
+

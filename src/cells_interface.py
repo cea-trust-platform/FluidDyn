@@ -128,6 +128,14 @@ class InterfaceInterpolationBase(InterfaceCellsBase):
     def __init__(self, *args, volume_integration=False, **kwargs):
         super().__init__(*args, **kwargs)
         self.volume_integration = volume_integration
+        self._interpolation_name = 'InterfaceInterpolationBase'
+
+    @property
+    def name(self):
+        name = self._interpolation_name
+        if self.volume_integration:
+            name += '_vol'
+        return name
 
     def interpolate(self, T, ldag, ldad, ag):
         self.ldag = ldag
@@ -187,6 +195,10 @@ class InterfaceInterpolationBase(InterfaceCellsBase):
 
 
 class InterfaceInterpolation1_1(InterfaceInterpolationBase):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._interpolation_name = 'Ti-gradT'
+
     def _compute_Ti_without_volume_integration(self):
         self._Ti, self._lda_gradTi = self._get_T_i_and_lda_grad_T_i(
             self.Tg[-2],
@@ -209,6 +221,10 @@ class InterfaceInterpolation1_1(InterfaceInterpolationBase):
 
 
 class InterfaceInterpolation1_0(InterfaceInterpolationBase):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._interpolation_name = 'Ti-pure'
+
     def _compute_Ti_without_volume_integration(self):
         self._Ti, self._lda_gradTi = self._get_T_i_and_lda_grad_T_i(
             self.Tg[-2],
@@ -223,6 +239,10 @@ class InterfaceInterpolation1_0(InterfaceInterpolationBase):
 
 
 class InterfaceInterpolation2(InterfaceInterpolationBase):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._interpolation_name = 'Ti2'
+
     def _compute_Ti_without_volume_integration(self):
         (
             self._Ti,
@@ -329,6 +349,10 @@ class InterfaceInterpolation2(InterfaceInterpolationBase):
 
 
 class InterfaceInterpolation3(InterfaceInterpolationBase):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._interpolation_name = 'Ti3'
+
     def _compute_ghosts(self):
         self.Tg[-1] = self._T_dlg(0.5 * self.dx)
         self.Td[0] = self._T_dld(0.5 * self.dx)
@@ -560,8 +584,11 @@ class InterfaceInterpolation3(InterfaceInterpolationBase):
             )
 
 
-# TODO: mais que fait cette classe ?
 class InterfaceInterpolationIntegral(InterfaceInterpolationBase):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._interpolation_name = 'Integral'
+
     def _compute_Ti(self):
         (
             self._Ti,
@@ -663,6 +690,7 @@ class InterfaceInterpolationEnergieTemperature(InterfaceInterpolationBase):
         self.rhocpg = 0.
         self.rhocpd = 0.
         self.h = 0.
+        self._interpolation_name = 'hT'
 
     def interpolate(self, *args, h, rhocpg, rhocpd, **kwargs):
         self.h = h
@@ -719,6 +747,7 @@ class InterfaceInterpolationContinuousFluxBase(InterfaceInterpolationBase):
         self.lda_gradTig = 0.
         self.lda_gradTd = 0.
         self.lda_gradTg = 0.
+        self._interpolation_name = 'ldagradT'
 
     def _compute_Ti(self):
         """
@@ -780,6 +809,9 @@ class InterfaceInterpolationContinuousFluxBase(InterfaceInterpolationBase):
 
 
 class InterfaceInterpolationContinuousFlux1(InterfaceInterpolationContinuousFluxBase):
+    def __init__(self, *args, **kwargs):
+        self._interpolation_name = 'ldagradT1'
+
     def _get_lda_grad_T_i_from_ldagradT_continuity(
         self, Tim2: float, Tim1: float, Tip1: float, Tip2: float, dg: float, dd: float
     ) -> (float, float, float, float, float):
@@ -851,6 +883,9 @@ class InterfaceInterpolationContinuousFlux1(InterfaceInterpolationContinuousFlux
 
 
 class InterfaceInterpolationContinuousFlux2(InterfaceInterpolationContinuousFluxBase):
+    def __init__(self, *args, **kwargs):
+        self._interpolation_name = 'ldagradT2'
+
     def _interpolate_ldagradT(self):
         """
         On commence par récupérer lda_grad_Ti par continuité à partir de gradTim52 gradTim32 gradTip32
@@ -964,7 +999,12 @@ class FaceInterpolationBase:
         self._lda_f = np.zeros(6)
         self._T_f = np.empty((6,), dtype=np.float_)
         self._gradT_f = np.empty((6,), dtype=np.float_)
+        self._name = 'FaceInterpolationBase'
         # On fait tout de suite le calcul qui nous intéresse, il est nécessaire pour la suite
+
+    @property
+    def name(self):
+        return self._name + ', ' + self.time_integral
 
     def interpolate_on_faces(
         self,
@@ -1195,6 +1235,10 @@ class FaceInterpolationBase:
 
 
 class FaceInterpolationUpwind(FaceInterpolationBase):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._name = 'Upwind'
+
     def _compute_Tf_gradTf(self):
         Tim32, dTdxim32, _ = self._interp_upwind(
             self.interface_cells.Tg[1], self.interface_cells.Tg[2], -1.0 * self.dx, 0.0 * self.dx
@@ -1239,6 +1283,10 @@ class FaceInterpolationUpwind(FaceInterpolationBase):
 
 
 class FaceInterpolationQuick(FaceInterpolationBase):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._name = 'Quick et amont 1'
+
     def _compute_Tf_gradTf(self):
         """
         Cellule type ::
@@ -1339,6 +1387,10 @@ class FaceInterpolationQuick(FaceInterpolationBase):
 
 
 class FaceInterpolationQuickGhost(FaceInterpolationBase):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._name = 'QuickGhost et amont 1'
+
     def _compute_Tf_gradTf(self):
         """
         Cellule type ::
@@ -1390,6 +1442,10 @@ class FaceInterpolationQuickGhost(FaceInterpolationBase):
 
 
 class FaceInterpolationQuickUpwindGhost(FaceInterpolationBase):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._name = 'QuickGhost et amont 0'
+
     def _compute_Tf_gradTf(self):
         """
         Cellule type ::
@@ -1437,6 +1493,10 @@ class FaceInterpolationQuickUpwindGhost(FaceInterpolationBase):
 
 
 class FaceInterpolationAmontCentre(FaceInterpolationBase):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._name = 'mélange centré2, amont1 et amont1'
+
     def _compute_Tf_gradTf(self):
         """
         Cellule type ::

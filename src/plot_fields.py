@@ -604,8 +604,8 @@ class TimePlot:
         self.ax.grid(b=True, which="minor", alpha=0.2)
         self.ax.set_xlabel(r"$t [s]$")
 
-    def plot(self, t, e, label=None):
-        self.ax.plot(t, e, label=label)
+    def plot(self, t, e, label=None, **kwargs):
+        c = self.ax.plot(t, e, label=label, **kwargs)
         self.ax.legend(loc="upper right")
         self.fig.tight_layout()
 
@@ -617,6 +617,8 @@ class TimePlot:
             print("Calcul sans label")
             print("=================")
 
+        return c
+
 
 class EnergiePlot(TimePlot):
     def __init__(self, e0=None):
@@ -624,11 +626,11 @@ class EnergiePlot(TimePlot):
         self.ax.set_ylabel(r"$E_{tot} [J/m^3]$")
         self.e0 = e0
 
-    def plot(self, t, e, label=None):
+    def plot(self, t, e, label=None, **kargs):
         if self.e0 is None:
             self.e0 = e[0]
 
-        super().plot(t, e, label)
+        super().plot(t, e, label, **kargs)
 
         n = len(e)
         i0 = int(n / 5)
@@ -663,13 +665,14 @@ class EnergiePlot(TimePlot):
 
 
 class TemperaturePlot(TimePlot):
-    def __init__(self, Tfinal=None):
+    def __init__(self):
         super().__init__()
         self.ax.set_ylabel(r"$T_{k} [K]$")
-        self.Tfinal = Tfinal
+        self.T_final = None
+        self.T_final_prevu = None
 
-    def plot(self, t, T, label=None):
-        super().plot(t, T, label)
+    def plot(self, t, T, label=None, **kargs):
+        c = super().plot(t, T, label, **kargs)
 
         n = len(T)
         i0 = int(n / 5)
@@ -677,23 +680,25 @@ class TemperaturePlot(TimePlot):
                 (T[-1] - T[i0]) / (t[-1] - t[i0])
         )  # on a mult
         print("dT/dt = %g" % dedt_adim)
+        return c
 
     def plot_tpb(self, tpb, label=None):
-        if self.Tfinal is None:
-            self.Tfinal = tpb.problem_state.T_final
+        if self.T_final is None:
+            self.T_final = tpb.problem_state.T_final
+            self.T_final_prevu = tpb.problem_state.T_final_prevu
         if label is None:
             label = ', ' + tpb.problem_state.name
-        self.plot(tpb.stat.t, tpb.stat.Tl, label=r'$T_l$' + label)
-        self.plot(tpb.stat.t, tpb.stat.Tv, label=r'$T_v$' + label)
+        c = self.plot(tpb.stat.t, tpb.stat.Tl, label=r'$T_l$' + label)
+        self.plot(tpb.stat.t, tpb.stat.Tv, label=r'$T_v$' + label, c=c[-1].get_color())
 
     def add_T_final(self):
         self.fig.canvas.draw_idle()
         labels = [item.get_text() for item in self.ax.get_yticklabels()]
         ticks = list(self.ax.get_yticks())
-        ticks.append(self.Tfinal)
-        labels.append(r"$T_f$")
+        ticks.append(self.T_final)
+        labels.append(r"$T_f\quad\cdot$")
+        ticks.append(self.T_final_prevu)
+        labels.append(r"$T_f^\textrm{expected}\quad\cdot$")
         self.ax.set_yticks(ticks)
         self.ax.set_yticklabels(labels)
         self.fig.tight_layout()
-
-

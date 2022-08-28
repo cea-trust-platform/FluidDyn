@@ -51,6 +51,7 @@ class StateProblem:
         self.flux_conv = Flux(np.zeros_like(self.x_f))
         self.flux_diff = Flux(np.zeros_like(self.x_f))
         print("Db / dx = %.2i" % (self.bulles.diam / self.dx))
+        self._T_final = self.T_final_prevu
 
     def _init_from_phy_prop(self, phy_prop: PhysicalProperties):
         self.phy_prop = deepcopy(phy_prop)
@@ -190,8 +191,13 @@ class StateProblem:
         return np.sum(self.rho_cp.a(self.I) * self.T * self.phy_prop.dS * self.dx)
 
     @property
-    def T_final(self):
+    def T_final_prevu(self):
         return np.sum(self.rho_cp.a(self.I) * self.T) / np.sum(self.rho_cp.a(self.I))
+
+    @property
+    def T_final(self):
+        return self._T_final
+
 
     @property
     def energy_m(self):

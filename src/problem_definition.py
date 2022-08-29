@@ -1,103 +1,7 @@
 import numpy as np
+from copy import deepcopy
 
 EPS = 10**-6
-
-
-class Bulles:
-    def __init__(
-            self, markers=None, phy_prop=None, n_bulle=None, Delta=1.0, alpha=0.06, a_i=None
-    ):
-        self.diam = 0.0
-        if phy_prop is not None:
-            self.Delta = phy_prop.Delta
-            self.alpha = phy_prop.alpha
-            self.a_i = phy_prop.a_i
-        else:
-            self.Delta = Delta
-            self.alpha = alpha
-            self.a_i = a_i
-
-        if markers is None:
-            self.markers = []
-            if n_bulle is None:
-                if self.a_i is None:
-                    raise Exception(
-                        "On ne peut pas déterminer auto la géométrie des bulles sans le rapport surfacique"
-                    )
-                else:
-                    # On détermine le nombre de bulle pour avoir une aire interfaciale donnée.
-                    # On considère ici une géométrie 1D comme l'équivalent d'une situation 3D
-                    n_bulle = int(self.a_i / 2.0 * self.Delta) + 1
-            # Avec le taux de vide, on en déduit le diamètre d'une bulle. On va considérer que le taux de vide
-            # s'exprime en 1D, cad : phy_prop.alpha = n*d*dS/(Dx*dS)
-            self.diam = self.alpha * self.Delta / n_bulle
-            centers = np.linspace(self.diam, self.Delta + self.diam, n_bulle + 1)[:-1]
-            for center in centers:
-                self.markers.append(
-                    (center - self.diam / 2.0, center + self.diam / 2.0)
-                )
-            self.markers = np.array(self.markers)
-            self.shift(self.Delta * 1.0 / 4)
-        else:
-            self.markers = np.array(markers).copy()
-            mark1 = self.markers[0][1]
-            mark0 = self.markers[0][0]
-            while mark1 < mark0:
-                mark1 += self.Delta
-            self.diam = mark1 - mark0
-
-        depasse = (self.markers > self.Delta) | (self.markers < 0.0)
-        if np.any(depasse):
-            print("Delta : ", self.Delta)
-            print("markers : ", self.markers)
-            print("depasse : ", depasse)
-            raise Exception("Les marqueurs dépassent du domaine")
-
-        self.init_markers = self.markers.copy()
-
-    def __call__(self, *args, **kwargs):
-        return self.markers
-
-    def copy(self):
-        cls = self.__class__
-        copie = cls(markers=self.markers.copy(), Delta=self.Delta)
-        copie.diam = self.diam
-        return copie
-
-    def indicatrice_liquide(self, x):
-        """
-        Calcule l'indicatrice qui correspond au liquide avec les marqueurs selon la grille x
-
-        Args:
-            x: les positions des centres des mailles
-
-        Returns:
-            l'indicatrice
-        """
-        i = np.ones_like(x)
-        dx = x[1] - x[0]
-        for markers in self.markers:
-            if markers[0] < markers[1]:
-                i[(x > markers[0]) & (x < markers[1])] = 0.0
-            else:
-                i[(x > markers[0]) | (x < markers[1])] = 0.0
-            diph0 = np.abs(x - markers[0]) < dx / 2.0
-            i[diph0] = (markers[0] - x[diph0]) / dx + 0.5
-            diph1 = np.abs(x - markers[1]) < dx / 2.0
-            i[diph1] = -(markers[1] - x[diph1]) / dx + 0.5
-        return i
-
-    def shift(self, dx):
-        """
-        On déplace les marqueurs vers la droite
-
-        Args:
-            dx: la distance du déplacement
-
-        """
-        self.markers += dx
-        depasse = self.markers > self.Delta
-        self.markers[depasse] -= self.Delta
 
 
 class PhysicalProperties:
@@ -262,3 +166,109 @@ class NumericalProperties:
             print("Attention, les propriétés numériques ne sont pas égales :")
             print(dic)
         return equal
+
+
+class Base:
+    def __init__(self, phy_prop, num_prop, *args, **kwargs):
+        self.phy_prop = deepcopy(phy_prop)
+        self.num_prop = deepcopy(num_prop)
+
+
+class Bulles:
+    def __init__(
+            self, markers=None, phy_prop=None, n_bulle=None, Delta=1.0, alpha=0.06, a_i=None
+    ):
+        self.diam = 0.0
+        if phy_prop is not None:
+            self.Delta = phy_prop.Delta
+            self.alpha = phy_prop.alpha
+            self.a_i = phy_prop.a_i
+        else:
+            self.Delta = Delta
+            self.alpha = alpha
+            self.a_i = a_i
+
+        if markers is None:
+            self.markers = []
+            if n_bulle is None:
+                if self.a_i is None:
+                    raise Exception(
+                        "On ne peut pas déterminer auto la géométrie des bulles sans le rapport surfacique"
+                    )
+                else:
+                    # On détermine le nombre de bulle pour avoir une aire interfaciale donnée.
+                    # On considère ici une géométrie 1D comme l'équivalent d'une situation 3D
+                    n_bulle = int(self.a_i / 2.0 * self.Delta) + 1
+            # Avec le taux de vide, on en déduit le diamètre d'une bulle. On va considérer que le taux de vide
+            # s'exprime en 1D, cad : phy_prop.alpha = n*d*dS/(Dx*dS)
+            self.diam = self.alpha * self.Delta / n_bulle
+            centers = np.linspace(self.diam, self.Delta + self.diam, n_bulle + 1)[:-1]
+            for center in centers:
+                self.markers.append(
+                    (center - self.diam / 2.0, center + self.diam / 2.0)
+                )
+            self.markers = np.array(self.markers)
+            self.shift(self.Delta * 1.0 / 4)
+        else:
+            self.markers = np.array(markers).copy()  # type: np.ndarray
+            n_bulle = self.markers.shape[0]
+            for marker_pair in self.markers:
+                mark1 = marker_pair[1]
+                mark0 = marker_pair[0]
+                while mark1 < mark0:
+                    mark1 += self.Delta
+                self.diam = mark1 - mark0
+        self.n_bulles = n_bulle
+
+        depasse = (self.markers > self.Delta) | (self.markers < 0.0)
+        if np.any(depasse):
+            print("Delta : ", self.Delta)
+            print("markers : ", self.markers)
+            print("depasse : ", depasse)
+            raise Exception("Les marqueurs dépassent du domaine")
+
+        self.init_markers = self.markers.copy()
+
+    def __call__(self, *args, **kwargs):
+        return self.markers
+
+    def copy(self):
+        cls = self.__class__
+        copie = cls(markers=self.markers.copy(), Delta=self.Delta)
+        copie.diam = self.diam
+        return copie
+
+    def indicatrice_liquide(self, x):
+        """
+        Calcule l'indicatrice qui correspond au liquide avec les marqueurs selon la grille x
+
+        Args:
+            x: les positions des centres des mailles
+
+        Returns:
+            l'indicatrice
+        """
+        i = np.ones_like(x)
+        dx = x[1] - x[0]
+        for markers in self.markers:
+            if markers[0] < markers[1]:
+                i[(x > markers[0]) & (x < markers[1])] = 0.0
+            else:
+                i[(x > markers[0]) | (x < markers[1])] = 0.0
+            diph0 = np.abs(x - markers[0]) < dx / 2.0
+            i[diph0] = (markers[0] - x[diph0]) / dx + 0.5
+            diph1 = np.abs(x - markers[1]) < dx / 2.0
+            i[diph1] = -(markers[1] - x[diph1]) / dx + 0.5
+        return i
+
+    def shift(self, dx):
+        """
+        On déplace les marqueurs vers la droite
+
+        Args:
+            dx: la distance du déplacement
+
+        """
+        self.markers += dx
+        depasse = self.markers > self.Delta
+        self.markers[depasse] -= self.Delta

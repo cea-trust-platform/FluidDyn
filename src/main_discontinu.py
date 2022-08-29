@@ -247,57 +247,51 @@ class StateProblemDiscontinu(StateProblem):
         **kwargs
     ):
         super().__init__(T0, markers, num_prop=num_prop, phy_prop=phy_prop, **kwargs)
-        if num_prop.time_scheme == "rk3":
-            print("RK3 is not implemented, changes to Euler")
-            self.num_prop._time_scheme = "euler"
-        # self.T_old = self.T.copy()
         if interp_type is None:
             self.interp_type = "Ti"
         else:
             self.interp_type = interp_type
         print(self.interp_type)
         if conv_interf is None:
-            conv_interf = self.num_prop.schema
+            conv_interf = num_prop.schema
         self.conv_interf = conv_interf
-        if not conv_interf.endswith("ghost"):
-            raise (Exception("Le schema conv_interf doit etre du type ghost."))
 
         if isinstance(self.interp_type, InterfaceInterpolationBase):
             self.interpolation_interface = self.interp_type
         # Le reste est hérité de l'ancienne manière de faire. À supprimer à terme.
         elif self.interp_type == "Ti":
             self.interpolation_interface = InterfaceInterpolation1_0(
-                dx=self.num_prop.dx
+                dx=num_prop.dx
             )
         elif self.interp_type == "Ti2":
-            self.interpolation_interface = InterfaceInterpolation2(dx=self.num_prop.dx)
+            self.interpolation_interface = InterfaceInterpolation2(dx=num_prop.dx)
         elif self.interp_type == "Ti2_vol":
             self.interpolation_interface = InterfaceInterpolation2(
-                dx=self.num_prop.dx, volume_integration=True
+                dx=num_prop.dx, volume_integration=True
             )
         elif self.interp_type == "Ti3":
-            self.interpolation_interface = InterfaceInterpolation3(dx=self.num_prop.dx)
+            self.interpolation_interface = InterfaceInterpolation3(dx=num_prop.dx)
         elif self.interp_type == "Ti3_vol":
             self.interpolation_interface = InterfaceInterpolation3(
-                dx=self.num_prop.dx, volume_integration=True
+                dx=num_prop.dx, volume_integration=True
             )
         elif self.interp_type == "Ti3_1_vol":
             raise NotImplementedError
         elif self.interp_type == "gradTi":
             self.interpolation_interface = InterfaceInterpolationContinuousFlux1(
-                dx=self.num_prop.dx
+                dx=num_prop.dx
             )
         elif self.interp_type == "gradTi2":
             self.interpolation_interface = InterfaceInterpolationContinuousFlux2(
-                dx=self.num_prop.dx
+                dx=num_prop.dx
             )
         elif self.interp_type == "energie_temperature":
             self.interpolation_interface = InterfaceInterpolationEnergieTemperature(
-                dx=self.num_prop.dx
+                dx=num_prop.dx
             )
         elif self.interp_type == "integrale":
             self.interpolation_interface = InterfaceInterpolationIntegral(
-                dx=self.num_prop.dx
+                dx=num_prop.dx
             )
         else:
             raise NotImplementedError
@@ -373,21 +367,22 @@ class StateProblemDiscontinu(StateProblem):
             # i_amont et i_aval servent à aller chercher les valeurs sur
             # le maillage cartésien
             for ist, i in enumerate((i_amont, i_aval)):
-                stencil_interf = list(cl_perio(len(T), i))
+                centre_stencil_interf = list(cl_perio(len(T), i))
                 ldag, rhocpg, ag, ldad, rhocpd, ad = get_prop(self, i, liqu_a_gauche=(i == i_amont))
                 self.interpolation_interface.interpolate(
-                    T[stencil_interf], ag, ldag, ldad
+                    T[centre_stencil_interf], ldag, ldad, ag
                 )
                 self.face_interpolation.interpolate_on_faces(
                     self.interpolation_interface, rhocpg, rhocpd
                 )
-                self._corrige_flux_une_interface(stencil_interf)
+                face_stencil_interf = centre_stencil_interf[1:]
+                self._corrige_flux_une_interface(face_stencil_interf)
                 self.bulles.post(self.interpolation_interface, i_bulle, ist)
 
     @property
-    def name_cas(self):
+    def name(self):
         return (
-                self.name_sous_cas
+                self.name_cas
                 + ", "
                 + self.interpolation_interface.name
                 + ", "
@@ -395,10 +390,11 @@ class StateProblemDiscontinu(StateProblem):
         )
 
     @staticmethod
-    def _corrige_flux_local(flux, get_new_flux, stencil_interf):
-        new_flux = get_new_flux()
-        stencil_new_flux = get_stencil(new_flux)
-        ind_flux_corrige = stencil_interf[stencil_new_flux]
+    def _corrige_flux_local(flux: Flux, get_new_flux, stencil_interf: list):
+        new_flux = get_new_flux()  # array de 6, le premier flux est à droite du premier point
+        stencil_new_flux = get_stencil(new_flux)  # liste des indices non nan du flux de correction
+        arr_stencil_interf = np.array(stencil_interf)
+        ind_flux_corrige = arr_stencil_interf[stencil_new_flux]
         flux[ind_flux_corrige] = new_flux[stencil_new_flux]
 
     def _corrige_flux_une_interface(self, stencil_interf, *args):
@@ -416,7 +412,7 @@ class StateProblemDiscontinu(StateProblem):
         raise NotImplementedError
 
     @property
-    def name_sous_cas(self):
+    def name_cas(self):
         raise NotImplementedError
 
 
@@ -766,7 +762,7 @@ class StateProblemDiscontinuEnergieTemperatureInt(StateProblemDiscontinu):
         return dTdt, dhdt
 
     @property
-    def name_sous_cas(self):
+    def name_cas(self):
         return "Energie-TSV"
 
 
@@ -1007,7 +1003,7 @@ class StateProblemDiscontinuE(StateProblemDiscontinu):
         return drhocpTdt
 
     @property
-    def name_sous_cas(self):
+    def name_cas(self):
         return "Energie"
 
 

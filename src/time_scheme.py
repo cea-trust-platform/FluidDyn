@@ -9,14 +9,20 @@ class TimestepBase:
     def step(self, state: StateProblem, *args, **kwargs):
         raise NotImplementedError
 
+    def _sub_step(self, *args, **kwargs):
+        raise NotImplementedError
+
 
 class EulerTimestep(TimestepBase):
     def step(self, pb: StateProblem, debug=None, bool_debug=False):
-        dTdt = pb.compute_time_derivative(debug=debug, bool_debug=bool_debug)
-        pb.T += pb.dt * dTdt
-        pb.update_markers()
+        self._sub_step(pb, debug, bool_debug)
         pb.time += pb.dt
         pb.iter += 1
+
+    def _sub_step(self, pb: StateProblem, *args, **kwargs):
+        dTdt = pb.compute_time_derivative(*args, **kwargs)
+        pb.T += pb.dt * dTdt
+        pb.update_markers()
 
 
 class RK3Timestep(TimestepBase):
@@ -29,13 +35,13 @@ class RK3Timestep(TimestepBase):
 
     def step(self, pb: StateProblem, *args, **kwargs):
         for step, h in enumerate(self.coeff_h):
-            self._rk3_substep(
+            self._sub_step(
                 pb, h, self.coeff_dTdtm1[step], self.coeff_dTdt[step], *args, **kwargs
             )
         pb.time += pb.dt
         pb.iter += 1
 
-    def _rk3_substep(
+    def _sub_step(
         self,
         pb,
         h,
@@ -97,18 +103,19 @@ class RK4Timestep(TimestepBase):
 
 
 class EulerEnergieTimestep(EulerTimestep):
-    def step(self, pb: StateProblem, *args, **kwargs):
+    def _sub_step(self, pb: StateProblem, *args, **kwargs):
         bulles_np1 = pb.bulles.copy()
         bulles_np1.shift(pb.v * pb.dt)
         I_np1 = bulles_np1.indicatrice_liquide(pb.x)
         rho_cp_a_np1 = pb.rho_cp.a(I_np1)
-        drhocpTdt = pb.compute_time_derivative(*args)
+        drhocpTdt = pb.compute_time_derivative(*args, **kwargs)
         # rho_cp_np1 * Tnp1 = rho_cp_n * Tn + dt (- int_S_rho_cp_T_u + int_S_lda_grad_T)
         pb.T = (pb.T * pb.rho_cp.a(pb.I) + pb.dt * drhocpTdt) / rho_cp_a_np1
+        pb.update_markers()
 
 
 class RK3EnergieTimestep(RK3Timestep):
-    def _rk3_substep(
+    def _sub_step(
         self,
         pb: StateProblem,
         h,

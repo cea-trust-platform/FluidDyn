@@ -15,7 +15,7 @@
 
 from glob import glob
 
-from src.time_scheme import EulerTimestep, RK3Timestep, TimestepBase
+from src.time_scheme import *
 from src.main_discontinu import *
 from src.statistics import Statistics
 from src.plot_fields import Plotter
@@ -29,8 +29,8 @@ class TimeProblem:
 
     def __init__(self, *args, problem_state=None, stat=None, plotter=None, **kwargs):
         if problem_state is None:
-            problem_state = StateProblem(*args, **kwargs)
-        self.problem_state = problem_state
+            problem_state = StateProblem
+        self.problem_state = problem_state(*args, **kwargs)
         if stat is None:
             stat = Statistics()
         self.timestep_scheme = self._init_timestep(
@@ -41,14 +41,21 @@ class TimeProblem:
             plotter = Plotter()
         self.plotter = plotter
 
-    @staticmethod
-    def _init_timestep(time_scheme_name: str):
-        if time_scheme_name == "euler":
-            timestep_method = EulerTimestep()
-        elif time_scheme_name == "rk3":
-            timestep_method = RK3Timestep()
+    def _init_timestep(self, time_scheme_name: str):
+        if isinstance(self.problem_state, StateProblemDiscontinuE):
+            if time_scheme_name == "euler":
+                timestep_method = EulerEnergieTimestep()
+            elif time_scheme_name == "rk3":
+                timestep_method = RK3EnergieTimestep()
+            else:
+                raise NotImplementedError
         else:
-            raise NotImplementedError
+            if time_scheme_name == "euler":
+                timestep_method = EulerTimestep()
+            elif time_scheme_name == "rk3":
+                timestep_method = RK3Timestep()
+            else:
+                raise NotImplementedError
         return timestep_method
 
     def copy(self, pb):

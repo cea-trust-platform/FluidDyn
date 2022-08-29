@@ -40,8 +40,8 @@ class StateProblem:
         self.bulles = self._init_bulles(markers)
 
         print()
-        print(self.name)
-        print("=" * len(self.name))
+        print(self.name_cas)
+        print("=" * len(self.name_cas))
         self.T = T0(self.x, markers=self.bulles, phy_prop=self.phy_prop)
         self.dt = self.get_time()
         self.time = 0.0
@@ -197,7 +197,6 @@ class StateProblem:
     @property
     def T_final(self):
         return self._T_final
-
 
     @property
     def energy_m(self):

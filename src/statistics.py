@@ -14,6 +14,8 @@
 ##############################################################################
 
 import numpy as np
+from copy import deepcopy
+from src.problem_definition import PhysicalProperties, NumericalProperties
 from src.main import StateProblem
 
 

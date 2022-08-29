@@ -1280,11 +1280,11 @@ class FaceInterpolationUpwind(FaceInterpolationBase):
         self._T_f[4] = Tip32
         self._T_f[5] = Tip52
         self._gradT_f[0] = np.nan
-        self._gradT_f[1] = dTdxim32
+        self._gradT_f[1] = np.nan  # dTdxim32
         self._gradT_f[2] = dTdxim12
         self._gradT_f[3] = dTdxip12
-        self._gradT_f[4] = dTdxip32
-        self._gradT_f[5] = dTdxip52
+        self._gradT_f[4] = np.nan  # dTdxip32
+        self._gradT_f[5] = np.nan  # dTdxip52
 
     @staticmethod
     def _interp_upwind(
@@ -1393,11 +1393,11 @@ class FaceInterpolationQuick(FaceInterpolationBase):
         self._T_f[4] = Tip32
         self._T_f[5] = Tip52
         self._gradT_f[0] = np.nan
-        self._gradT_f[1] = dTdxim32
+        self._gradT_f[1] = np.nan  # dTdxim32
         self._gradT_f[2] = dTdxim12
         self._gradT_f[3] = dTdxip12
-        self._gradT_f[4] = dTdxip32
-        self._gradT_f[5] = dTdxip52
+        self._gradT_f[4] = np.nan  # dTdxip32
+        self._gradT_f[5] = np.nan  # dTdxip52
 
 
 class FaceInterpolationQuickGhost(FaceInterpolationBase):

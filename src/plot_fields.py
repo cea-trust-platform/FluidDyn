@@ -15,7 +15,8 @@
 
 import math
 from src.main import *
-from src.main_discontinu import get_prop, BulleTemperature
+from src.main_discontinu import get_prop, BulleTemperature, StateProblemDiscontinu
+from src.statistics import Statistics
 
 from matplotlib import rc
 import matplotlib.pyplot as plt
@@ -319,7 +320,7 @@ class Plotter:
         return c
 
 
-def plot_temp(problem, fig=None, x0=0.0, ax=None, label=None, **kwargs):
+def plot_temp(problem: StateProblem, fig=None, x0=0.0, ax=None, label=None, **kwargs):
     # fig.suptitle(problem.name.replace('_', ' '))
     x_dec, T_dec = decale_perio(
         problem.num_prop.x, problem.T, x0=x0, markers=problem.bulles
@@ -347,7 +348,7 @@ def plot_temp(problem, fig=None, x0=0.0, ax=None, label=None, **kwargs):
 
 
 def plot_temperature_bulles(
-    problem,
+    problem: StateProblemDiscontinu,
     x0=0.0,
     ax=None,
     ax2=None,
@@ -468,7 +469,7 @@ def align_y_axis(ax1, ax2):
         ax2.set_ylim(ylim2[0], new_y1)
 
 
-def get_ticks(problem, x0=0.0):
+def get_ticks(problem: StateProblem, x0=0.0):
     Delta = problem.phy_prop.Delta
     M1, M2 = problem.bulles.markers[0] - x0
     if M2 < M1:
@@ -593,112 +594,3 @@ def to_scientific(leg):
     else:
         leg = leg[0]
     return leg
-
-
-class TimePlot:
-    def __init__(self):
-        self.fig, self.ax = plt.subplots(1)
-        self.fig.set_size_inches(9.5, 5)
-        self.ax.minorticks_on()
-        self.ax.grid(b=True, which="major")
-        self.ax.grid(b=True, which="minor", alpha=0.2)
-        self.ax.set_xlabel(r"$t [s]$")
-
-    def plot(self, t, e, label=None, **kwargs):
-        c = self.ax.plot(t, e, label=label, **kwargs)
-        self.ax.legend(loc="upper right")
-        self.fig.tight_layout()
-
-        print()
-        if label is not None:
-            print(label)
-            print("=" * len(label))
-        else:
-            print("Calcul sans label")
-            print("=================")
-
-        return c
-
-
-class EnergiePlot(TimePlot):
-    def __init__(self, e0=None):
-        super().__init__()
-        self.ax.set_ylabel(r"$E_{tot} [J/m^3]$")
-        self.e0 = e0
-
-    def plot(self, t, e, label=None, **kargs):
-        if self.e0 is None:
-            self.e0 = e[0]
-
-        super().plot(t, e, label, **kargs)
-
-        n = len(e)
-        i0 = int(n / 5)
-        dedt_adim = (
-                (e[-1] - e[i0]) / (t[-1] - t[i0]) * (t[1] - t[0]) / self.e0
-        )  # on a mult
-        print("dE*/dt* = %g" % dedt_adim)
-
-    def plot_pb(self, pb: Problem, fac=None, label=None):
-        if fac is None:
-            fac = pb.phy_prop.Delta * pb.phy_prop.dS
-        if label is None:
-            label = pb.name
-        self.plot(pb.t, pb.E / fac, label=label)
-
-    def plot_tpb(self, tpb, fac=None, label=None):
-        if fac is None:
-            fac = tpb.problem_state.Delta * tpb.problem_state.phy_prop.dS
-        if label is None:
-            label = tpb.problem_state.name
-        self.plot(tpb.stat.t, tpb.stat.E / fac, label=label)
-
-    def add_E0(self):
-        self.fig.canvas.draw_idle()
-        labels = [item.get_text() for item in self.ax.get_yticklabels()]
-        ticks = list(self.ax.get_yticks())
-        ticks.append(self.e0)
-        labels.append(r"$E_0$")
-        self.ax.set_yticks(ticks)
-        self.ax.set_yticklabels(labels)
-        self.fig.tight_layout()
-
-
-class TemperaturePlot(TimePlot):
-    def __init__(self):
-        super().__init__()
-        self.ax.set_ylabel(r"$T_{k} [K]$")
-        self.T_final = None
-        self.T_final_prevu = None
-
-    def plot(self, t, T, label=None, **kargs):
-        c = super().plot(t, T, label, **kargs)
-
-        n = len(T)
-        i0 = int(n / 5)
-        dedt_adim = (
-                (T[-1] - T[i0]) / (t[-1] - t[i0])
-        )  # on a mult
-        print("dT/dt = %g" % dedt_adim)
-        return c
-
-    def plot_tpb(self, tpb, label=None):
-        if self.T_final is None:
-            self.T_final = tpb.problem_state.T_final
-            self.T_final_prevu = tpb.problem_state.T_final_prevu
-        if label is None:
-            label = ', ' + tpb.problem_state.name
-        c = self.plot(tpb.stat.t, tpb.stat.Tl, label=r'$T_l$' + label)
-        self.plot(tpb.stat.t, tpb.stat.Tv, label=r'$T_v$' + label, c=c[-1].get_color())
-
-    def add_T_final(self):
-        self.fig.canvas.draw_idle()
-        labels = [item.get_text() for item in self.ax.get_yticklabels()]
-        ticks = list(self.ax.get_yticks())
-        ticks.append(self.T_final)
-        labels.append(r"$T_f\quad\cdot$")
-        ticks.append(self.T_final_prevu)
-        labels.append(r"$T_f^\textrm{expected}\quad\cdot$")
-        self.ax.set_yticks(ticks)
-        self.ax.set_yticklabels(labels)
-        self.fig.tight_layout()

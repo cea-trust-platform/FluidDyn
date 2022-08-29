@@ -69,6 +69,7 @@ class StateProblem:
         self.x = self.num_prop.x
         self.x_f = self.num_prop.x_f
         self.dx = self.num_prop.dx
+        print('Monofluid convection : ', self.num_prop.schema)
 
     def copy(self, pb):
         equal_prop = self.phy_prop.isequal(pb.phy_prop)

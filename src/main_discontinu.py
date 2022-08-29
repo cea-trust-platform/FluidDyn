@@ -264,16 +264,18 @@ class StateProblemDiscontinu(StateProblem):
             self.interp_type = "Ti"
         else:
             self.interp_type = num_prop.interp_type
-        print("Interp type : ", self.interp_type)
         if num_prop.conv_interf is None:
             self.conv_interf = num_prop.schema
         else:
             self.conv_interf = num_prop.conv_interf
-        print("Face interpolation : ", self.conv_interf)
         if num_prop.time_integral is None:
             self.time_integral = "exact"
         else:
             self.time_integral = num_prop.time_integral
+
+        print('Interface interp type : ', self.interp_type)
+        print('Face interp : ', self.conv_interf)
+        print('Time integration method for surfaces :', self.time_integral)
 
         if isinstance(self.interp_type, InterfaceInterpolationBase):
             self.interpolation_interface = self.interp_type

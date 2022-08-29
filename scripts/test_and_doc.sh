@@ -5,7 +5,7 @@ test_and_coverage(){
     cd $FLU1D_ROOT || exit
     mkdir -p doc/htmlcov
     cd ./tests
-    python3 -m pytest --nbval --cov=../src/ . --cov-report=html
+    python3 -m pytest --nbval --cov=../src/ --cov-config=.coveragerc . --cov-report=html
     for file in htmlcov/*
     do
         if [[ -f $file ]]; then

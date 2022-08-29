@@ -1,22 +1,22 @@
 import numpy as np
-from copy import deepcopy
+
 
 EPS = 10**-6
 
 
 class PhysicalProperties:
     def __init__(
-            self,
-            Delta=1.0,
-            lda1=1.0,
-            lda2=0.0,
-            rho_cp1=1.0,
-            rho_cp2=1.0,
-            v=1.0,
-            diff=1.0,
-            a_i=358.0,
-            alpha=0.06,
-            dS=1.0,
+        self,
+        Delta=1.0,
+        lda1=1.0,
+        lda2=0.0,
+        rho_cp1=1.0,
+        rho_cp2=1.0,
+        v=1.0,
+        diff=1.0,
+        a_i=358.0,
+        alpha=0.06,
+        dS=1.0,
     ):
         self._Delta = Delta
         self._lda1 = lda1
@@ -94,20 +94,26 @@ class PhysicalProperties:
 
 class NumericalProperties:
     def __init__(
-            self,
-            dx=0.1,
-            dt=1.0,
-            cfl=1.0,
-            fo=1.0,
-            schema="weno",
-            time_scheme="euler",
-            phy_prop=None,
-            Delta=None,
+        self,
+        dx=0.1,
+        dt=1.0,
+        cfl=1.0,
+        fo=1.0,
+        schema="weno",
+        time_scheme="euler",
+        phy_prop=None,
+        Delta=None,
+        interp_type=None,
+        conv_interf=None,
+        time_integral=None,
     ):
         if phy_prop is None and Delta is None:
             raise Exception("Impossible sans phy_prop ou Delta")
         if phy_prop is not None:
             Delta = phy_prop.Delta
+        self.interp_type = interp_type
+        self.conv_interf = conv_interf
+        self.time_integral = time_integral
         self._cfl_lim = cfl
         self._fo_lim = fo
         self._schema = schema
@@ -168,15 +174,9 @@ class NumericalProperties:
         return equal
 
 
-class Base:
-    def __init__(self, phy_prop, num_prop, *args, **kwargs):
-        self.phy_prop = deepcopy(phy_prop)
-        self.num_prop = deepcopy(num_prop)
-
-
 class Bulles:
     def __init__(
-            self, markers=None, phy_prop=None, n_bulle=None, Delta=1.0, alpha=0.06, a_i=None
+        self, markers=None, phy_prop=None, n_bulle=None, Delta=1.0, alpha=0.06, a_i=None
     ):
         self.diam = 0.0
         if phy_prop is not None:

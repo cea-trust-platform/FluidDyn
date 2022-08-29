@@ -14,9 +14,9 @@
 ##############################################################################
 
 import math
+import re
 from src.main import *
 from src.main_discontinu import get_prop, BulleTemperature, StateProblemDiscontinu
-from src.statistics import Statistics
 
 from matplotlib import rc
 import matplotlib.pyplot as plt
@@ -170,7 +170,6 @@ class Plotter:
                 ax=self.ax,
                 ax2=self.ax2,
                 lda_gradT=self.lda_gradT,
-                flux_conv=self.flux_conv,
                 plot_Ti=plot_Ti,
                 color=c,
             )
@@ -276,6 +275,8 @@ class Plotter:
             self.ymini2 = min(self.ymini2, mini)
             self.ymaxi2 = max(self.ymaxi2, maxi)
             delta2 = self.ymaxi2 - self.ymini2
+        else:
+            raise Exception("Ni ax2 ni ax3 n est initialisé")
 
         for markers in problem.bulles():
             bulle0 = decale_positif(markers[0] - x0, problem.phy_prop.Delta)
@@ -354,14 +355,9 @@ def plot_temperature_bulles(
     ax2=None,
     quiver=False,
     lda_gradT=False,
-    flux_conv=False,
     plot_Ti=False,
     color=None,
 ):
-    if flux_conv is True:
-        label_conv = r"Flux convectif"
-    else:
-        label_conv = flux_conv
     n = len(problem.num_prop.x)
     Delta = problem.phy_prop.Delta
     while x0 - Delta > -problem.num_prop.dx:
@@ -381,7 +377,9 @@ def plot_temperature_bulles(
             Tig.append(problem.bulles.Tg[i_int, j])
             Tid.append(problem.bulles.Td[i_int, j])
             lda_grad_Ti.append(problem.bulles.lda_grad_T[i_int, j])
-            ldag, rhocpg, ag, ldad, rhocpd, ad = get_prop(problem, i, liqu_a_gauche=(not j))
+            ldag, rhocpg, ag, ldad, rhocpd, ad = get_prop(
+                problem, i, liqu_a_gauche=(not j)
+            )
             if quiver and (ax is not None):
                 if i > 1:
                     ax.quiver(
@@ -535,7 +533,7 @@ def decale_perio(x, T, Delta=None, x0=0.0, markers=None, plot=False):
     if plot:
         plt.figure()
         plt.plot(x, T_decale, label="Tn")
-        T_np1 = np.r_[T[n + 1:], T[: n + 1]]
+        T_np1 = np.r_[T[n + 1 :], T[: n + 1]]
         plt.plot(x, T_np1, label="Tnp1")
         plt.plot(x_decale, T_decale, label="T decale")
 
@@ -580,9 +578,6 @@ def decale_positif(mark, Delta):
     while mark < 0.0:
         mark += Delta
     return mark
-
-
-import re
 
 
 def to_scientific(leg):

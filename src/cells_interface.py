@@ -813,6 +813,7 @@ class InterfaceInterpolationContinuousFluxBase(InterfaceInterpolationBase):
 
 class InterfaceInterpolationContinuousFlux1(InterfaceInterpolationContinuousFluxBase):
     def __init__(self, *args, **kwargs):
+        super(InterfaceInterpolationContinuousFlux1, self).__init__(*args, **kwargs)
         self._interpolation_name = "ldagradT1"
 
     def _get_lda_grad_T_i_from_ldagradT_continuity(
@@ -887,6 +888,7 @@ class InterfaceInterpolationContinuousFlux1(InterfaceInterpolationContinuousFlux
 
 class InterfaceInterpolationContinuousFlux2(InterfaceInterpolationContinuousFluxBase):
     def __init__(self, *args, **kwargs):
+        super(InterfaceInterpolationContinuousFlux2, self).__init__(*args, **kwargs)
         self._interpolation_name = "ldagradT2"
 
     def _interpolate_ldagradT(self):
@@ -1459,6 +1461,65 @@ class FaceInterpolationQuickGhost(FaceInterpolationBase):
         self._gradT_f[5] = np.nan
 
 
+class FaceInterpolationQuickGhostLdaGradTi(FaceInterpolationBase):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._name = "QuickGhost et amont 1, flux q_I"
+
+    def _compute_Tf_gradTf(self):
+        """
+        Cellule type ::
+
+                Tg, gradTg                          Tghost
+                         0          1         2         3
+               +---------+----------+---------+---------+
+               |         |          |         |   |     |
+               |    +   -|>   +    -|>   +   -|>  |+    |
+               |    0    |    1     |    2    |   |3    |         4         5
+               +---------+----------+---------+---------+---------+---------+---------+
+                                              |   |     |         |         |         |
+                                 Td, gradTd   |   |+   -|>   +   -|>   +   -|>   +    |
+                                              |   |0    |    1    |    2    |    3    |
+                                              +---------+---------+---------+---------+
+                                                  Ti,                              |--|
+                                                  lda_gradTi                         vdt
+
+        Returns:
+            Tf avec :
+            - -3/2 en quick pas corrige
+            - -1/2 en quick avec Tghost gauche
+            -  1/2 en upwind avec Td ghost et gradTd_ghost
+            -  3/2 en quick avec Td ghost, Td1 et Td2
+            -  5/2 en quick pas corrige
+
+        """
+        # calcul Tghost
+
+        _, _, _, Tim12, _ = interpolate_from_center_to_face_quick(
+            self.interface_cells.Tg
+        )
+        Tip12 = (
+            self.interface_cells.Td[0] + self.interface_cells.dTdxd * self.dx * 0.5
+        )  # interpolation amont
+        _, _, Tip32, _, _ = interpolate_from_center_to_face_quick(
+            self.interface_cells.Td
+        )
+        # on ne veut pas se servir de cette valeur, on veut utiliser la version weno / quick
+        self._T_f[0] = np.nan
+        self._T_f[1] = np.nan
+        self._T_f[2] = Tim12
+        self._T_f[3] = Tip12
+        self._T_f[4] = Tip32
+        self._T_f[5] = np.nan
+
+        self._gradT_f[0] = np.nan
+        self._gradT_f[1] = np.nan
+        self._gradT_f[2] = self.interface_cells.dTdxg
+        self._gradT_f[3] = self.interface_cells.dTdxd
+        self._gradT_f[4] = np.nan
+        self._gradT_f[5] = np.nan
+
+
 class FaceInterpolationQuickUpwindGhost(FaceInterpolationBase):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -1650,16 +1711,7 @@ class FaceInterpolationAmontCentre(FaceInterpolationBase):
     ) -> (float, float, float):
         """
         Dans cette méthode on veux que T0 soit amont de xint, et gradT0 soit le gradient en T0.
-        C'est une interpolation d'ordre 1 décentrée amont
-
-        Args:
-            T0:
-            T1:
-            x0:
-            x1:
-
-        Returns:
-
+        C'est une interpolation d'ordre 1 décentrée amont.
         """
 
         Tint = T0 + gradT0 * (xint - x0)
@@ -3187,15 +3239,7 @@ class CellsInterface:
     ) -> (float, float, float):
         """
         Dans cette méthode on veux que T0 soit amont de xint, et gradT0 soit le gradient en T0.
-        C'est une interpolation d'ordre 1 décentrée amont
-
-        Args:
-            T0:
-            T1:
-            x0:
-            x1:
-
-        Returns:
+        C'est une interpolation d'ordre 1 décentrée amont.
 
         """
 

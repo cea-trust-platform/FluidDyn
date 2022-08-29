@@ -13,9 +13,9 @@
 #
 ##############################################################################
 
-import numpy as np
-from copy import deepcopy
 import pickle
+from copy import deepcopy
+
 from src.problem_definition import *
 from src.interpolation_methods import interpolate, integrale_vol_div, grad, Flux
 from src.temperature_initialisation_functions import *
@@ -60,6 +60,9 @@ class StateProblem:
         self.active_diff = self.phy_prop.diff  # type: float
         self.lda = MonofluidVar(phy_prop.lda1, phy_prop.lda2)
         self.rho_cp = MonofluidVar(phy_prop.rho_cp1, phy_prop.rho_cp2)
+        self.rho_cp_inv = MonofluidVar(1.0, 1.0) / MonofluidVar(
+            phy_prop.rho_cp1, phy_prop.rho_cp2
+        )
 
     def _init_from_num_prop(self, num_prop: NumericalProperties):
         self.num_prop = deepcopy(num_prop)
@@ -226,39 +229,21 @@ class StateProblem:
         """
         pass
 
-    def _compute_convection_flux(self, T, bulles, bool_debug=False, debug=None):
-        T_u = interpolate(T, I=self.I, schema=self.num_prop.schema) * self.v
+    def _compute_convection_flux(self):
+        T_u = interpolate(self.T, I=self.I, schema=self.num_prop.schema) * self.v
         return T_u
 
-    def _compute_diffusion_flux(self, T, bulles, bool_debug=False, debug=None):
+    def _compute_diffusion_flux(self):
         lda_grad_T = interpolate(
             self.lda.h(self.I), I=self.I, schema="center_h"
-        ) * grad(T, self.dx)
-
-        if (debug is not None) and bool_debug:
-            # debug.set_title('sous-pas de temps %f' % (len(K) - 2))
-            debug.plot(
-                self.x_f,
-                lda_grad_T,
-                label="lda_h grad T, time = %f" % self.time,
-            )
-            debug.plot(self.x_f, lda_grad_T, label="lda_grad_T, time = %f" % self.time)
-            debug.set_xticks(self.x_f)
-            debug.grid(b=True, which="major")
-            debug.legend()
+        ) * grad(self.T, self.dx)
         return lda_grad_T
 
     def compute_time_derivative(self, bool_debug=False, debug=None, *args, **kwargs):
         rho_cp_inv_h = 1.0 / self.rho_cp.h(self.I)
-        self.flux_conv = self._compute_convection_flux(
-            self.T, self.bulles, bool_debug, debug
-        )
-        self.flux_diff = self._compute_diffusion_flux(
-            self.T, self.bulles, bool_debug, debug
-        )
-        self._corrige_flux_coeff_interface(
-            self.T, self.bulles, self.flux_conv, self.flux_diff
-        )
+        self.flux_conv = self._compute_convection_flux()
+        self.flux_diff = self._compute_diffusion_flux()
+        self._corrige_flux_coeff_interface(self.T, self.bulles)
         self._echange_flux()
         dTdt = -integrale_vol_div(
             self.flux_conv, self.dx
@@ -667,6 +652,7 @@ class Problem:
     ):
         # TODO: a retirer en mm temps que Problem
         from src.time_problem import SimuName
+
         if pb_name is None:
             pb_name = self.full_name
 
@@ -728,12 +714,39 @@ class MonofluidVar:
     def __mul__(self, other):
         return MonofluidVar(self.l * other.l, self.v * other.v)
 
-    def __divmod__(self, other):
-        assert (other.l != 0.0) and (other.v != 0.0)
-        return MonofluidVar(self.l / other.l, self.v / other.v)
+    def __rmul__(self, other):
+        return MonofluidVar(self.l * other.l, self.v * other.v)
+
+    def __truediv__(self, other):
+        if isinstance(other, self.__class__):
+            assert (other.l != 0.0) and (other.v != 0.0)
+            return MonofluidVar(self.l / other.l, self.v / other.v)
+        if isinstance(other, float) or isinstance(other, int):
+            assert other != 0.0
+            return MonofluidVar(self.l / other, self.v / other)
+        if isinstance(other, tuple):
+            assert (other[0] != 0.0) and (other[1] != 0.0)
+            return MonofluidVar(self.l / other[0], self.v / other[1])
+
+    def __rtruediv__(self, other):
+        if isinstance(other, self.__class__):
+            assert (other.l != 0.0) and (other.v != 0.0)
+            return MonofluidVar(other.l / self.l, other.v / self.v)
+        if isinstance(other, float) or isinstance(other, int):
+            assert other != 0.0
+            return MonofluidVar(other / self.l, other / self.v)
+        if isinstance(other, tuple):
+            assert (other[0] != 0.0) and (other[1] != 0.0)
+            return MonofluidVar(other[0] / self.l, other[1] / self.v)
 
     def __add__(self, other):
         return MonofluidVar(self.l + other.l, self.v + other.v)
 
+    def __radd__(self, other):
+        return MonofluidVar(self.l + other.l, self.v + other.v)
+
     def __sub__(self, other):
         return MonofluidVar(self.l - other.l, self.v - other.v)
+
+    def __rsub__(self, other):
+        return MonofluidVar(other.l - self.l, other.v - self.v)

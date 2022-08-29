@@ -49,7 +49,7 @@ def interpolate(center_value, I=None, cl=1, schema="weno", cv_0=0.0, cv_n=0.0):
         )
     elif schema == "center_h":
         interpolated_value = interpolate_from_center_to_face_center_h(
-            center_value, cl=cl, cv_0=cv_0, cv_n=cv_n
+            center_value, cl=cl
         )
     elif schema == "quick":
         interpolated_value = interpolate_from_center_to_face_quick(
@@ -96,7 +96,7 @@ def interpolate_from_center_to_face_center(center_value, cl=1, cv_0=0.0, cv_n=0.
     return interpolated_value
 
 
-def interpolate_from_center_to_face_center_h(center_value, cl=1, cv_0=0.0, cv_n=0.0):
+def interpolate_from_center_to_face_center_h(center_value, cl=1):
     ext_center = np.zeros((center_value.shape[0] + 2,))
     ext_center[1:-1] = center_value
 

@@ -13,7 +13,6 @@
 #
 ##############################################################################
 
-import math
 from src.main import *
 from src.statistics import Statistics
 from src.time_problem import TimeProblem
@@ -30,7 +29,6 @@ rc("figure", max_open_warning=50)
 # rc("figure", dpi=200)
 rc("savefig", dpi=300)
 rc("legend", loc="upper right")
-
 
 
 class TimePlot:
@@ -74,7 +72,7 @@ class EnergiePlot(TimePlot):
         n = len(e)
         i0 = int(n / 5)
         dedt_adim = (
-                (e[-1] - e[i0]) / (t[-1] - t[i0]) * (t[1] - t[0]) / self.e0
+            (e[-1] - e[i0]) / (t[-1] - t[i0]) * (t[1] - t[0]) / self.e0
         )  # on a mult
         print("dE*/dt* = %g" % dedt_adim)
 
@@ -116,9 +114,7 @@ class TemperaturePlot(TimePlot):
 
         n = len(T)
         i0 = int(n / 5)
-        dedt_adim = (
-                (T[-1] - T[i0]) / (t[-1] - t[i0])
-        )  # on a mult
+        dedt_adim = (T[-1] - T[i0]) / (t[-1] - t[i0])  # on a mult
         print("dT/dt = %g" % dedt_adim)
         return c
 
@@ -127,9 +123,9 @@ class TemperaturePlot(TimePlot):
             self.T_final = state_pb.T_final
             self.T_final_prevu = state_pb.T_final_prevu
         if label is None:
-            label = ', ' + state_pb.name
-        c = self.plot(stat.t, stat.Tl, label=r'$T_l$' + label)
-        self.plot(stat.t, stat.Tv, label=r'$T_v$' + label, c=c[-1].get_color())
+            label = ", " + state_pb.name
+        c = self.plot(stat.t, stat.Tl, label=r"$T_l$" + label)
+        self.plot(stat.t, stat.Tv, label=r"$T_v$" + label, c=c[-1].get_color())
 
     def plot_tpb(self, timeproblem: TimeProblem, label=None):
         self.plot_stat(timeproblem.stat, timeproblem.problem_state, label=label)

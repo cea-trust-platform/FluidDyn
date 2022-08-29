@@ -42,32 +42,49 @@ class TimeProblem:
         self.plotter = plotter
 
     def _init_timestep(self, time_scheme_name: str):
-        if isinstance(self.problem_state, StateProblemDiscontinuE):
+        if isinstance(self.problem_state, StateProblemDiscontinuEnergieTemperatureBase):
+            if time_scheme_name == "euler":
+                timestep_method = EulerTempEnerTimestep()
+            elif time_scheme_name == "rk3":
+                timestep_method = RK3TempEnerTimestep()
+            else:
+                raise NotImplementedError
+        elif isinstance(self.problem_state, StateProblemDiscontinuE):
             if time_scheme_name == "euler":
                 timestep_method = EulerEnergieTimestep()
             elif time_scheme_name == "rk3":
                 timestep_method = RK3EnergieTimestep()
             else:
                 raise NotImplementedError
-        else:
+        elif isinstance(self.problem_state, StateProblem):
             if time_scheme_name == "euler":
                 timestep_method = EulerTimestep()
             elif time_scheme_name == "rk3":
                 timestep_method = RK3Timestep()
             else:
                 raise NotImplementedError
+        else:
+            raise NotImplementedError
         return timestep_method
 
     def copy(self, pb):
         self.problem_state.copy(pb.problem_state)
         self.stat = deepcopy(pb.stat)
 
+    @property
+    def dt(self):
+        return self.problem_state.dt
+
+    @property
+    def name(self):
+        return self.problem_state.name
+
     def timestep(
         self,
         n=None,
         t_fin=None,
-        plot_for_each=1,
-        number_of_plots=None,
+        plot_for_each=None,
+        number_of_plots=1,
         plotter=None,
         debug=None,
         **kwargs
@@ -110,7 +127,7 @@ class TimeProblem:
         return n
 
     @staticmethod
-    def _get_plot_for_each(n, plot_for_each=1, number_of_plots=None):
+    def _get_plot_for_each(n, plot_for_each=None, number_of_plots=1):
         if number_of_plots is not None:
             plot_for_each = int((n - 1) / number_of_plots)
         if plot_for_each <= 0:

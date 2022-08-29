@@ -1,5 +1,6 @@
 import numpy as np
 from src.main import StateProblem
+from src.main_discontinu import StateProblemDiscontinuEnergieTemperatureBase
 
 
 class TimestepBase:
@@ -135,3 +136,48 @@ class RK3EnergieTimestep(RK3Timestep):
         self.K = self.K * coeff_dTdtm1 + drhocpTdt
         pb.T = (pb.T * rho_cp_a + pb.dt * h * self.K / coeff_dTdt) / rho_cp_a_kp1
         pb.update_markers(h)
+
+
+class EulerTempEnerTimestep(EulerTimestep):
+    def _sub_step(self, pb: StateProblemDiscontinuEnergieTemperatureBase, *args, **kwargs):
+        dTdt, dhdt = pb.compute_time_derivative(*args, **kwargs)
+        pb.T += pb.dt * dTdt
+        pb.h += pb.dt * dhdt
+        pb.update_markers()
+
+
+class RK3TempEnerTimestep(TimestepBase):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, *kwargs)
+        self.K_ener = 0.0
+        self.K_temp = 0.0
+        self.coeff_h = np.array([1.0 / 3, 5.0 / 12, 1.0 / 4])
+        self.coeff_dTdtm1 = np.array([0.0, -5.0 / 9, -153.0 / 128])
+        self.coeff_dTdt = np.array([1.0, 4.0 / 9, 15.0 / 32])
+
+    def step(self, pb: StateProblemDiscontinuEnergieTemperatureBase, *args, **kwargs):
+        for step, h in enumerate(self.coeff_h):
+            self._sub_step(
+                pb, h, self.coeff_dTdtm1[step], self.coeff_dTdt[step], *args, **kwargs
+            )
+        pb.time += pb.dt
+        pb.iter += 1
+
+    def _sub_step(
+            self,
+            pb,
+            h,
+            coeff_dTdtm1,
+            coeff_dTdt,
+            *args,
+            debug=None,
+            bool_debug=False,
+            **kwargs
+    ):
+        dTdt, dhdt = pb.compute_time_derivative()
+        self.K_temp = self.K_temp * coeff_dTdtm1 + dTdt
+        self.K_ener = self.K_ener * coeff_dTdtm1 + dhdt
+        pb.T += h * pb.dt * self.K_temp / coeff_dTdt  # coeff_dTdt est calculé de
+        pb.h += h * pb.dt * self.K_ener / coeff_dTdt  # coeff_dTdt est calculé de
+        pb.update_markers(h)
+

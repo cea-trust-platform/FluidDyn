@@ -448,7 +448,7 @@ class StateProblemDiscontinu(StateProblem):
         raise NotImplementedError
 
 
-class StateProblemDiscontinuEnergieTemperature(StateProblemDiscontinu):
+class StateProblemDiscontinuEnergieTemperatureBase(StateProblemDiscontinu):
     bulles: BulleTemperature
 
     """
@@ -495,15 +495,16 @@ class StateProblemDiscontinuEnergieTemperature(StateProblemDiscontinu):
         return self.face_interpolation.T_f * self.phy_prop.v
 
     def _get_new_flux_conv_energie(self):
-        return (
-            self.face_interpolation.rhocp_f
-            * self.face_interpolation.T_f
-            * self.phy_prop.v
-        )
+        return self.face_interpolation.rhocp_f * self.face_interpolation.T_f * self.v
 
     def _get_new_flux_diff(self):
         return self.face_interpolation.lda_f * self.face_interpolation.gradT
 
+    def compute_time_derivative(self, debug=None, bool_debug=False, **kwargs):
+        raise NotImplementedError
+
+
+class StateProblemDiscontinuEnergieTemperature(StateProblemDiscontinuEnergieTemperatureBase):
     def compute_time_derivative(self, debug=None, bool_debug=False, **kwargs):
         self.flux_conv = (
             interpolate(self.T, I=self.I, schema=self.num_prop.schema) * self.phy_prop.v
@@ -532,7 +533,7 @@ class StateProblemDiscontinuEnergieTemperature(StateProblemDiscontinu):
         return "Energie-Température"
 
 
-class StateProblemDiscontinuEnergieTemperatureInt(StateProblemDiscontinu):
+class StateProblemDiscontinuEnergieTemperatureInt(StateProblemDiscontinuEnergieTemperatureBase):
     bulles: BulleTemperature
 
     """
@@ -549,15 +550,11 @@ class StateProblemDiscontinuEnergieTemperatureInt(StateProblemDiscontinu):
 
     def __init__(self, T0, markers=None, num_prop=None, phy_prop=None):
         super().__init__(T0, markers, num_prop=num_prop, phy_prop=phy_prop)
-        self.h = self.rho_cp.a(self.I) * self.T
-        self.flux_conv_energie = Flux(np.zeros_like(self.flux_conv))
         self.flux_diff_temp = Flux(np.zeros_like(self.flux_conv))
         self.ind_interf = np.zeros_like(self.T)
 
     def copy(self, pb):
         super().copy(pb)
-        self.h = pb.h.copy()
-        self.flux_conv_energie = pb.flux_conv_energie.copy()
         self.flux_diff_temp = pb.flux_diff_temp.copy()
         self.ind_interf = pb.ind_interf.copy()
 
@@ -582,15 +579,6 @@ class StateProblemDiscontinuEnergieTemperatureInt(StateProblemDiscontinu):
         return (
             1.0 / self.face_interpolation.rhocpg - 1.0 / self.face_interpolation.rhocpd
         ) * self.interpolation_interface.lda_gradTi
-
-    def _get_new_flux_conv(self):
-        return self.face_interpolation.T_f * self.v
-
-    def _get_new_flux_diff(self):
-        return self.face_interpolation.lda_f * self.face_interpolation.gradT
-
-    def _get_new_flux_conv_energie(self):
-        return self.face_interpolation.T_f * self.face_interpolation.rhocp_f * self.v
 
     def _get_new_flux_diff_temp(self):
         return (

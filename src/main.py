@@ -51,6 +51,7 @@ class StateProblem:
         self.flux_conv = Flux(np.zeros_like(self.x_f))
         self.flux_diff = Flux(np.zeros_like(self.x_f))
         print("Db / dx = %.2i" % (self.bulles.diam / self.dx))
+        print('Monofluid convection : ', self.num_prop.schema)
         self._T_final = self.T_final_prevu
 
     def _init_from_phy_prop(self, phy_prop: PhysicalProperties):
@@ -69,7 +70,6 @@ class StateProblem:
         self.x = self.num_prop.x
         self.x_f = self.num_prop.x_f
         self.dx = self.num_prop.dx
-        print('Monofluid convection : ', self.num_prop.schema)
 
     def copy(self, pb):
         equal_prop = self.phy_prop.isequal(pb.phy_prop)

@@ -1,5 +1,2 @@
-[report]
-omit = src/*old.py
-
 [run]
-omit = src/*old.py
+omit = *old.py

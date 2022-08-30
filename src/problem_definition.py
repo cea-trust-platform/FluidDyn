@@ -106,6 +106,7 @@ class NumericalProperties:
         interp_type=None,
         conv_interf=None,
         time_integral=None,
+        formulation=None
     ):
         if phy_prop is None and Delta is None:
             raise Exception("Impossible sans phy_prop ou Delta")
@@ -114,6 +115,7 @@ class NumericalProperties:
         self.interp_type = interp_type
         self.conv_interf = conv_interf
         self.time_integral = time_integral
+        self.formulation = formulation
         self._cfl_lim = cfl
         self._fo_lim = fo
         self._schema = schema

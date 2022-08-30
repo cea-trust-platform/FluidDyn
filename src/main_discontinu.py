@@ -15,6 +15,7 @@
 
 from src.main import *
 from src.cells_interface import *
+from src.main_discontinu_old import CellsInterface
 
 
 class BulleTemperature(Bulles):
@@ -501,6 +502,10 @@ class StateProblemDiscontinuEnergieTemperatureBase(StateProblemDiscontinu):
         return self.face_interpolation.lda_f * self.face_interpolation.gradT
 
     def compute_time_derivative(self, debug=None, bool_debug=False, **kwargs):
+        raise NotImplementedError
+
+    @property
+    def name_cas(self):
         raise NotImplementedError
 
 

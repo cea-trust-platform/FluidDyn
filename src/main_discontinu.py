@@ -15,7 +15,6 @@
 
 from src.main import *
 from src.cells_interface import *
-from src.main_discontinu_old import CellsInterface
 
 
 class BulleTemperature(Bulles):
@@ -81,7 +80,7 @@ class BulleTemperature(Bulles):
         super().shift(dx)
         self._set_indices_markers(self.x)
 
-    def post(self, cells: InterfaceCellsBase or CellsInterface, i_int: int, ist: int):
+    def post(self, cells: InterfaceCellsBase, i_int: int, ist: int):
         self.cells[2 * i_int + ist] = cells
         self.lda_grad_T[i_int, ist] = cells.lda_gradTi
         self.T[i_int, ist] = cells.Ti
@@ -741,160 +740,6 @@ class StateProblemDiscontinuEsansq(StateProblemDiscontinuE):
     @property
     def name_cas(self):
         return "Energie sans corr. diff."
-
-
-class ProblemRhoCpDiscontinuE(Problem):
-    T: np.ndarray
-    I: np.ndarray
-    bulles: BulleTemperature
-
-    """
-    Résolution en énergie.
-    Dans cette résolution on ne corrige pas la température et le gradient pour les flux, on corrige seulement les 
-    valeurs des propriétés discontinues à l'interface.
-
-    Args:
-        T0: la fonction initiale de température
-        markers: les bulles
-        num_prop: les propriétés numériques du calcul
-        phy_prop: les propriétés physiques du calcul
-    """
-
-    def __init__(
-        self,
-        T0,
-        markers=None,
-        num_prop=None,
-        phy_prop=None,
-        interp_type=None,
-        conv_interf=None,
-        **kwargs
-    ):
-        super().__init__(T0, markers, num_prop=num_prop, phy_prop=phy_prop, **kwargs)
-        # if self.num_prop.schema != 'upwind':
-        #     raise Exception('Cette version ne marche que pour un schéma upwind')
-        if num_prop.time_scheme == "rk3":
-            print("RK3 is not implemented, changes to Euler")
-            self.num_prop._time_scheme = "euler"
-        # self.T_old = self.T.copy()
-        if interp_type is None:
-            self.interp_type = "Ti"
-        else:
-            self.interp_type = interp_type
-        print(self.interp_type)
-        if conv_interf is None:
-            conv_interf = self.num_prop.schema
-        self.conv_interf = conv_interf
-
-    def copy(self, pb):
-        super().copy(pb)
-        self.conv_interf = pb.conv_interf
-        self.interp_type = pb.interp_type
-
-    def _init_bulles(self, markers=None):
-        if markers is None:
-            return BulleTemperature(
-                markers=markers, phy_prop=self.phy_prop, x=self.num_prop.x
-            )
-        elif isinstance(markers, BulleTemperature):
-            return markers.copy()
-        elif isinstance(markers, Bulles):
-            return BulleTemperature(
-                markers=markers.markers, phy_prop=self.phy_prop, x=self.num_prop.x
-            )
-        else:
-            print(markers)
-            raise NotImplementedError
-
-    def _corrige_flux_coeff_interface(self, T, bulles, *args):
-        """
-        Ici on corrige les flux sur place avant de les appliquer en euler, rk3 ou rk4
-        Attention, lorsque cette méthode est surclassée et que les arguments changent il faut aussi surclasser
-        _euler, _rk3 et _rk4_timestep
-
-        Args:
-
-        Returns:
-
-        """
-        flux_conv, flux_diff, T_f = args
-        dx = self.num_prop.dx
-
-        for i_int, (i1, i2) in enumerate(bulles.ind):
-            # i_int sert à aller chercher les valeurs aux interfaces, i1 et i2 servent à aller chercher les valeurs sur
-            # le maillage cartésien
-
-            for ist, i in enumerate((i1, i2)):
-                if i == i1:
-                    from_liqu_to_vap = True
-                else:
-                    from_liqu_to_vap = False
-                im3, im2, im1, i0, ip1, ip2, ip3 = cl_perio(len(T), i)
-
-                # On calcule gradTg, gradTi, Ti, gradTd
-
-                ldag, rhocpg, ag, ldad, rhocpd, ad = get_prop(
-                    self, i, liqu_a_gauche=from_liqu_to_vap
-                )
-                # Ici on ne prend pas en compte la température, seule la correction des coefficients nous intéresse
-                cells = CellsInterface(
-                    ldag,
-                    ldad,
-                    ag,
-                    dx,
-                    np.empty((7,)),
-                    rhocpg=rhocpg,
-                    rhocpd=rhocpd,
-                    interp_type=self.interp_type,
-                    schema_conv=self.conv_interf,
-                    vdt=self.dt * self.phy_prop.v,
-                )
-
-                # Correction des cellules i0 - 1 à i0 + 1 inclue
-                # DONE: l'écrire en version flux pour être sûr de la conservation
-
-                T_f_ = T_f[[im2, im1, i0, ip1, ip2, ip3]]
-                rhocpT_u = cells.rhocp_f * T_f_ * self.phy_prop.v
-
-                self.bulles.post(cells, i_int, ist)
-
-                # Correction des flux cellules
-                ind_flux_conv = [
-                    im1,
-                    i0,
-                    ip1,
-                    ip2,
-                    ip3,
-                ]  # on corrige les flux de i-3/2 a i+5/2 (en WENO ça va jusqu'a 5/2)
-                flux_conv[ind_flux_conv] = rhocpT_u[1:]
-
-    def _euler_timestep(self, debug=None, bool_debug=False):
-        dx = self.num_prop.dx
-        bulles_np1 = self.bulles.copy()
-        bulles_np1.shift(self.phy_prop.v * self.dt)
-        I_np1 = bulles_np1.indicatrice_liquide(self.num_prop.x)
-        rho_cp_a_np1 = (
-            I_np1 * self.phy_prop.rho_cp1 + (1.0 - I_np1) * self.phy_prop.rho_cp2
-        )
-        self.flux_conv = self._compute_convection_flux(
-            self.rho_cp_a * self.T, self.bulles, bool_debug, debug
-        )
-        T_f = self._compute_convection_flux(self.T, self.bulles, bool_debug, debug)
-        self.flux_diff = self._compute_diffusion_flux(
-            self.T, self.bulles, bool_debug, debug
-        )
-        self._corrige_flux_coeff_interface(
-            self.T, self.bulles, self.flux_conv, self.flux_diff, T_f
-        )
-        self._echange_flux()
-        drhocpTdt = -integrale_vol_div(
-            self.flux_conv, dx
-        ) + self.phy_prop.diff * integrale_vol_div(self.flux_diff, dx)
-        self.T = (self.T * self.rho_cp_a + self.dt * drhocpTdt) / rho_cp_a_np1
-
-    @property
-    def name_cas(self):
-        return "ESPconvOFdiff"  # + self.interp_type.replace('_', '-')
 
 
 class StateProblemDiscontinuT(StateProblemDiscontinu):

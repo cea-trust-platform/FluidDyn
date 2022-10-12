@@ -30,7 +30,7 @@ def interpolate(center_value, I=None, cl=1, schema="weno", cv_0=0.0, cv_n=0.0):
         I: s'il faut prendre en compte si le stencil traverse une interface
         schema:
         center_value: les valeurs présentes aux centres des cellules
-        cl: si cl = 1, on prend des gradients nuls aux bords du domaine, si cl = 0 on utilise cv_0 et cv_n
+        cl: si cl = 1, on utilise la préiodicité, si cl = 0 on utilise cv_0 et cv_n
         cv_0 : la valeur au centre au bord en -1
         cv_n : la valeur au centre au bord en n+1
 
@@ -76,7 +76,10 @@ def interpolate(center_value, I=None, cl=1, schema="weno", cv_0=0.0, cv_n=0.0):
     if cl == 1:
         if np.abs(interpolated_value[0] - interpolated_value[-1]) > 10**-10:
             raise Exception("Les flux entrants et sortants sont censés être identiques")
-    return Flux(interpolated_value)
+    res = Flux(interpolated_value)
+    if cl == 1:
+        res.perio()
+    return res
 
 
 def interpolate_from_center_to_face_center(center_value, cl=1, cv_0=0.0, cv_n=0.0):
@@ -142,21 +145,32 @@ def interpolate_from_center_to_face_weno(a, cl=1, cv_0=0.0, cv_n=0.0):
         les valeurs interpolées aux faces de la face -1/2 à la face n+1/2
     """
     center_values = np.empty(a.size + 5)
+    i0 = 3
+    i_n = -2
     if cl == 1:
-        center_values[:3] = a[-3:]
-        center_values[3:-2] = a
-        center_values[-2:] = a[:2]
-    elif cl == 0:
-        center_values[:3] = cv_0
-        center_values[3:-2] = a
-        center_values[-2:] = cv_n
+        center_values[:i0] = a[-i0:]
+        center_values[i0:i_n] = a
+        center_values[i_n:] = a[:-i_n]
+    # elif cl == 0:
+    #     center_values[:i0] = cv_0
+    #     center_values[i0:i_n] = a
+    #     center_values[i_n:] = cv_n
     else:
         raise NotImplementedError
-    ujm2 = center_values[:-4]
-    ujm1 = center_values[1:-3]
-    uj = center_values[2:-2]
-    ujp1 = center_values[3:-1]
-    ujp2 = center_values[4:]
+    i_c0 = i0 - 1  # en amont de la premiere face car v > 0.
+    i_cn = i_n  # la derniere cellule est en amont de la derniere face.
+
+    # le premiere valeur de uj est en i0 - 1, c'est le centre de la cellule avant
+    # le début du domaine (la première face). Par périodicité ça doit être le dernier
+    # centre de a.
+    ujm2 = center_values[i_c0 - 2 : i_cn - 2]
+    ujm1 = center_values[i_c0 - 1 : i_cn - 1]
+    uj = center_values[i_c0:i_cn]
+    ujp1 = center_values[i_c0 + 1 : i_cn + 1]
+    ujp2 = center_values[i_c0 + 2 :]
+
+    # si on fait -1/6 * -3/2 + 5/6 * -1/2 + 1/3 * 1/2 on a 0.
+    # on interpole donc bien pour la premiere face du domaine.
     f1 = 1.0 / 3 * ujm2 - 7.0 / 6 * ujm1 + 11.0 / 6 * uj
     f2 = -1.0 / 6 * ujm1 + 5.0 / 6 * uj + 1.0 / 3 * ujp1
     f3 = 1.0 / 3 * uj + 5.0 / 6 * ujp1 - 1.0 / 6 * ujp2
@@ -229,6 +243,21 @@ def interpolate_from_center_to_face_quick(a, cl=1, cv_0=0.0, cv_n=0.0):
     taval = t1[1:]
     interp_1 = (tamont + taval) / 2.0 - 1.0 / 8.0 * curv  # + 1/4. * tamont
     interpolated_value = (1.0 - fram) * interp_1 + fram * tamont
+    return interpolated_value
+
+
+def interpolate_from_center_fot_face_lin3(a, cl=1, cv_0=0.0, cv_n=0.0):
+    center_values = np.empty(a.size + 4)
+    if cl == 1:
+        center_values[:2] = a[-2:]
+        center_values[2:-2] = a
+        center_values[-2:] = a[:2]
+    else:
+        raise NotImplementedError
+    t0 = center_values[:-2]
+    t1 = center_values[1:-1]
+    t2 = center_values[2:]
+    interpolated_value = 0.75 * t1 - 0.125 * t0 + 0.375 * t2
     return interpolated_value
 
 

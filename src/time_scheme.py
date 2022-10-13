@@ -139,7 +139,9 @@ class RK3EnergieTimestep(RK3Timestep):
 
 
 class EulerTempEnerTimestep(EulerTimestep):
-    def _sub_step(self, pb: StateProblemDiscontinuEnergieTemperatureBase, *args, **kwargs):
+    def _sub_step(
+        self, pb: StateProblemDiscontinuEnergieTemperatureBase, *args, **kwargs
+    ):
         dTdt, dhdt = pb.compute_time_derivative(*args, **kwargs)
         pb.T += pb.dt * dTdt
         pb.h += pb.dt * dhdt
@@ -164,15 +166,15 @@ class RK3TempEnerTimestep(TimestepBase):
         pb.iter += 1
 
     def _sub_step(
-            self,
-            pb,
-            h,
-            coeff_dTdtm1,
-            coeff_dTdt,
-            *args,
-            debug=None,
-            bool_debug=False,
-            **kwargs
+        self,
+        pb,
+        h,
+        coeff_dTdtm1,
+        coeff_dTdt,
+        *args,
+        debug=None,
+        bool_debug=False,
+        **kwargs
     ):
         dTdt, dhdt = pb.compute_time_derivative()
         self.K_temp = self.K_temp * coeff_dTdtm1 + dTdt
@@ -180,4 +182,3 @@ class RK3TempEnerTimestep(TimestepBase):
         pb.T += h * pb.dt * self.K_temp / coeff_dTdt  # coeff_dTdt est calculé de
         pb.h += h * pb.dt * self.K_ener / coeff_dTdt  # coeff_dTdt est calculé de
         pb.update_markers(h)
-

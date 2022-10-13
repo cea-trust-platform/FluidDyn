@@ -51,7 +51,7 @@ class StateProblem:
         self.flux_conv = Flux(np.zeros_like(self.x_f))
         self.flux_diff = Flux(np.zeros_like(self.x_f))
         print("Db / dx = %.2i" % (self.bulles.diam / self.dx))
-        print('Monofluid convection : ', self.num_prop.schema)
+        print("Monofluid convection : ", self.num_prop.schema)
         self._T_final = self.T_final_prevu
 
     def _init_from_phy_prop(self, phy_prop: PhysicalProperties):
@@ -86,7 +86,7 @@ class StateProblem:
         init_bulles.shift(-self.time * self.v)
         pb_bulles = pb.bulles.copy()
         arrive_bulles = pb.bulles.copy()
-        arrive_bulles.shift(-pb.t * pb.v)
+        arrive_bulles.shift(-pb.time * pb.v)
         tolerance = 10**-6
         equal_init_markers = np.all(
             np.abs(init_bulles.markers - arrive_bulles.markers) < tolerance

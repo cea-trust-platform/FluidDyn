@@ -12,6 +12,7 @@
 # OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #
 ##############################################################################
+import numpy as np
 
 from src.main import *
 from src.cells_interface import *
@@ -273,9 +274,9 @@ class StateProblemDiscontinu(StateProblem):
         else:
             self.time_integral = num_prop.time_integral
 
-        print('Interface interp type : ', self.interp_type)
-        print('Face interp : ', self.conv_interf)
-        print('Time integration method for surfaces :', self.time_integral)
+        print("Interface interp type : ", self.interp_type)
+        print("Face interp : ", self.conv_interf)
+        print("Time integration method for surfaces :", self.time_integral)
 
         if isinstance(self.interp_type, InterfaceInterpolationBase):
             self.interpolation_interface = self.interp_type
@@ -508,7 +509,9 @@ class StateProblemDiscontinuEnergieTemperatureBase(StateProblemDiscontinu):
         raise NotImplementedError
 
 
-class StateProblemDiscontinuEnergieTemperature(StateProblemDiscontinuEnergieTemperatureBase):
+class StateProblemDiscontinuEnergieTemperature(
+    StateProblemDiscontinuEnergieTemperatureBase
+):
     def compute_time_derivative(self, debug=None, bool_debug=False, **kwargs):
         self.flux_conv = (
             interpolate(self.T, I=self.I, schema=self.num_prop.schema) * self.phy_prop.v
@@ -537,7 +540,9 @@ class StateProblemDiscontinuEnergieTemperature(StateProblemDiscontinuEnergieTemp
         return "Energie-Température"
 
 
-class StateProblemDiscontinuEnergieTemperatureInt(StateProblemDiscontinuEnergieTemperatureBase):
+class StateProblemDiscontinuEnergieTemperatureInt(
+    StateProblemDiscontinuEnergieTemperatureBase
+):
     bulles: BulleTemperature
 
     """

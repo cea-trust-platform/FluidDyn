@@ -21,6 +21,7 @@ class Statistics:
     def __init__(self):
         self.time_stats = {
             "t": TimeStatArray(),
+            "I": TimeStatArray(),
             "E": TimeStatArray(),
             "El": TimeStatArray(),
             "Ev": TimeStatArray(),
@@ -47,6 +48,7 @@ class Statistics:
 
     def collect(self, pb: StateProblem):
         self.time_stats["t"][self.step] = pb.time
+        self.time_stats["I"][self.step] = np.sum(pb.I)
         self.time_stats["E"][self.step] = pb.energy
         self.time_stats["El"][self.step] = np.sum(
             pb.T * pb.rho_cp.a(pb.I) * pb.I
@@ -85,7 +87,10 @@ class Statistics:
                 stat.extend(longer_n)
 
     def __getattr__(self, item):
-        return self.time_stats[item].data
+        if item in super().__getattribute__("time_stats").keys():
+            return super().__getattribute__("time_stats")[item].data
+        else:
+            return super().__getattribute__(item)
 
 
 class TimeStatArray:

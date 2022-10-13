@@ -276,7 +276,7 @@ class Plotter:
             self.ymaxi2 = max(self.ymaxi2, maxi)
             delta2 = self.ymaxi2 - self.ymini2
         else:
-            delta2 = 1.  # arbitraire, delta2 ne sert pas
+            delta2 = 1.0  # arbitraire, delta2 ne sert pas
 
         for markers in problem.bulles():
             bulle0 = decale_positif(markers[0] - x0, problem.phy_prop.Delta)

@@ -1,6 +1,12 @@
 import numpy as np
 
-from src.interpolation_methods import Flux, interpolate, grad, integrale_vol_div, interpolate_from_center_to_face_quick
+from src.interpolation_methods import (
+    Flux,
+    interpolate,
+    grad,
+    integrale_vol_div,
+    interpolate_from_center_to_face_quick,
+)
 from src.main import Problem
 from src.main_discontinu import BulleTemperature, cl_perio, get_prop
 from src.problem_definition import Bulles
@@ -42,19 +48,19 @@ class CellsInterface:
     """
 
     def __init__(
-            self,
-            ldag=1.0,
-            ldad=1.0,
-            ag=1.0,
-            dx=1.0,
-            T=np.zeros((7,)),
-            rhocpg=1.0,
-            rhocpd=1.0,
-            vdt=0.0,
-            schema_conv="upwind",
-            interp_type="Ti",
-            schema_diff="centre",
-            time_integral="exact",
+        self,
+        ldag=1.0,
+        ldad=1.0,
+        ag=1.0,
+        dx=1.0,
+        T=np.zeros((7,)),
+        rhocpg=1.0,
+        rhocpd=1.0,
+        vdt=0.0,
+        schema_conv="upwind",
+        interp_type="Ti",
+        schema_diff="centre",
+        time_integral="exact",
     ):
         self.ldag = ldag
         self.ldad = ldad
@@ -67,8 +73,8 @@ class CellsInterface:
         if len(T) < 7:
             raise (Exception("T n est pas de taille 7"))
         self._T = T[
-                  :
-                  ].copy()  # use with extra care !!! Meant only to be used with the integrated method
+            :
+        ].copy()  # use with extra care !!! Meant only to be used with the integrated method
         self.Tg = T[:4].copy()
         self.Tg[-1] = np.nan
         self.Td = T[3:].copy()
@@ -190,12 +196,12 @@ class CellsInterface:
     @property
     def gradT(self) -> np.ndarray((6,), dtype=float):
         if (
-                self.schema_diff == "DL"
-                or self.schema_conv == "weno"
-                or self.schema_conv == "quick"
-                or self.schema_conv == "quick_ghost"
-                or self.schema_conv == "quick_upwind_ghost"
-                or self.schema_conv == "amont_centre"
+            self.schema_diff == "DL"
+            or self.schema_conv == "weno"
+            or self.schema_conv == "quick"
+            or self.schema_conv == "quick_ghost"
+            or self.schema_conv == "quick_upwind_ghost"
+            or self.schema_conv == "amont_centre"
         ):
             return self._gradT_f
         else:
@@ -235,7 +241,7 @@ class CellsInterface:
             coeff_d = min(self.vdt, self.ad * self.dx) / self.vdt
             inv_rho_cp_f = 1.0 / self.rhocp_f
             inv_rho_cp_f[3] = (
-                    coeff_d * 1.0 / self.rhocpd + (1.0 - coeff_d) * 1.0 / self.rhocpg
+                coeff_d * 1.0 / self.rhocpd + (1.0 - coeff_d) * 1.0 / self.rhocpg
             )
             return inv_rho_cp_f
         else:
@@ -304,7 +310,7 @@ class CellsInterface:
             -1.0 * self.dx,
             0.0 * self.dx,
             -0.5 * self.dx,
-            )
+        )
         Tim12, _, _ = self._interp_lagrange_amont_centre(
             self.Tg[1],
             self.Tg[2],
@@ -313,7 +319,7 @@ class CellsInterface:
             -1.0 * self.dx,
             (self.ag - 0.5) * self.dx,
             -0.5 * self.dx,
-            )
+        )
         _, dTdxim12, _ = self._interp_lagrange_centre_grad(
             self.Tg[-3],
             self.Tg[-2],
@@ -323,7 +329,7 @@ class CellsInterface:
             -1 * self.dx,
             (self.ag - 0.5) * self.dx,
             -0.5 * self.dx,
-            )
+        )
         # Tip12, _, _ = self._interp_lagrange_amont_grad(self.Ti, self.Td[1], self._dTdxd,
         #                                                (0.5 - self.ad) * self.dx, 1. * self.dx,
         #                                                0.5 * self.dx)
@@ -339,7 +345,7 @@ class CellsInterface:
             1.0 * self.dx,
             (0.5 - self.ad) * self.dx,
             0.5 * self.dx,
-            )
+        )
         Tip32, _, _ = self._interp_lagrange_amont_centre(
             self.Ti,
             self.Td[1],
@@ -348,7 +354,7 @@ class CellsInterface:
             1.0 * self.dx,
             2.0 * self.dx,
             1.5 * self.dx,
-            )
+        )
         Tip52, _, _ = self._interp_lagrange_amont_centre(
             self.Td[1],
             self.Td[2],
@@ -357,7 +363,7 @@ class CellsInterface:
             2.0 * self.dx,
             3.0 * self.dx,
             2.5 * self.dx,
-            )
+        )
         self._T_f[
             0
         ] = (
@@ -404,7 +410,7 @@ class CellsInterface:
             -1.0 * self.dx,
             0.0 * self.dx,
             -0.5 * self.dx,
-            )
+        )
         Tim12, _, _ = self._interp_lagrange_amont(
             self.Tg[1],
             self.Tg[2],
@@ -413,7 +419,7 @@ class CellsInterface:
             -1.0 * self.dx,
             (self.ag - 0.5) * self.dx,
             -0.5 * self.dx,
-            )
+        )
         _, dTdxim12, _ = self._interp_lagrange_centre_grad(
             self.Tg[-3],
             self.Tg[-2],
@@ -423,7 +429,7 @@ class CellsInterface:
             -1 * self.dx,
             (self.ag - 0.5) * self.dx,
             -0.5 * self.dx,
-            )
+        )
         Tip12, _, _ = self._interp_lagrange_amont_grad(
             self.Ti,
             self.Td[1],
@@ -431,7 +437,7 @@ class CellsInterface:
             (0.5 - self.ad) * self.dx,
             1.0 * self.dx,
             0.5 * self.dx,
-            )
+        )
         _, dTdxip12, _ = self._interp_lagrange_centre_grad(
             self.Td[2],
             self.Td[1],
@@ -441,7 +447,7 @@ class CellsInterface:
             1.0 * self.dx,
             (0.5 - self.ad) * self.dx,
             0.5 * self.dx,
-            )
+        )
         Tip32, dTdxip32, _ = self._interp_lagrange_amont(
             self.Ti,
             self.Td[1],
@@ -450,7 +456,7 @@ class CellsInterface:
             1.0 * self.dx,
             2.0 * self.dx,
             1.5 * self.dx,
-            )
+        )
         Tip52, dTdxip52, _ = self._interp_lagrange_amont(
             self.Td[1],
             self.Td[2],
@@ -459,7 +465,7 @@ class CellsInterface:
             2.0 * self.dx,
             3.0 * self.dx,
             2.5 * self.dx,
-            )
+        )
         self._T_f[
             0
         ] = (
@@ -508,7 +514,7 @@ class CellsInterface:
 
         _, _, _, Tim12, _ = interpolate_from_center_to_face_quick(self.Tg)
         Tip12 = (
-                self.Td[0] + self.lda_gradTi / self.ldad * self.dx * 0.5
+            self.Td[0] + self.lda_gradTi / self.ldad * self.dx * 0.5
         )  # interpolation amont
         _, _, Tip32, _, _ = interpolate_from_center_to_face_quick(self.Td)
         # on ne veut pas se servir de cette valeur, on veut utiliser la version weno / quick
@@ -661,7 +667,7 @@ class CellsInterface:
             -1.0 * self.dx,
             0.0 * self.dx,
             -0.5 * self.dx,
-            )
+        )
         Tim12, dTdxim12, _ = self._interp_lagrange_amont_vol(
             self.Tg[1],
             self.Tg[2],
@@ -670,7 +676,7 @@ class CellsInterface:
             -1.0 * self.dx,
             (self.ag - 0.5) * self.dx,
             -0.5 * self.dx,
-            )
+        )
         Tip12, dTdxip12, _ = self._interp_lagrange_amont_grad_vol(
             self._Ti,
             self.Td[1],
@@ -678,7 +684,7 @@ class CellsInterface:
             (0.5 - self.ad) * self.dx,
             1.0 * self.dx,
             0.5 * self.dx,
-            )
+        )
         Tip32, dTdxip32, _ = self._interp_lagrange_amont_vol(
             self._Ti,
             self.Td[1],
@@ -687,7 +693,7 @@ class CellsInterface:
             1.0 * self.dx,
             2.0 * self.dx,
             1.5 * self.dx,
-            )
+        )
         Tip52, dTdxip52, _ = self._interp_lagrange_amont_vol(
             self.Td[1],
             self.Td[2],
@@ -696,7 +702,7 @@ class CellsInterface:
             2.0 * self.dx,
             3.0 * self.dx,
             2.5 * self.dx,
-            )
+        )
         self._T_f[
             0
         ] = (
@@ -739,7 +745,7 @@ class CellsInterface:
             self.Td[2],
             (1.0 + self.ag) * self.dx,
             (1.0 + self.ad) * self.dx,
-            )
+        )
 
         self._Ti = self._get_Ti_from_lda_grad_Ti(
             self.Tg[-2],
@@ -748,7 +754,7 @@ class CellsInterface:
             (0.5 + self.ad) * self.dx,
             lda_gradTig,
             lda_gradTid,
-            )
+        )
         self.Tg[-1] = self.Tg[-2] + lda_gradTg / self.ldag * self.dx
         self.Td[0] = self.Td[1] - lda_gradTd / self.ldad * self.dx
 
@@ -788,7 +794,7 @@ class CellsInterface:
             (0.5 + self.ad) * self.dx,
             lda_gradTig,
             lda_gradTid,
-            )
+        )
         self.Tg[-1] = self.Tg[-2] + lda_gradTig / self.ldag * self.dx
         self.Td[0] = self.Td[1] - lda_gradTid / self.ldad * self.dx
 
@@ -807,7 +813,7 @@ class CellsInterface:
             self.Td[1],
             (0.5 + self.ag) * self.dx,
             (0.5 + self.ad) * self.dx,
-            )
+        )
         self._dTdxg = self._lda_gradTi / self.ldag
         self._dTdxd = self._lda_gradTi / self.ldad
         self.Tg[-1] = self._Ti + self._dTdxg * self.dx * (0.5 - self.ag)
@@ -836,17 +842,17 @@ class CellsInterface:
             self.Td[1],
             (1.0 / 2 + self.ag) * self.dx,
             (1.0 / 2 + self.ad) * self.dx,
-            )
+        )
         self._dTdxg = self._lda_gradTi / self.ldag
         self._dTdxd = self._lda_gradTi / self.ldad
         grad_Tg = self.pid_interp(
             np.array([self.gradTg[1], self._lda_gradTi / self.ldag]),
             np.array([1.0, self.ag]) * self.dx,
-            )
+        )
         grad_Td = self.pid_interp(
             np.array([self._lda_gradTi / self.ldad, self.gradTd[1]]),
             np.array([self.ad, 1.0]) * self.dx,
-            )
+        )
         self.Tg[-1] = self.Tg[-2] + grad_Tg * self.dx
         self.Td[0] = self.Td[1] - grad_Td * self.dx
 
@@ -871,7 +877,7 @@ class CellsInterface:
             self.Td[2],
             (1.0 / 2 + self.ag) * self.dx,
             (1.0 / 2 + self.ad) * self.dx,
-            )
+        )
         self._dTdxg = self._lda_gradTi / self.ldag
         self._dTdxd = self._lda_gradTi / self.ldad
         self.Tg[-1] = self._T_dlg(0.5 * self.dx)
@@ -898,7 +904,7 @@ class CellsInterface:
             self.Td[2],
             (1.0 / 2 + self.ag) * self.dx,
             (1.0 / 2 + self.ad) * self.dx,
-            )
+        )
         self._dTdxg = self._lda_gradTi / self.ldag
         self._dTdxd = self._lda_gradTi / self.ldad
         self.Tg[-1] = self._T_dlg(0.5 * self.dx)
@@ -929,7 +935,7 @@ class CellsInterface:
             self.Td[3],
             (1.0 / 2 + self.ag) * self.dx,
             (1.0 / 2 + self.ad) * self.dx,
-            )
+        )
         self._dTdxg = self._lda_gradTi / self.ldag
         self._dTdxd = self._lda_gradTi / self.ldad
         self.Tg[-1] = self._T_dlg(0.5 * self.dx)
@@ -960,7 +966,7 @@ class CellsInterface:
             self.Td[3],
             (1.0 / 2 + self.ag) * self.dx,
             (1.0 / 2 + self.ad) * self.dx,
-            )
+        )
         self._dTdxg = self._lda_gradTi / self.ldag
         self._dTdxd = self._lda_gradTi / self.ldad
         self.Tg[-1] = self._T_dlg(0.5 * self.dx)
@@ -987,7 +993,7 @@ class CellsInterface:
             self.Td[1],
             (1.0 / 2 + self.ag) * self.dx,
             (1.0 / 2 + self.ad) * self.dx,
-            )
+        )
         self._dTdxg = self._lda_gradTi / self.ldag
         self._dTdxd = self._lda_gradTi / self.ldad
         self.Tg[-1] = self._T_dlg(0.5 * self.dx)
@@ -1047,14 +1053,14 @@ class CellsInterface:
                 T_mean,
                 (1.0 / 2.0 + self.ag) * self.dx,
                 self.ad / 2.0 * self.dx,
-                )
+            )
         elif self.ad < EPSILON:
             self._Ti, self._lda_gradTi = self._get_T_i_and_lda_grad_T_i(
                 T_mean,
                 self.Td[1],
                 self.ag / 2.0 * self.dx,
                 (1.0 / 2.0 + self.ad) * self.dx,
-                )
+            )
         else:
             self._compute_Tgc_Tdc(h, T_mean)
             self._Ti, self._lda_gradTi = self._get_T_i_and_lda_grad_T_i(
@@ -1102,16 +1108,16 @@ class CellsInterface:
         grad_Tg = self.pid_interp(
             np.array([self.gradTg[1], self._lda_gradTi / self.ldag]),
             np.array([1.0, self.ag]) * self.dx,
-            )
+        )
         grad_Td = self.pid_interp(
             np.array([self._lda_gradTi / self.ldad, self.gradTd[1]]),
             np.array([self.ad, 1.0]) * self.dx,
-            )
+        )
         self.Tg[-1] = self.Tg[-2] + grad_Tg * self.dx
         self.Td[0] = self.Td[1] - grad_Td * self.dx
 
     def _get_T_i_and_lda_grad_T_i_from_integrated_temperature(
-            self, Tg: float, Tc: float, Td: float, ag: float, dx: float
+        self, Tg: float, Tc: float, Td: float, ag: float, dx: float
     ) -> (float, float):
         if ag > 0.5:
             xi = ag * dx
@@ -1126,7 +1132,7 @@ class CellsInterface:
                         1.0,
                         1.0 / self.ldag * Ig * (xg - xi)
                         + 1.0 / self.ldad * Id * (xc - xi),
-                        ],
+                    ],
                     [1.0, 1.0 / self.ldad * (xd - xi)],
                 ]
             )
@@ -1144,7 +1150,7 @@ class CellsInterface:
                         1.0,
                         1.0 / self.ldag * Ig * (xc - xi)
                         + 1.0 / self.ldad * Id * (xd - xi),
-                        ],
+                    ],
                     [1.0, 1.0 / self.ldag * (xg - xi)],
                 ]
             )
@@ -1153,7 +1159,7 @@ class CellsInterface:
         return Ti, qi
 
     def _get_T_i_and_lda_grad_T_i(
-            self, Tg: float, Td: float, dg: float, dd: float
+        self, Tg: float, Td: float, dg: float, dd: float
     ) -> (float, float):
         """
         On utilise la continuité de lad_grad_T pour interpoler linéairement à partir des valeurs en im32 et ip32
@@ -1171,14 +1177,14 @@ class CellsInterface:
             Calcule les gradients g, I, d, et Ti
         """
         T_i = (self.ldag / dg * Tg + self.ldad / dd * Td) / (
-                self.ldag / dg + self.ldad / dd
+            self.ldag / dg + self.ldad / dd
         )
         lda_grad_T_ig = self.ldag * (T_i - Tg) / dg
         lda_grad_T_id = self.ldad * (Td - T_i) / dd
         return T_i, (lda_grad_T_ig + lda_grad_T_id) / 2.0
 
     def _get_T_i_and_lda_grad_T_i_limited(
-            self, Tg: float, Td: float, Tgg: float, Tdd: float, dg: float, dd: float
+        self, Tg: float, Td: float, Tgg: float, Tdd: float, dg: float, dd: float
     ) -> (float, float):
         """
         On utilise la continuité de lda_grad_T pour interpoler en Ti, on en déduit Ti et lda_grad_Ti
@@ -1197,7 +1203,7 @@ class CellsInterface:
             Ti, lda_grad_T
         """
         T_i = (self.ldag / dg * Tg + self.ldad / dd * Td) / (
-                self.ldag / dg + self.ldad / dd
+            self.ldag / dg + self.ldad / dd
         )
         lda_grad_T_ig = self.ldag * (T_i - Tg) / dg
         lda_grad_T_id = self.ldad * (Td - T_i) / dd
@@ -1227,7 +1233,7 @@ class CellsInterface:
         return T_i, lda_grad_T
 
     def _get_T_i_and_lda_grad_T_i2(
-            self, Tg: float, Td: float, Tgg: float, Tdd: float, dg: float, dd: float
+        self, Tg: float, Td: float, Tgg: float, Tdd: float, dg: float, dd: float
     ) -> (float, float, float, float):
         """
         On utilise la continuité de lad_grad_T pour interpoler linéairement à partir des valeurs en im32 et ip32
@@ -1262,15 +1268,15 @@ class CellsInterface:
         return T_i, lda_grad_T, d2Tdx2g, d2Tdx2d
 
     def _get_T_i_and_lda_grad_T_i3(
-            self,
-            Tg: float,
-            Td: float,
-            Tgg: float,
-            Tdd: float,
-            Tggg: float,
-            Tddd: float,
-            dg: float,
-            dd: float,
+        self,
+        Tg: float,
+        Td: float,
+        Tgg: float,
+        Tdd: float,
+        Tggg: float,
+        Tddd: float,
+        dg: float,
+        dd: float,
     ) -> (float, float, float, float, float, float):
         """
         On utilise la continuité de lad_grad_T et on écrit un DL à l'ordre 3 à droite et à gauche.
@@ -1303,7 +1309,7 @@ class CellsInterface:
                     dd**2 / 2.0,
                     0.0,
                     dd**3 / 6.0,
-                    ],
+                ],
                 [
                     1.0,
                     ddd * self.ldag / self.ldad,
@@ -1311,7 +1317,7 @@ class CellsInterface:
                     ddd**2 / 2.0,
                     0.0,
                     ddd**3 / 6.0,
-                    ],
+                ],
                 [
                     1.0,
                     dddd * self.ldag / self.ldad,
@@ -1319,7 +1325,7 @@ class CellsInterface:
                     dddd**2 / 2.0,
                     0.0,
                     dddd**3 / 6.0,
-                    ],
+                ],
             ],
             dtype=np.float_,
         )
@@ -1330,7 +1336,7 @@ class CellsInterface:
         return T_i, lda_grad_T, d2Tdx2g, d2Tdx2d, d3Tdx3g, d3Tdx3d
 
     def _get_T_i_and_lda_grad_T_i2_vol(
-            self, Tg: float, Td: float, Tgg: float, Tdd: float, dg: float, dd: float
+        self, Tg: float, Td: float, Tgg: float, Tdd: float, dg: float, dd: float
     ) -> (float, float, float, float):
         """
         On utilise la continuité de lad_grad_T pour interpoler linéairement à partir des valeurs en im32 et ip32
@@ -1365,15 +1371,15 @@ class CellsInterface:
         return T_i, lda_grad_T, d2Tdx2g, d2Tdx2d
 
     def _get_T_i_and_lda_grad_T_i3_vol(
-            self,
-            Tg: float,
-            Td: float,
-            Tgg: float,
-            Tdd: float,
-            Tggg: float,
-            Tddd: float,
-            dg: float,
-            dd: float,
+        self,
+        Tg: float,
+        Td: float,
+        Tgg: float,
+        Tdd: float,
+        Tggg: float,
+        Tddd: float,
+        dg: float,
+        dd: float,
     ) -> (float, float, float, float, float, float):
         """
         On utilise la continuité de lad_grad_T et on écrit un DL à l'ordre 3 à droite et à gauche.
@@ -1406,7 +1412,7 @@ class CellsInterface:
                     dd**2 * 2.0 / 3.0,
                     0.0,
                     dd**3 * 1.0 / 3.0,
-                    ],
+                ],
                 [
                     1.0,
                     ddd * self.ldag / self.ldad,
@@ -1414,7 +1420,7 @@ class CellsInterface:
                     ddd**2 * 2.0 / 3.0,
                     0.0,
                     ddd**3 * 1.0 / 3.0,
-                    ],
+                ],
                 [
                     1.0,
                     dddd * self.ldag / self.ldad,
@@ -1422,7 +1428,7 @@ class CellsInterface:
                     dddd**2 * 2.0 / 3.0,
                     0.0,
                     dddd**3 * 1.0 / 3.0,
-                    ],
+                ],
             ],
             dtype=np.float_,
         )
@@ -1433,7 +1439,7 @@ class CellsInterface:
         return T_i, lda_grad_T, d2Tdx2g, d2Tdx2d, d3Tdx3g, d3Tdx3d
 
     def _get_T_i_and_lda_grad_T_i3_1_vol(
-            self, Tggg: float, Tgg: float, Tg: float, Td: float, dg: float, dd: float
+        self, Tggg: float, Tgg: float, Tg: float, Td: float, dg: float, dd: float
     ) -> (float, float, float, float):
         """
         On utilise la continuité de lad_grad_T et on écrit un DL à l'ordre 3 à droite et à gauche.
@@ -1470,36 +1476,36 @@ class CellsInterface:
     def _T_dlg(self, x: float) -> float:
         xi = self.ag * self.dx
         return (
-                self.Ti
-                + (x - xi) * self._dTdxg
-                + (x - xi) ** 2 / 2.0 * self._d2Tdx2g
-                + (x - xi) ** 3 / 6.0 * self._d3Tdx3g
+            self.Ti
+            + (x - xi) * self._dTdxg
+            + (x - xi) ** 2 / 2.0 * self._d2Tdx2g
+            + (x - xi) ** 3 / 6.0 * self._d3Tdx3g
         )
 
     def _T_dld(self, x: float) -> float:
         xi = self.ag * self.dx
         return (
-                self.Ti
-                + (x - xi) * self._dTdxd
-                + (x - xi) ** 2 / 2.0 * self._d2Tdx2d
-                + (x - xi) ** 3 / 6.0 * self._d3Tdx3d
+            self.Ti
+            + (x - xi) * self._dTdxd
+            + (x - xi) ** 2 / 2.0 * self._d2Tdx2d
+            + (x - xi) ** 3 / 6.0 * self._d3Tdx3d
         )
 
     def _gradT_dlg(self, x: float) -> float:
         xi = self.ag * self.dx
         return (
-                self._dTdxg + (x - xi) * self._d2Tdx2g + (x - xi) ** 2 / 2.0 * self._d3Tdx3g
+            self._dTdxg + (x - xi) * self._d2Tdx2g + (x - xi) ** 2 / 2.0 * self._d3Tdx3g
         )
 
     def _gradT_dld(self, x: float) -> float:
         xi = self.ag * self.dx
         return (
-                self._dTdxd + (x - xi) * self._d2Tdx2d + (x - xi) ** 2 / 2.0 * self._d3Tdx3d
+            self._dTdxd + (x - xi) * self._d2Tdx2d + (x - xi) ** 2 / 2.0 * self._d3Tdx3d
         )
 
     @staticmethod
     def _interp_upwind(
-            T0: float, T1: float, x0: float, x1: float
+        T0: float, T1: float, x0: float, x1: float
     ) -> (float, float, float):
         """
         Dans cette méthode on veux que T0 et T1 soient amont de x_int
@@ -1522,7 +1528,7 @@ class CellsInterface:
 
     @staticmethod
     def _interp_amont_decentre(
-            T0: float, gradT0: float, x0: float, xint: float
+        T0: float, gradT0: float, x0: float, xint: float
     ) -> (float, float, float):
         """
         Dans cette méthode on veux que T0 soit amont de xint, et gradT0 soit le gradient en T0.
@@ -1535,14 +1541,14 @@ class CellsInterface:
         return Tint, gradT0, d2Tdx2_int
 
     def _interp_lagrange_amont_vol(
-            self,
-            T0: float,
-            T1: float,
-            T2: float,
-            x0: float,
-            x1: float,
-            x2: float,
-            x_int: float,
+        self,
+        T0: float,
+        T1: float,
+        T2: float,
+        x0: float,
+        x1: float,
+        x2: float,
+        x_int: float,
     ) -> (float, float, float):
         """
         Dans cette méthode on veux que T0 et T1 soient amont de x_int
@@ -1573,17 +1579,17 @@ class CellsInterface:
                     1.0,
                     (d01**2 - d00**2) / 2.0 / self.dx,
                     (d01**3 - d00**3) / 6.0 / self.dx,
-                    ],
+                ],
                 [
                     1.0,
                     (d11**2 - d10**2) / 2.0 / self.dx,
                     (d11**3 - d10**3) / 6.0 / self.dx,
-                    ],
+                ],
                 [
                     1.0,
                     (d21**2 - d20**2) / 2.0 / self.dx,
                     (d21**3 - d20**3) / 6.0 / self.dx,
-                    ],
+                ],
             ],
             dtype=np.float_,
         )
@@ -1592,7 +1598,7 @@ class CellsInterface:
         return Tint, dTdx_int, d2Tdx2_int
 
     def _interp_lagrange_amont_grad_vol(
-            self, T0: float, T1: float, gradT0: float, x0: float, x1: float, x_int: float
+        self, T0: float, T1: float, gradT0: float, x0: float, x1: float, x_int: float
     ) -> (float, float, float):
 
         """
@@ -1620,12 +1626,12 @@ class CellsInterface:
                     1.0,
                     (d01**2 - d00**2) / 2.0 / self.dx,
                     (d01**3 - d00**3) / 6.0 / self.dx,
-                    ],
+                ],
                 [
                     1.0,
                     (d11**2 - d10**2) / 2.0 / self.dx,
                     (d11**3 - d10**3) / 6.0 / self.dx,
-                    ],
+                ],
                 [0.0, 1.0, (d01**2 - d00**2) / 2.0 / self.dx],
             ],
             dtype=np.float_,
@@ -1637,7 +1643,7 @@ class CellsInterface:
 
     @staticmethod
     def _interp_lagrange_aval(
-            T0: float, T1: float, T2: float, x0: float, x1: float, x2: float, x_int: float
+        T0: float, T1: float, T2: float, x0: float, x1: float, x2: float, x_int: float
     ) -> (float, float, float):
         """
         Dans cette méthode on veux que T0 seulement soit amont de x_int.
@@ -1673,7 +1679,7 @@ class CellsInterface:
 
     @staticmethod
     def _interp_lagrange_amont_centre(
-            T0: float, T1: float, T2: float, x0: float, x1: float, x2: float, x_int: float
+        T0: float, T1: float, T2: float, x0: float, x1: float, x2: float, x_int: float
     ) -> (float, float, float):
         """
         Dans cette méthode on veux que T0 et T1 soient amont de x_int
@@ -1700,7 +1706,7 @@ class CellsInterface:
 
     @staticmethod
     def _interp_lagrange_amont(
-            T0: float, T1: float, T2: float, x0: float, x1: float, x2: float, x_int: float
+        T0: float, T1: float, T2: float, x0: float, x1: float, x2: float, x_int: float
     ) -> (float, float, float):
         """
         Dans cette méthode on veux que T0 et T1 soient amont de x_int
@@ -1735,7 +1741,7 @@ class CellsInterface:
 
     @staticmethod
     def _interp_lagrange_amont_grad(
-            T0: float, T1: float, gradT0: float, x0: float, x1: float, x_int: float
+        T0: float, T1: float, gradT0: float, x0: float, x1: float, x_int: float
     ) -> (float, float, float):
 
         """
@@ -1766,14 +1772,14 @@ class CellsInterface:
 
     @staticmethod
     def _interp_lagrange_centre_grad(
-            Tgg: float,
-            Tg: float,
-            Ti: float,
-            gradTi: float,
-            xgg: float,
-            xg: float,
-            xi: float,
-            x_face: float,
+        Tgg: float,
+        Tg: float,
+        Ti: float,
+        gradTi: float,
+        xgg: float,
+        xg: float,
+        xi: float,
+        x_face: float,
     ) -> (float, float, float):
         """
         On utilise la continuité de lad_grad_T et on écrit un DL à l'ordre 3 avec les points Tgg, Tg et Ti.
@@ -1813,7 +1819,7 @@ class CellsInterface:
         return Tint, dTdx_int, d2Tdx2_int
 
     def _get_lda_grad_T_i_from_ldagradT_continuity(
-            self, Tim2: float, Tim1: float, Tip1: float, Tip2: float, dg: float, dd: float
+        self, Tim2: float, Tim1: float, Tip1: float, Tip2: float, dg: float, dd: float
     ) -> (float, float, float, float, float):
         """
         On utilise la continuité de lad_grad_T pour interpoler linéairement à partir des valeurs en im32 et ip32
@@ -1862,15 +1868,15 @@ class CellsInterface:
         return lda_gradTg, lda_gradTgi, lda_gradTi, lda_gradTdi, lda_gradTd
 
     def _get_lda_grad_T_i_from_ldagradT_interp(
-            self,
-            Tim3: float,
-            Tim2: float,
-            Tim1: float,
-            Tip1: float,
-            Tip2: float,
-            Tip3: float,
-            ag: float,
-            ad: float,
+        self,
+        Tim3: float,
+        Tim2: float,
+        Tim1: float,
+        Tip1: float,
+        Tip2: float,
+        Tip3: float,
+        ag: float,
+        ad: float,
     ) -> (float, float, float, float, float):
         """
         On utilise la continuité de lad_grad_T pour extrapoler linéairement par morceau à partir des valeurs en im52,
@@ -1925,13 +1931,13 @@ class CellsInterface:
         return lda_gradTg, lda_gradTgi, lda_gradTi, lda_gradTdi, lda_gradTd
 
     def _get_Ti_from_lda_grad_Ti(
-            self,
-            Tim1: float,
-            Tip1: float,
-            dg: float,
-            dd: float,
-            lda_gradTgi: float,
-            lda_gradTdi: float,
+        self,
+        Tim1: float,
+        Tip1: float,
+        dg: float,
+        dd: float,
+        lda_gradTgi: float,
+        lda_gradTdi: float,
     ) -> float:
         """
         Méthode d'extrapolation d'ordre 1, ou l'on récupère la température à l'interface à partir de la température et
@@ -1981,16 +1987,16 @@ class CellsSuiviInterface:
     """
 
     def __init__(
-            self,
-            ldag=1.0,
-            ldad=1.0,
-            ag=1.0,
-            dx=1.0,
-            T=None,
-            rhocpg=1.0,
-            rhocpd=1.0,
-            vdt=0.0,
-            interp_type=None,
+        self,
+        ldag=1.0,
+        ldad=1.0,
+        ag=1.0,
+        dx=1.0,
+        T=None,
+        rhocpg=1.0,
+        rhocpd=1.0,
+        vdt=0.0,
+        interp_type=None,
     ):
         self.cells_fixe = CellsInterface(
             ldag=ldag,
@@ -2085,8 +2091,8 @@ class CellsSuiviInterface:
         )  # taille 4
         # le pas de temps de diffusion
         self.Tjnp1 = (
-                self.Tj[1:-1]
-                + dt * 1 / rho_cp_center * integrale_vol_div(lda_grad_T, self.dx) * diff
+            self.Tj[1:-1]
+            + dt * 1 / rho_cp_center * integrale_vol_div(lda_grad_T, self.dx) * diff
         )
 
     def interp_T_from_j_to_i(self):
@@ -4752,14 +4758,14 @@ class ProblemRhoCpDiscontinuE(Problem):
     """
 
     def __init__(
-            self,
-            T0,
-            markers=None,
-            num_prop=None,
-            phy_prop=None,
-            interp_type=None,
-            conv_interf=None,
-            **kwargs
+        self,
+        T0,
+        markers=None,
+        num_prop=None,
+        phy_prop=None,
+        interp_type=None,
+        conv_interf=None,
+        **kwargs
     ):
         super().__init__(T0, markers, num_prop=num_prop, phy_prop=phy_prop, **kwargs)
         # if self.num_prop.schema != 'upwind':
@@ -4865,7 +4871,7 @@ class ProblemRhoCpDiscontinuE(Problem):
         bulles_np1.shift(self.phy_prop.v * self.dt)
         I_np1 = bulles_np1.indicatrice_liquide(self.num_prop.x)
         rho_cp_a_np1 = (
-                I_np1 * self.phy_prop.rho_cp1 + (1.0 - I_np1) * self.phy_prop.rho_cp2
+            I_np1 * self.phy_prop.rho_cp1 + (1.0 - I_np1) * self.phy_prop.rho_cp2
         )
         self.flux_conv = self._compute_convection_flux(
             self.rho_cp_a * self.T, self.bulles, bool_debug, debug

@@ -142,26 +142,52 @@ class TimeProblem:
         closer_simu = simu_name.get_closer_simu(self.problem_state.time + t_fin)
 
         if closer_simu is not None:
-            with open(closer_simu, "rb") as f:
-                saved = pickle.load(f)
-            self.problem_state.copy(saved)
-            launch_time = t_fin - self.problem_state.time
-            print(
-                "Loading ======> %s\nremaining time to compute : %f"
-                % (closer_simu, launch_time)
-            )
+            launch_time = self.load(pb_name, t_fin)
         else:
             launch_time = t_fin - self.problem_state.time
-
         t, E = self.timestep(t_fin=launch_time, **kwargs)
 
+        self.save(pb_name)
+
+        return t, E
+
+    def load(self, pb_name=None, t_fin=0.0):
+        if pb_name is None:
+            pb_name = self.problem_state.full_name
+        simu_name = SimuName(pb_name)
+        closer_simu = simu_name.get_closer_simu(self.problem_state.time + t_fin)
+
+        with open(closer_simu, "rb") as f:
+            saved = pickle.load(f)
+        self.problem_state.copy(saved)
+        launch_time = t_fin - self.problem_state.time
+        print(
+            "Loading ======> %s\nremaining time to compute : %f"
+            % (closer_simu, launch_time)
+        )
+
+        save_stat_name = simu_name.get_closer_simu(
+            self.problem_state.time + t_fin, prefix="statistics_"
+        )
+        with open(save_stat_name, "rb") as f:
+            saved_stat = pickle.load(f)
+        self.stat.copy(saved_stat)
+
+        return launch_time
+
+    def save(self, pb_name=None):
+        if pb_name is None:
+            pb_name = self.problem_state.full_name
+
+        simu_name = SimuName(pb_name)
         save_name = simu_name.get_save_path(self.problem_state.time)
         with open(save_name, "wb") as f:
             pickle.dump(self.problem_state, f)
-        with open("statistics_" + save_name, "wb") as f:
+        save_stat_name = simu_name.get_save_path(
+            self.problem_state.time, prefix="statistics_"
+        )
+        with open(save_stat_name, "wb") as f:
             pickle.dump(self.stat, f)
-
-        return t, E
 
 
 class SimuName:
@@ -176,8 +202,10 @@ class SimuName:
     def name(self):
         return self._name
 
-    def get_closer_simu(self, t: float):
-        simu_list = glob(self.directory + "/" + self.name + "_t_" + "*" + ".pkl")
+    def get_closer_simu(self, t: float, prefix=""):
+        simu_list = glob(
+            self.directory + "/" + prefix + self.name + "_t_" + "*" + ".pkl"
+        )
         print("Liste des simus similaires : ")
         print(simu_list)
         closer_time = 0.0
@@ -196,5 +224,7 @@ class SimuName:
         time = path_to_save_file.split("_t_")[-1].split(".pkl")[0]
         return round(float(time), 6)
 
-    def get_save_path(self, t) -> str:
-        return self.directory + "/" + self.name + "_t_%f" % round(t, 6) + ".pkl"
+    def get_save_path(self, t, prefix="") -> str:
+        return (
+            self.directory + "/" + prefix + self.name + "_t_%f" % round(t, 6) + ".pkl"
+        )

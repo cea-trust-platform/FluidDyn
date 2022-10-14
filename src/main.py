@@ -26,7 +26,15 @@ class StateProblem:
     num_prop: NumericalProperties
     bulles: Bulles
 
-    def __init__(self, T0, markers=None, num_prop=None, phy_prop=None, name=None):
+    def __init__(
+        self,
+        T0,
+        markers=None,
+        num_prop=None,
+        phy_prop=None,
+        name=None,
+        fonction_source=lambda t, x, T: 0.0,
+    ):
         self._imposed_name = name
         if phy_prop is None:
             print("Attention, les propriétés physiques par défaut sont utilisées")
@@ -53,6 +61,7 @@ class StateProblem:
         print("Db / dx = %.2i" % (self.bulles.diam / self.dx))
         print("Monofluid convection : ", self.num_prop.schema)
         self._T_final = self.T_final_prevu
+        self.fonction_source = fonction_source
 
     def _init_from_phy_prop(self, phy_prop: PhysicalProperties):
         self.phy_prop = deepcopy(phy_prop)
@@ -249,6 +258,7 @@ class StateProblem:
         dTdt = -integrale_vol_div(
             self.flux_conv, self.dx
         ) + self.active_diff * rho_cp_inv_h * integrale_vol_div(self.flux_diff, self.dx)
+        dTdt += self.fonction_source(self.time, self.x, self.T)
         return dTdt
 
 

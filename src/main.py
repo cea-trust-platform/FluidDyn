@@ -33,7 +33,7 @@ class StateProblem:
         num_prop=None,
         phy_prop=None,
         name=None,
-        fonction_source=lambda t, x, T: 0.0,
+        fonction_source=None,
     ):
         self._imposed_name = name
         if phy_prop is None:
@@ -258,8 +258,15 @@ class StateProblem:
         dTdt = -integrale_vol_div(
             self.flux_conv, self.dx
         ) + self.active_diff * rho_cp_inv_h * integrale_vol_div(self.flux_diff, self.dx)
-        dTdt += self.fonction_source(self.time, self.x, self.T)
+        dTdt += self.compute_source()
         return dTdt
+
+    def compute_source(self):
+        if self.fonction_source is not None:
+            source = self.fonction_source(self.time, self.x, self.T)
+        else:
+            source = 0.0
+        return source
 
 
 class Problem:

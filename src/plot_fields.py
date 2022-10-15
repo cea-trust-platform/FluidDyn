@@ -574,6 +574,51 @@ def decale_perio(x, T, Delta=None, x0=0.0, markers=None, plot=False):
     return x_decale, T_decale
 
 
+class Animate:
+    def __init__(self, tpb, ax: plt.Axes):
+        self.tpb = tpb
+        self.ax = ax
+        self.ax.minorticks_on()
+        self.ax.grid(visible=True, which="major")
+        self.ax.grid(visible=True, which="minor", alpha=0.2)
+        self.ax.set_xlim(self.tpb.problem_state.x[0], self.tpb.problem_state.x[-1])
+        self.ax.set_ylim(0.0, 1.2)
+        (self.line,) = self.ax.plot([], [])
+
+    def __call__(self, i):
+        self.tpb.timestep(n=1)
+        self.line.set_data(self.tpb.problem_state.x, self.tpb.problem_state.T)
+        return (self.line,)
+
+
+class Compare:
+    def __init__(self, tpbs, ax: plt.Axes, ylim=(None, None), n_dt_per_frame=1):
+        self.tpbs = tpbs
+        self.ax = ax
+        self.ax.minorticks_on()
+        self.ax.grid(visible=True, which="major")
+        self.ax.grid(visible=True, which="minor", alpha=0.2)
+        self.ax.set_xlim(
+            self.tpbs[0].problem_state.x[0], self.tpbs[0].problem_state.x[-1]
+        )
+        self.ax.set_ylim(*ylim)
+        self.dt = n_dt_per_frame * max([tpb.dt for tpb in self.tpbs])
+
+        self.lines = []
+        for _ in self.tpbs:
+            (line,) = self.ax.plot([], [])
+            self.lines.append(line)
+
+    def __call__(self, i):
+        for j, tpb in enumerate(self.tpbs):
+            time_fin = i * self.dt
+            dt = time_fin - tpb.problem_state.time
+            tpb.timestep(t_fin=dt)
+            spb = tpb.problem_state
+            self.lines[j].set_data(spb.x, spb.T)
+        return (self.lines,)
+
+
 def decale_positif(mark, Delta):
     while mark < 0.0:
         mark += Delta

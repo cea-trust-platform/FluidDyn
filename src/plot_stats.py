@@ -124,20 +124,27 @@ class TemperaturePlot(TimePlot):
             self.T_final_prevu = state_pb.T_final_prevu
         if label is None:
             label = ", " + state_pb.name
-        c = self.plot(stat.t, stat.Tl, label=r"$T_l$" + label)
-        self.plot(stat.t, stat.Tv, label=r"$T_v$" + label, c=c[-1].get_color())
+        c = self.ax.plot(stat.t, stat.Tl, label=label)
+        self.ax.plot(stat.t, stat.Tv, "--", c=c[-1].get_color())
+
+    def legend_Tl_Tv(self):
+        self.ax.plot([], [], "k-", label=r"$T_l$")
+        self.ax.plot([], [], "k--", label=r"$T_v$")
+        self.ax.legend()
 
     def plot_tpb(self, timeproblem: TimeProblem, label=None):
         self.plot_stat(timeproblem.stat, timeproblem.problem_state, label=label)
 
-    def add_T_final(self):
-        self.fig.canvas.draw_idle()
-        labels = [item.get_text() for item in self.ax.get_yticklabels()]
-        ticks = list(self.ax.get_yticks())
+    def add_T_final(self, add_T_prevu=False):
+        # self.fig.canvas.draw_idle()
+        plt.show()
+        labels = self.ax.get_yticklabels(minor=False)
+        ticks = list(self.ax.get_yticks(minor=False))
         ticks.append(self.T_final)
-        labels.append(r"$T_f\quad\cdot$")
-        ticks.append(self.T_final_prevu)
-        labels.append(r"$T_f^\textrm{expected}\quad\cdot$")
-        self.ax.set_yticks(ticks)
-        self.ax.set_yticklabels(labels)
+        labels.append(r"$T_f$")
+        if add_T_prevu:
+            ticks.append(self.T_final_prevu)
+            labels.append(r"$T_f^\textrm{expected}$")
+        self.ax.set_yticks(ticks, minor=False)
+        self.ax.set_yticklabels(labels, minor=False)
         self.fig.tight_layout()

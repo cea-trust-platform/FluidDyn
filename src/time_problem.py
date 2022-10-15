@@ -92,7 +92,7 @@ class TimeProblem:
         n = self._get_iteration_number(n, t_fin)
 
         if plotter is None:
-            plotter = [self.plotter]
+            plotter = self.plotter
         if not isinstance(plotter, list):
             plotter = [plotter]
 

@@ -95,12 +95,14 @@ class StateProblem:
         init_bulles.shift(-self.time * self.v)
         pb_bulles = pb.bulles.copy()
         arrive_bulles = pb.bulles.copy()
-        arrive_bulles.shift(-pb.time * pb.v)
+        arrive_bulles.shift(-pb.time * pb.phy_prop.v)
         tolerance = 10**-6
         equal_init_markers = np.all(
             np.abs(init_bulles.markers - arrive_bulles.markers) < tolerance
         )
         if not equal_init_markers:
+            print("Init markers : ", init_bulles.markers)
+            print("Arrive bulle markers : ", arrive_bulles.markers)
             raise Exception(
                 "Impossible de copier le Problème, il n'a pas les mm markers de départ"
             )

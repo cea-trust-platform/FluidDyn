@@ -89,6 +89,10 @@ class PhysicalProperties:
         if not equal:
             print("Attention, les propriétés ne sont pas égales :")
             print(dic)
+            print("Simu de référence : ")
+            print({key: prop.__dict__[key] for key in self.__dict__})
+            print("Simu voulue : ")
+            print({key: self.__dict__[key] for key in self.__dict__})
         return equal
 
 
@@ -165,7 +169,8 @@ class NumericalProperties:
         return self._dx_lim
 
     def isequal(self, prop):
-        dic = {key: self.__dict__[key] == prop.__dict__[key] for key in self.__dict__}
+        intersection = set(self.__dict__.keys()).intersection(set(prop.__dict__.keys()))
+        dic = {key: self.__dict__[key] == prop.__dict__[key] for key in intersection}
         for key in dic.keys():
             if isinstance(dic[key], np.ndarray):
                 dic[key] = np.all(dic[key])
@@ -273,4 +278,10 @@ class Bulles:
         """
         self.markers += dx
         depasse = self.markers > self.Delta
-        self.markers[depasse] -= self.Delta
+        while np.any(depasse):
+            self.markers[depasse] -= self.Delta
+            depasse = self.markers > self.Delta
+        trop_negatif = self.markers < 0.0
+        while np.all(trop_negatif):
+            self.markers += self.Delta
+            trop_negatif = self.markers < 0.0

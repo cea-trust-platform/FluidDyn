@@ -12,8 +12,6 @@
 # OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #
 ##############################################################################
-import numpy as np
-
 from src.main import *
 from src.cells_interface import *
 
@@ -250,7 +248,7 @@ class ProblemConserv2(Problem):
         raise NotImplementedError
 
 
-class StateProblemDiscontinu(StateProblem):
+class StateProblemDiscontinu(StateProblem, ABC):
     bulles: BulleTemperature
 
     def __init__(
@@ -259,18 +257,30 @@ class StateProblemDiscontinu(StateProblem):
         markers=None,
         num_prop=None,
         phy_prop=None,
+        interp_type=None,
+        conv_interf=None,
+        time_integral=None,
     ):
         super().__init__(T0, markers, num_prop=num_prop, phy_prop=phy_prop)
         if num_prop.interp_type is None:
-            self.interp_type = "Ti"
+            if interp_type is None:
+                self.interp_type = "Ti"
+            else:
+                self.interp_type = interp_type
         else:
             self.interp_type = num_prop.interp_type
         if num_prop.conv_interf is None:
-            self.conv_interf = num_prop.schema
+            if conv_interf is None:
+                self.conv_interf = num_prop.schema
+            else:
+                self.conv_interf = conv_interf
         else:
             self.conv_interf = num_prop.conv_interf
         if num_prop.time_integral is None:
-            self.time_integral = "exact"
+            if time_integral is None:
+                self.time_integral = "exact"
+            else:
+                self.time_integral = time_integral
         else:
             self.time_integral = num_prop.time_integral
 
@@ -344,6 +354,10 @@ class StateProblemDiscontinu(StateProblem):
             )
         elif self.conv_interf == "quick_upwind_ghost":
             self.face_interpolation = FaceInterpolationQuickUpwindGhost(
+                vdt=self.phy_prop.v * self.dt, time_integral=self.time_integral
+            )
+        elif self.conv_interf == "downwind_only_quick":
+            self.face_interpolation = FaceInterpolationDiphOnlyQuick(
                 vdt=self.phy_prop.v * self.dt, time_integral=self.time_integral
             )
         elif self.conv_interf == "upwind":
@@ -435,12 +449,15 @@ class StateProblemDiscontinu(StateProblem):
             self.flux_diff, self._get_new_flux_diff, stencil_interf
         )
 
+    @abstractmethod
     def _get_new_flux_conv(self):
         raise NotImplementedError
 
+    @abstractmethod
     def _get_new_flux_diff(self):
         raise NotImplementedError
 
+    @abstractmethod
     def compute_time_derivative(self, debug=None, bool_debug=False, **kwargs):
         raise NotImplementedError
 
@@ -449,7 +466,7 @@ class StateProblemDiscontinu(StateProblem):
         raise NotImplementedError
 
 
-class StateProblemDiscontinuEnergieTemperatureBase(StateProblemDiscontinu):
+class StateProblemDiscontinuEnergieTemperatureBase(StateProblemDiscontinu, ABC):
     bulles: BulleTemperature
 
     """
@@ -467,8 +484,8 @@ class StateProblemDiscontinuEnergieTemperatureBase(StateProblemDiscontinu):
 
     """
 
-    def __init__(self, T0, markers=None, num_prop=None, phy_prop=None):
-        super().__init__(T0, markers, num_prop=num_prop, phy_prop=phy_prop)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self.h = self.rho_cp.a(self.I) * self.T
         self.flux_conv_energie = Flux(np.zeros_like(self.flux_conv))  # type: Flux
 
@@ -501,10 +518,12 @@ class StateProblemDiscontinuEnergieTemperatureBase(StateProblemDiscontinu):
     def _get_new_flux_diff(self):
         return self.face_interpolation.lda_f * self.face_interpolation.gradT
 
+    @abstractmethod
     def compute_time_derivative(self, debug=None, bool_debug=False, **kwargs):
         raise NotImplementedError
 
     @property
+    @abstractmethod
     def name_cas(self):
         raise NotImplementedError
 
@@ -663,7 +682,7 @@ class StateProblemDiscontinuE(StateProblemDiscontinu):
         phy_prop: les propriétés physiques du calcul
     """
 
-    def __init__(self, T0, markers=None, num_prop=None, phy_prop=None):
+    def __init__(self, T0, markers=None, num_prop=None, phy_prop=None, **kwargs):
         if num_prop is None:
             num_prop = NumericalProperties()
         if num_prop.interp_type is None:
@@ -671,10 +690,7 @@ class StateProblemDiscontinuE(StateProblemDiscontinu):
         if num_prop.conv_interf is None:
             num_prop.conv_interf = "quick"
         super().__init__(
-            T0,
-            markers=markers,
-            num_prop=num_prop,
-            phy_prop=phy_prop,
+            T0, markers=markers, num_prop=num_prop, phy_prop=phy_prop, **kwargs
         )
 
     def _corrige_flux_une_interface(self, stencil_interf, *args):

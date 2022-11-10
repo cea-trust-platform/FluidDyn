@@ -1,15 +1,18 @@
 import numpy as np
+from abc import ABC, abstractmethod
 from src.main import StateProblem
 from src.main_discontinu import StateProblemDiscontinuEnergieTemperatureBase
 
 
-class TimestepBase:
+class TimestepBase(ABC):
     def __init__(self, *args, **kwargs):
         pass
 
+    @abstractmethod
     def step(self, state: StateProblem, *args, **kwargs):
         raise NotImplementedError
 
+    @abstractmethod
     def _sub_step(self, *args, **kwargs):
         raise NotImplementedError
 
@@ -135,6 +138,32 @@ class RK3EnergieTimestep(RK3Timestep):
         drhocpTdt = pb.compute_time_derivative(debug, bool_debug)
         self.K = self.K * coeff_dTdtm1 + drhocpTdt
         pb.T = (pb.T * rho_cp_a + pb.dt * h * self.K / coeff_dTdt) / rho_cp_a_kp1
+        pb.update_markers(h)
+
+
+class RK3EnergieBisTimestep(RK3Timestep):
+    def _sub_step(
+        self,
+        pb: StateProblem,
+        h,
+        coeff_dTdtm1,
+        coeff_dTdt,
+        debug=None,
+        bool_debug=False,
+        *args,
+        **kwargs
+    ):
+        rho_cp_a = pb.rho_cp.a(pb.I)
+        markers_kp1 = pb.bulles.copy()
+        markers_kp1.shift(pb.v * h * pb.dt)
+        I_kp1 = markers_kp1.indicatrice_liquide(pb.x)
+        rho_cp_a_kp1 = pb.rho_cp.a(I_kp1)
+        drhocpTdt = pb.compute_time_derivative(debug, bool_debug)
+        dTdt = (-(rho_cp_a_kp1 - rho_cp_a) * pb.T + h * pb.dt * drhocpTdt) / (
+            rho_cp_a_kp1 * h * pb.dt
+        )
+        self.K = self.K * coeff_dTdtm1 + dTdt
+        pb.T = pb.T + pb.dt * h * self.K / coeff_dTdt
         pb.update_markers(h)
 
 

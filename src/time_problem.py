@@ -54,6 +54,8 @@ class TimeProblem:
                 timestep_method = EulerEnergieTimestep()
             elif time_scheme_name == "rk3":
                 timestep_method = RK3EnergieTimestep()
+            elif time_scheme_name == "rk3_bis":
+                timestep_method = RK3EnergieBisTimestep()
             else:
                 raise NotImplementedError
         elif isinstance(self.problem_state, StateProblem):
@@ -142,7 +144,7 @@ class TimeProblem:
         closer_simu = simu_name.get_closer_simu(self.problem_state.time + t_fin)
 
         if closer_simu is not None:
-            launch_time = self.load(pb_name, t_fin)
+            launch_time = self.load(simu_name=simu_name, t_fin=t_fin)
         else:
             launch_time = t_fin - self.problem_state.time
         t, E = self.timestep(t_fin=launch_time, **kwargs)
@@ -151,10 +153,10 @@ class TimeProblem:
 
         return t, E
 
-    def load(self, pb_name=None, t_fin=0.0):
-        if pb_name is None:
+    def load(self, t_fin=0.0, simu_name=None):
+        if simu_name is None:
             pb_name = self.problem_state.full_name
-        simu_name = SimuName(pb_name)
+            simu_name = SimuName(pb_name)
         closer_simu = simu_name.get_closer_simu(self.problem_state.time + t_fin)
 
         with open(closer_simu, "rb") as f:

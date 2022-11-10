@@ -14,6 +14,7 @@
 ##############################################################################
 
 import numpy as np
+from abc import ABC, abstractmethod
 from src.interpolation_methods import (
     interpolate_from_center_to_face_quick,
 )
@@ -126,7 +127,7 @@ class InterfaceCellsBase:
         return self._lda_gradTi / self.ldad
 
 
-class InterfaceInterpolationBase(InterfaceCellsBase):
+class InterfaceInterpolationBase(InterfaceCellsBase, ABC):
     def __init__(self, *args, volume_integration=False, **kwargs):
         super().__init__(*args, **kwargs)
         self.volume_integration = volume_integration
@@ -167,6 +168,7 @@ class InterfaceInterpolationBase(InterfaceCellsBase):
     def _compute_Ti_with_volume_integration(self):
         raise NotImplemented
 
+    @abstractmethod
     def _compute_ghosts(self):
         raise NotImplemented
 
@@ -209,6 +211,9 @@ class InterfaceInterpolation1_1(InterfaceInterpolationBase):
             (1.0 / 2 + self.ad) * self.dx,
         )
 
+    def _compute_Ti_with_volume_integration(self):
+        raise NotImplementedError
+
     def _compute_ghosts(self):
         grad_Tg = self.pid_interp(
             np.array([self.gradTg[1], self._lda_gradTi / self.ldag]),
@@ -226,6 +231,9 @@ class InterfaceInterpolation1_0(InterfaceInterpolationBase):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._interpolation_name = "Ti-pure"
+
+    def _compute_Ti_with_volume_integration(self):
+        raise NotImplementedError
 
     def _compute_Ti_without_volume_integration(self):
         self._Ti, self._lda_gradTi = self._get_T_i_and_lda_grad_T_i(
@@ -776,6 +784,9 @@ class InterfaceInterpolationContinuousFluxBase(InterfaceInterpolationBase):
     def _interpolate_ldagradT(self):
         raise NotImplemented
 
+    def _compute_ghosts(self):
+        raise NotImplemented
+
     def _get_Ti_from_lda_grad_Ti(
         self,
         Tim1: float,
@@ -987,13 +998,13 @@ class InterfaceInterpolationContinuousFlux2(InterfaceInterpolationContinuousFlux
         return lda_gradTg, lda_gradTgi, lda_gradTi, lda_gradTdi, lda_gradTd
 
 
-class FaceInterpolationBase:
+class FaceInterpolationBase(ABC):
     def __init__(
         self,
         vdt=0.0,
         time_integral="exact",
     ):
-        self.interface_cells = InterfaceInterpolationBase()
+        self.interface_cells = None  # InterfaceInterpolationBase()
         self.rhocpg = 1.0
         self.rhocpd = 1.0
         self.time_integral = time_integral
@@ -1039,6 +1050,7 @@ class FaceInterpolationBase:
         self.rhocpd = rhocpd
         self._compute_Tf_gradTf()
 
+    @abstractmethod
     def _compute_Tf_gradTf(self):
         raise NotImplementedError
 
@@ -1233,6 +1245,15 @@ class FaceInterpolationBase:
         )
         return Tint, dTdx_int, d2Tdx2_int
 
+    @staticmethod
+    def _interp_upwind(
+        T0: float, T1: float, x0: float, x1: float
+    ) -> (float, float, float):
+        Tint = T0
+        dTdx_int = (T1 - T0) / (x1 - x0)
+        d2Tdx2_int = 0.0
+        return Tint, dTdx_int, d2Tdx2_int
+
 
 class FaceInterpolationUpwind(FaceInterpolationBase):
     def __init__(self, *args, **kwargs):
@@ -1287,14 +1308,43 @@ class FaceInterpolationUpwind(FaceInterpolationBase):
         self._gradT_f[4] = np.nan  # dTdxip32
         self._gradT_f[5] = np.nan  # dTdxip52
 
-    @staticmethod
-    def _interp_upwind(
-        T0: float, T1: float, x0: float, x1: float
-    ) -> (float, float, float):
-        Tint = T0
-        dTdx_int = (T1 - T0) / (x1 - x0)
-        d2Tdx2_int = 0.0
-        return Tint, dTdx_int, d2Tdx2_int
+
+class FaceInterpolationDiphOnlyQuick(FaceInterpolationBase):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._name = "Downwind only, quick"
+
+    def _compute_Tf_gradTf(self):
+        Tip12, _, _ = self._interp_lagrange_amont_grad(
+            self.interface_cells.Ti,
+            self.interface_cells.Td[1],
+            self.interface_cells.dTdxd,
+            (0.5 - self.ad) * self.dx,
+            1.0 * self.dx,
+            0.5 * self.dx,
+        )
+        _, dTdxip12, _ = self._interp_lagrange_centre_grad(
+            self.interface_cells.Td[2],
+            self.interface_cells.Td[1],
+            self.interface_cells.Ti,
+            self.interface_cells.dTdxd,
+            2.0 * self.dx,
+            1.0 * self.dx,
+            (0.5 - self.ad) * self.dx,
+            0.5 * self.dx,
+        )
+        self._T_f[0] = np.nan
+        self._T_f[1] = np.nan
+        self._T_f[2] = np.nan  # self._T_dlg(0.)
+        self._T_f[3] = Tip12  # self._T_dld(self.dx)
+        self._T_f[4] = np.nan
+        self._T_f[5] = np.nan
+        self._gradT_f[0] = np.nan
+        self._gradT_f[1] = np.nan  # dTdxim32
+        self._gradT_f[2] = np.nan
+        self._gradT_f[3] = dTdxip12
+        self._gradT_f[4] = np.nan  # dTdxip32
+        self._gradT_f[5] = np.nan  # dTdxip52
 
 
 class FaceInterpolationQuick(FaceInterpolationBase):

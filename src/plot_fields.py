@@ -592,7 +592,15 @@ class Animate:
 
 
 class Compare:
-    def __init__(self, tpbs, ax: plt.Axes, ylim=(None, None), n_dt_per_frame=1):
+    def __init__(
+        self,
+        tpbs,
+        ax: plt.Axes,
+        ylim=(None, None),
+        n_dt_per_frame=None,
+        run_time=None,
+        n_frames=15,
+    ):
         self.tpbs = tpbs
         self.ax = ax
         self.ax.minorticks_on()
@@ -602,7 +610,13 @@ class Compare:
             self.tpbs[0].problem_state.x[0], self.tpbs[0].problem_state.x[-1]
         )
         self.ax.set_ylim(*ylim)
-        self.dt = n_dt_per_frame * max([tpb.dt for tpb in self.tpbs])
+        if n_dt_per_frame is None and run_time is None:
+            n_dt_per_frame = 1
+        if run_time is not None:
+            self.dt = run_time / n_frames
+            assert self.dt > max([tpb.dt for tpb in self.tpbs])
+        else:
+            self.dt = n_dt_per_frame * max([tpb.dt for tpb in self.tpbs])
 
         self.lines = []
         for _ in self.tpbs:

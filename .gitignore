@@ -8,3 +8,5 @@ etudes_locales
 local
 .coverage
 widget_state.json
+sync.sh
+doc/src.*

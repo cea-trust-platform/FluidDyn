@@ -13,652 +13,262 @@
 #
 ##############################################################################
 
-import numpy as np
-from scipy import optimize as opt
-from copy import deepcopy
 import pickle
-from glob import glob
-import os
+from copy import deepcopy
+
+from src.problem_definition import *
+from src.interpolation_methods import interpolate, integrale_vol_div, grad, Flux
+from src.temperature_initialisation_functions import *
 
 
-def integrale_vol_div(flux, dx):
-    return 1.0 / dx * (flux[1:] - flux[:-1])
+class StateProblem:
+    phy_prop: PhysicalProperties
+    num_prop: NumericalProperties
+    bulles: Bulles
 
-
-def interpolate(center_value, I=None, cl=1, schema="weno", cv_0=0.0, cv_n=0.0):
-    """
-    Calcule le delta de convection aux bords des cellules
-
-    Args:
-        I: s'il faut prendre en compte si le stencil traverse une interface
-        schema:
-        center_value: les valeurs présentes aux centres des cellules
-        cl: si cl = 1, on prend des gradients nuls aux bords du domaine, si cl = 0 on utilise cv_0 et cv_n
-        cv_0 : la valeur au centre au bord en -1
-        cv_n : la valeur au centre au bord en n+1
-
-    Returns:
-        l'interpolation aux faces
-    """
-    if len(center_value.shape) != 1:
-        raise NotImplementedError
-    if schema == "upwind":
-        interpolated_value = interpolate_from_center_to_face_upwind(
-            center_value, cl=cl, cv_0=cv_0
-        )
-    elif schema == "center":
-        interpolated_value = interpolate_from_center_to_face_center(
-            center_value, cl=cl, cv_0=cv_0, cv_n=cv_n
-        )
-    elif schema == "center_h":
-        interpolated_value = interpolate_from_center_to_face_center_h(
-            center_value, cl=cl, cv_0=cv_0, cv_n=cv_n
-        )
-    elif schema == "quick":
-        interpolated_value = interpolate_from_center_to_face_quick(
-            center_value, cl=cl, cv_0=cv_0, cv_n=cv_n
-        )
-    elif schema == "quick upwind":
-        if I is None:
-            raise NotImplementedError
-        interpolated_value = interpolate_from_center_to_face_quick_upwind_interface(
-            center_value, I, cl=cl, cv_0=cv_0, cv_n=cv_n
-        )
-    elif schema == "weno":
-        interpolated_value = interpolate_from_center_to_face_weno(
-            center_value, cl=cl, cv_0=cv_0, cv_n=cv_n
-        )
-    elif schema == "weno upwind":
-        if I is None:
-            raise NotImplementedError
-        interpolated_value = interpolate_center_value_weno_to_face_upwind_interface(
-            center_value, I, cl=cl, cv_0=cv_0, cv_n=cv_n
-        )
-    else:
-        raise NotImplementedError
-    if cl == 1:
-        if np.abs(interpolated_value[0] - interpolated_value[-1]) > 10**-10:
-            raise Exception("Les flux entrants et sortants sont censés être identiques")
-    return interpolated_value
-
-
-def interpolate_from_center_to_face_center(center_value, cl=1, cv_0=0.0, cv_n=0.0):
-    interpolated_value = np.zeros((center_value.shape[0] + 1,))
-    interpolated_value[1:-1] = (center_value[:-1] + center_value[1:]) / 2.0
-    if cl == 1:
-        interpolated_value[0] = (center_value[0] + center_value[-1]) / 2.0
-        interpolated_value[-1] = (center_value[0] + center_value[-1]) / 2.0
-    elif cl == 2:
-        interpolated_value[0] = interpolated_value[1]
-        interpolated_value[-1] = interpolated_value[-2]
-    elif cl == 0:
-        interpolated_value[0] = (center_value[0] + cv_0) / 2.0
-        interpolated_value[-1] = (center_value[-1] + cv_n) / 2.0
-    else:
-        raise NotImplementedError
-    return interpolated_value
-
-
-def interpolate_from_center_to_face_center_h(center_value, cl=1, cv_0=0.0, cv_n=0.0):
-    ext_center = np.zeros((center_value.shape[0] + 2,))
-    ext_center[1:-1] = center_value
-
-    if cl == 1:
-        ext_center[0] = center_value[-1]
-        ext_center[-1] = center_value[0]
-    else:
-        raise NotImplementedError
-    cent0 = ext_center[:-1]
-    cent1 = ext_center[1:]
-    zero = np.abs(cent1 + cent0) < 10**-10
-    interpolated_value = np.where(zero, 0.0, cent0 * cent1 / (cent1 + cent0) * 2.0)
-    return interpolated_value
-
-
-def interpolate_from_center_to_face_upwind(center_value, cl=1, cv_0=0.0):
-    interpolated_value = np.zeros((center_value.shape[0] + 1,))
-    interpolated_value[1:] = center_value
-    if cl == 2:
-        interpolated_value[0] = interpolated_value[1]
-        interpolated_value[-1] = interpolated_value[-2]
-    elif cl == 1:
-        interpolated_value[0] = center_value[-1]
-    elif cl == 0:
-        interpolated_value[0] = cv_0
-    else:
-        raise NotImplementedError
-    return interpolated_value
-
-
-def interpolate_from_center_to_face_weno(a, cl=1, cv_0=0.0, cv_n=0.0):
-    """
-    Weno scheme
-
-    Args:
-        cv_n: center value at n+1
-        cv_0: center value at -1
-        a: the scalar value at the center of the cell
-        cl: conditions aux limites, cl = 1: périodicité, cl=0 valeurs imposées aux bords à cv_0 et cv_n avec gradients
-            nuls
-
-    Returns:
-        les valeurs interpolées aux faces de la face -1/2 à la face n+1/2
-    """
-    center_values = np.empty(a.size + 5)
-    if cl == 1:
-        center_values[:3] = a[-3:]
-        center_values[3:-2] = a
-        center_values[-2:] = a[:2]
-    elif cl == 0:
-        center_values[:3] = cv_0
-        center_values[3:-2] = a
-        center_values[-2:] = cv_n
-    else:
-        raise NotImplementedError
-    ujm2 = center_values[:-4]
-    ujm1 = center_values[1:-3]
-    uj = center_values[2:-2]
-    ujp1 = center_values[3:-1]
-    ujp2 = center_values[4:]
-    f1 = 1.0 / 3 * ujm2 - 7.0 / 6 * ujm1 + 11.0 / 6 * uj
-    f2 = -1.0 / 6 * ujm1 + 5.0 / 6 * uj + 1.0 / 3 * ujp1
-    f3 = 1.0 / 3 * uj + 5.0 / 6 * ujp1 - 1.0 / 6 * ujp2
-    eps = np.array(10.0**-6)
-    b1 = (
-        13.0 / 12 * (ujm2 - 2 * ujm1 + uj) ** 2
-        + 1.0 / 4 * (ujm2 - 4 * ujm1 + 3 * uj) ** 2
-    )
-    b2 = 13.0 / 12 * (ujm1 - 2 * uj + ujp1) ** 2 + 1.0 / 4 * (ujm1 - ujp1) ** 2
-    b3 = (
-        13.0 / 12 * (uj - 2 * ujp1 + ujp2) ** 2
-        + 1.0 / 4 * (3 * uj - 4 * ujp1 + ujp2) ** 2
-    )
-    w1 = 1.0 / 10 / (eps + b1) ** 2
-    w2 = 3.0 / 5 / (eps + b2) ** 2
-    w3 = 3.0 / 10 / (eps + b3) ** 2
-    sum_w = w1 + w2 + w3
-    w1 /= sum_w
-    w2 /= sum_w
-    w3 /= sum_w
-    interpolated_value = f1 * w1 + f2 * w2 + f3 * w3
-    return interpolated_value
-
-
-def interpolate_from_center_to_face_quick(a, cl=1, cv_0=0.0, cv_n=0.0):
-    """
-    Quick scheme, in this case upwind is always on the left side.
-
-    Args:
-        cv_n: center value at n+1
-        cv_0: center value at -1
-        a: the scalar value at the center of the cell
-        cl: conditions aux limites, cl = 1: périodicité, cl=0 valeurs imposées aux bords à cv_0 et cv_n avec gradients
-            nuls
-
-    Returns:
-        les valeurs interpolées aux faces de la face -1/2 à la face n+1/2
-    """
-    center_values = np.empty(a.size + 4)
-    if cl == 1:
-        center_values[:2] = a[-2:]
-        center_values[2:-2] = a
-        center_values[-2:] = a[:2]
-    elif cl == 0:
-        center_values[:2] = cv_0
-        center_values[2:-2] = a
-        center_values[-2:] = cv_n
-    else:
-        raise NotImplementedError
-    t0 = center_values[:-2]
-    t1 = center_values[1:-1]
-    t2 = center_values[2:]
-    curv = (t2 - t1) - (t1 - t0)  # curv est trop long de 1 devant et derrière
-    curv = curv[:-1]  # selection du curv amont, curv commence donc à -1 et finit à n
-
-    smax = np.where(t2 > t0, t2, t0)
-    smin = np.where(t2 < t0, t2, t0)
-    dmax = smax - smin
-    DMINFLOAT = 10.0**-15
-    ds = np.where(np.abs(dmax) > DMINFLOAT, dmax, 1.0)
-    fram = np.where(np.abs(dmax) > DMINFLOAT, ((t1 - smin) / ds * 2.0 - 1.0) ** 3, 0.0)
-    fram = np.where(
-        fram < 1.0, fram, 1.0
-    )  # idem fram est trop long de 1 devant et derrière
-    fram = np.where(
-        fram[1:] > fram[:-1], fram[1:], fram[:-1]
-    )  # selection du max entre fram(i-1) et fram(i), fram est
-    # de taille n+1
-    tamont = t1[:-1]
-    taval = t1[1:]
-    interp_1 = (tamont + taval) / 2.0 - 1.0 / 8.0 * curv  # + 1/4. * tamont
-    interpolated_value = (1.0 - fram) * interp_1 + fram * tamont
-    return interpolated_value
-
-
-def interpolate_from_center_to_face_quick_upwind_interface(
-    a, I, cl=1, cv_0=0.0, cv_n=0.0
-):
-    """
-    Quick scheme and upwind at the interface, in this case upwind is always on the left side.
-    On doit ajouter pour la périodicité 2 cellules amont (-2 et -1) et une cellule après (n+1)
-
-    Args:
-        cv_n: center value at n+1
-        cv_0: center value at -1
-        a: the scalar value at the center of the cell
-        I: the indicator function
-        cl: conditions aux limites, cl = 1: périodicité, cl=0 valeurs imposées aux bords à cv_0 et cv_n avec gradients
-            nuls
-
-    Returns:
-        les valeurs interpolées aux faces de la face -1/2 à la face n+1/2
-    """
-    res = interpolate_from_center_to_face_quick(a, cl)
-    center_values = np.empty(a.size + 3)
-    phase_indicator = np.empty(I.size + 3)
-    if cl == 1:
-        center_values[:2] = a[-2:]
-        center_values[2:-1] = a
-        center_values[-1:] = a[:1]
-        phase_indicator[:2] = I[-2:]
-        phase_indicator[2:-1] = I
-        phase_indicator[-1:] = I[:1]
-        center_diph = phase_indicator * (1.0 - phase_indicator) != 0.0
-    elif cl == 0:
-        center_values[:2] = cv_0
-        center_values[2:-1] = a
-        center_values[-1:] = cv_n
-        phase_indicator[:2] = 0.0
-        phase_indicator[2:-1] = I
-        phase_indicator[-1:] = 0.0
-        center_diph = phase_indicator * (1.0 - phase_indicator) != 0.0
-    else:
-        raise NotImplementedError
-    diph_jm1 = center_diph[:-2]
-    diph_j = center_diph[1:-1]
-    diph_jp1 = center_diph[2:]
-    # f diphasic correspond aux faces dont le stencil utilisé par le QUICK traverse l'interface
-    f_diph = diph_jm1 | diph_j | diph_jp1
-
-    # interpolation upwind
-    # res[f_diph] = center_values[2:-1][f_diph]
-    res[f_diph] = center_values[1:-1][f_diph]
-    return res
-
-
-def interpolate_center_value_weno_to_face_upwind_interface(
-    a, I, cl=1, cv_0=0.0, cv_n=0.0
-):
-    """
-    interpolate the center value a[i] at the face res[i+1] (corresponding to the upwind scheme) on diphasic cells
-
-    Args:
-        cv_n:
-        cv_0:
-        cl: the limit condition, 1 is periodic
-        a: the center values
-        I: the phase indicator
-
-    Returns:
-        res
-    """
-    res = interpolate_from_center_to_face_weno(a, cl)
-    center_values = np.empty(a.size + 5)
-    phase_indicator = np.empty(I.size + 5)
-    if cl == 1:
-        center_values[:3] = a[-3:]
-        center_values[3:-2] = a
-        center_values[-2:] = a[:2]
-        phase_indicator[:3] = I[-3:]
-        phase_indicator[3:-2] = I
-        phase_indicator[-2:] = I[:2]
-        center_diph = phase_indicator * (1.0 - phase_indicator) != 0.0
-    elif cl == 0:
-        center_values[:3] = cv_0
-        center_values[3:-2] = a
-        center_values[-2:] = cv_n
-        # en cas d'utilisation du schéma avec des conditions aux limites on n'est pas diphasique aux bords
-        phase_indicator[:3] = 0.0
-        phase_indicator[3:-2] = I
-        phase_indicator[-2:] = 0.0
-        center_diph = phase_indicator * (1.0 - phase_indicator) != 0.0
-    else:
-        raise NotImplementedError
-    diph_jm2 = center_diph[:-4]
-    diph_jm1 = center_diph[1:-3]
-    diph_j = center_diph[2:-2]
-    diph_jp1 = center_diph[3:-1]
-    diph_jp2 = center_diph[4:]
-    # f diphasic correspond aux faces dont le stencil utilisé par le WENO traverse l'interface
-    f_diph = diph_jm2 | diph_jm1 | diph_j | diph_jp1 | diph_jp2
-
-    # interpolation upwind
-    res[f_diph] = center_values[2:-2][f_diph]
-    return res
-
-
-def grad(center_value, dx=1.0, cl=1):
-    """
-    Calcule le gradient aux faces
-
-    Args:
-        center_value: globalement lambda
-        cl: si cl = 1 les gradients aux bords sont périodiques
-        dx: le delta x
-
-    Returns:
-        le gradient aux faces
-    """
-    if len(center_value.shape) != 1:
-        raise NotImplementedError
-    gradient = np.zeros(center_value.shape[0] + 1)
-    gradient[1:-1] = (center_value[1:] - center_value[:-1]) / dx
-    if cl == 1:
-        gradient[0] = (center_value[0] - center_value[-1]) / dx
-        gradient[-1] = (center_value[0] - center_value[-1]) / dx
-    if cl == 2:
-        gradient[0] = 0
-        gradient[-1] = 0
-    return gradient
-
-
-def grad_center4(center_value, dx=1.0, cl=1):
-    """
-    Calcule le gradient aux faces
-
-    Args:
-        center_value: globalement lambda
-        cl: si cl = 1 les gradients aux bords sont périodiques
-        dx: le delta x
-
-    Returns:
-        le gradient aux faces
-    """
-    if len(center_value.shape) != 1:
-        raise NotImplementedError
-    gradient = np.zeros(center_value.shape[0] + 1)
-    gradient[2:-2] = (
-        9.0 / 8 * (center_value[2:-1] - center_value[1:-2])
-        - 1.0 / 24 * (center_value[3:] - center_value[:-4])
-    ) / dx
-    if cl == 1:
-        gradient[0] = (
-            9.0 / 8 * (center_value[0] - center_value[-1])
-            - 1 / 24 * (center_value[1] - center_value[-2])
-        ) / dx
-        gradient[-1] = gradient[0]  # periodicity
-        gradient[1] = (
-            9.0 / 8 * (center_value[1] - center_value[0])
-            - 1 / 24 * (center_value[2] - center_value[-1])
-        ) / dx
-        gradient[-2] = (
-            9.0 / 8 * (center_value[-1] - center_value[-2])
-            - 1 / 24 * (center_value[0] - center_value[-3])
-        ) / dx
-    else:
-        raise NotImplementedError
-    return gradient
-
-
-class Bulles:
     def __init__(
-        self, markers=None, phy_prop=None, n_bulle=None, Delta=1.0, alpha=0.06, a_i=None
+        self,
+        T0,
+        markers=None,
+        num_prop=None,
+        phy_prop=None,
+        name=None,
+        fonction_source=None,
     ):
-        self.diam = 0.0
-        if phy_prop is not None:
-            self.Delta = phy_prop.Delta
-            self.alpha = phy_prop.alpha
-            self.a_i = phy_prop.a_i
-        else:
-            self.Delta = Delta
-            self.alpha = alpha
-            self.a_i = a_i
+        self._imposed_name = name
+        if phy_prop is None:
+            print("Attention, les propriétés physiques par défaut sont utilisées")
+            phy_prop = PhysicalProperties()
+        if num_prop is None:
+            print("Attention, les propriétés numériques par défaut sont utilisées")
+            num_prop = NumericalProperties()
 
+        self._init_from_phy_prop(phy_prop)
+        self._init_from_num_prop(num_prop)
+        self.bulles = self._init_bulles(markers)
+
+        print()
+        print(self.name_cas)
+        print("=" * len(self.name_cas))
+        self.T = T0(self.x, markers=self.bulles, phy_prop=self.phy_prop)
+        self.dt = self.get_time()
+        self.time = 0.0
+        self.I = self._update_I()
+        self.If = self._update_If()
+        self.iter = 0
+        self.flux_conv = Flux(np.zeros_like(self.x_f))
+        self.flux_diff = Flux(np.zeros_like(self.x_f))
+        print("Db / dx = %.2i" % (self.bulles.diam / self.dx))
+        print("Monofluid convection : ", self.num_prop.schema)
+        self._T_final = self.T_final_prevu
+        self.fonction_source = fonction_source
+
+    def _init_from_phy_prop(self, phy_prop: PhysicalProperties):
+        self.phy_prop = deepcopy(phy_prop)
+        self.Delta = self.phy_prop.Delta  # type: float
+        self.v = self.phy_prop.v  # type: float
+        self.active_diff = self.phy_prop.diff  # type: float
+        self.lda = MonofluidVar(phy_prop.lda1, phy_prop.lda2)
+        self.rho_cp = MonofluidVar(phy_prop.rho_cp1, phy_prop.rho_cp2)
+        self.rho_cp_inv = MonofluidVar(1.0, 1.0) / MonofluidVar(
+            phy_prop.rho_cp1, phy_prop.rho_cp2
+        )
+
+    def _init_from_num_prop(self, num_prop: NumericalProperties):
+        self.num_prop = deepcopy(num_prop)
+        self.x = self.num_prop.x
+        self.x_f = self.num_prop.x_f
+        self.dx = self.num_prop.dx
+
+    def copy(self, pb):
+        equal_prop = self.phy_prop.isequal(pb.phy_prop)
+        if not equal_prop:
+            raise Exception(
+                "Impossible de copier le Problème, il n'a pas les mm propriétés physiques"
+            )
+        equal_prop_num = self.num_prop.isequal(pb.num_prop)
+        if not equal_prop_num:
+            raise Exception(
+                "Impossible de copier le Problème, il n'a pas les mm propriétés numériques"
+            )
+        init_bulles = self.bulles.copy()
+        init_bulles.shift(-self.time * self.v)
+        pb_bulles = pb.bulles.copy()
+        arrive_bulles = pb.bulles.copy()
+        arrive_bulles.shift(-pb.time * pb.phy_prop.v)
+        tolerance = 10**-6
+        equal_init_markers = np.all(
+            np.abs(init_bulles.markers - arrive_bulles.markers) < tolerance
+        )
+        if not equal_init_markers:
+            print("Init markers : ", init_bulles.markers)
+            print("Arrive bulle markers : ", arrive_bulles.markers)
+            raise Exception(
+                "Impossible de copier le Problème, il n'a pas les mm markers de départ"
+            )
+
+        self.bulles = deepcopy(pb_bulles)
+        self.T = pb.T.copy()
+        self.dt = pb.dt
+        self.time = pb.time
+        self.I = self._update_I()
+        self.If = self._update_If()
+        self.iter = pb.iter
+        self.flux_conv = pb.flux_conv.copy()
+        self.flux_diff = pb.flux_diff.copy()
+
+    def _init_bulles(self, markers=None):
         if markers is None:
-            self.markers = []
-            if n_bulle is None:
-                if self.a_i is None:
-                    raise Exception(
-                        "On ne peut pas déterminer auto la géométrie des bulles sans le rapport surfacique"
-                    )
-                else:
-                    # On détermine le nombre de bulle pour avoir une aire interfaciale donnée.
-                    # On considère ici une géométrie 1D comme l'équivalent d'une situation 3D
-                    n_bulle = int(self.a_i / 2.0 * self.Delta) + 1
-            # Avec le taux de vide, on en déduit le diamètre d'une bulle. On va considérer que le taux de vide
-            # s'exprime en 1D, cad : phy_prop.alpha = n*d*dS/(Dx*dS)
-            self.diam = self.alpha * self.Delta / n_bulle
-            centers = np.linspace(self.diam, self.Delta + self.diam, n_bulle + 1)[:-1]
-            for center in centers:
-                self.markers.append(
-                    (center - self.diam / 2.0, center + self.diam / 2.0)
-                )
-            self.markers = np.array(self.markers)
-            self.shift(self.Delta * 1./4)
+            return Bulles(markers=markers, phy_prop=self.phy_prop)
+        elif isinstance(markers, Bulles):
+            return markers.copy()
         else:
-            self.markers = np.array(markers).copy()
-            mark1 = self.markers[0][1]
-            mark0 = self.markers[0][0]
-            while mark1 < mark0:
-                mark1 += self.Delta
-            self.diam = mark1 - mark0
+            print(markers)
+            raise NotImplementedError
 
-        depasse = (self.markers > self.Delta) | (self.markers < 0.0)
-        if np.any(depasse):
-            print("Delta : ", self.Delta)
-            print("markers : ", self.markers)
-            print("depasse : ", depasse)
-            raise Exception("Les marqueurs dépassent du domaine")
+    @property
+    def full_name(self):
+        return "%s, %s" % (self.name, self.char)
 
-        self.init_markers = self.markers.copy()
+    @property
+    def name(self):
+        if self._imposed_name is None:
+            return self.name_cas
+        else:
+            return self._imposed_name
 
-    def __call__(self, *args, **kwargs):
-        return self.markers
+    @property
+    def name_cas(self):
+        return "TOF"
 
-    def copy(self):
-        cls = self.__class__
-        copie = cls(markers=self.markers.copy(), Delta=self.Delta)
-        copie.diam = self.diam
-        return copie
+    @property
+    def char(self):
+        if self.v == 0.0:
+            return "%s, %s, dx = %g, dt = %.2g" % (
+                self.num_prop.time_scheme,
+                self.num_prop.schema,
+                self.dx,
+                self.dt,
+            )
+        elif self.phy_prop.diff == 0.0:
+            return "%s, %s, dx = %g, cfl = %g" % (
+                self.num_prop.time_scheme,
+                self.num_prop.schema,
+                self.dx,
+                self.cfl,
+            )
+        else:
+            return "%s, %s, dx = %g, dt = %.2g, cfl = %g" % (
+                self.num_prop.time_scheme,
+                self.num_prop.schema,
+                self.dx,
+                self.dt,
+                self.cfl,
+            )
 
-    def indicatrice_liquide(self, x):
-        """
-        Calcule l'indicatrice qui correspond au liquide avec les marqueurs selon la grille x
+    @property
+    def cfl(self):
+        return self.v * self.dt / self.dx
 
-        Args:
-            x: les positions des centres des mailles
-
-        Returns:
-            l'indicatrice
-        """
-        i = np.ones_like(x)
-        dx = x[1] - x[0]
-        for markers in self.markers:
-            if markers[0] < markers[1]:
-                i[(x > markers[0]) & (x < markers[1])] = 0.0
-            else:
-                i[(x > markers[0]) | (x < markers[1])] = 0.0
-            diph0 = np.abs(x - markers[0]) < dx / 2.0
-            i[diph0] = (markers[0] - x[diph0]) / dx + 0.5
-            diph1 = np.abs(x - markers[1]) < dx / 2.0
-            i[diph1] = -(markers[1] - x[diph1]) / dx + 0.5
+    def _update_I(self):
+        i = self.bulles.indicatrice_liquide(self.x)
         return i
 
-    def shift(self, dx):
+    def _update_If(self):
+        i_f = self.bulles.indicatrice_liquide(self.x_f)
+        return i_f
+
+    def get_time(self) -> float:
+        # nombre CFL = 1. par défaut
+        if self.v > 10 ** (-12):
+            dt_cfl = self.dx / self.v * self.num_prop.cfl_lim
+        else:
+            dt_cfl = 10**15
+        # nombre de fourier = 1. par défaut
+        dt_fo = (
+            self.dx**2
+            / max(self.lda.l, self.lda.v)
+            * min(self.rho_cp.l, self.rho_cp.v)
+            * self.num_prop.fo_lim
+        )
+        # dt_fo = dx**2/max(lda1/rho_cp1, lda2/rho_cp2)*fo
+        # minimum des 3
+        list_dt = [self.num_prop.dt_min, dt_cfl, dt_fo]
+        i_dt = np.argmin(list_dt)
+        temps = ["dt min", "dt cfl", "dt fourier"][i_dt]
+        dt = list_dt[i_dt]
+        print(temps)
+        print(dt)
+        return dt
+
+    @property
+    def energy(self):
+        return np.sum(self.rho_cp.a(self.I) * self.T * self.phy_prop.dS * self.dx)
+
+    @property
+    def T_final_prevu(self):
+        return np.sum(self.rho_cp.a(self.I) * self.T) / np.sum(self.rho_cp.a(self.I))
+
+    @property
+    def T_final(self):
+        return self._T_final
+
+    @property
+    def energy_m(self):
+        return np.sum(self.rho_cp.a(self.I) * self.T * self.dx) / self.phy_prop.Delta
+
+    def update_markers(self, h=1.0):
+        self.bulles.shift(h * self.v * self.dt)
+        self.I = self._update_I()
+        self.If = self._update_If()
+
+    def _echange_flux(self):
+        self.flux_conv.perio()
+        self.flux_diff.perio()
+
+    def _corrige_flux_coeff_interface(self, T, bulles, *args):
         """
-        On déplace les marqueurs vers la droite
+        Cette méthode sert à corriger dans les versions discontinues de Problem directement les flux et ainsi de
+        garantir la conservation.
 
         Args:
-            dx: la distance du déplacement
+            flux_conv:
+            flux_diff:
+            coeff_diff:
 
+        Returns:
+            Corrige les flux et coeff sur place
         """
-        self.markers += dx
-        depasse = self.markers > self.Delta
-        self.markers[depasse] -= self.Delta
+        pass
 
+    def _compute_convection_flux(self):
+        T_u = interpolate(self.T, I=self.I, schema=self.num_prop.schema) * self.v
+        return T_u
 
-class PhysicalProperties:
-    def __init__(
-        self,
-        Delta=1.0,
-        lda1=1.0,
-        lda2=0.0,
-        rho_cp1=1.0,
-        rho_cp2=1.0,
-        v=1.0,
-        diff=1.0,
-        a_i=358.0,
-        alpha=0.06,
-        dS=1.0,
-    ):
-        self._Delta = Delta
-        self._lda1 = lda1
-        self._lda2 = lda2
-        self._rho_cp1 = rho_cp1
-        self._rho_cp2 = rho_cp2
-        self._v = v
-        self._diff = diff
-        self._a_i = a_i
-        self._alpha = alpha
-        self._dS = dS
-        if self._v == 0.0:
-            self._cas = "diffusion"
-        elif self._diff == 0.0:
-            self._cas = "convection"
+    def _compute_diffusion_flux(self):
+        lda_grad_T = interpolate(
+            self.lda.h(self.I), I=self.I, schema="center_h"
+        ) * grad(self.T, self.dx)
+        return lda_grad_T
+
+    def compute_time_derivative(self, bool_debug=False, debug=None, *args, **kwargs):
+        rho_cp_inv_h = 1.0 / self.rho_cp.h(self.I)
+        self.flux_conv = self._compute_convection_flux()
+        self.flux_diff = self._compute_diffusion_flux()
+        self._corrige_flux_coeff_interface(self.T, self.bulles)
+        self._echange_flux()
+        dTdt = -integrale_vol_div(
+            self.flux_conv, self.dx
+        ) + self.active_diff * rho_cp_inv_h * integrale_vol_div(self.flux_diff, self.dx)
+        dTdt += self.compute_source()
+        return dTdt
+
+    def compute_source(self):
+        if self.fonction_source is not None:
+            source = self.fonction_source(self.time, self.x, self.T)
         else:
-            self._cas = "mixte"
-
-    @property
-    def Delta(self):
-        return self._Delta
-
-    @property
-    def cas(self):
-        return self._cas
-
-    @property
-    def lda1(self):
-        return self._lda1
-
-    @property
-    def lda2(self):
-        return self._lda2
-
-    @property
-    def rho_cp1(self):
-        return self._rho_cp1
-
-    @property
-    def rho_cp2(self):
-        return self._rho_cp2
-
-    @property
-    def v(self):
-        return self._v
-
-    @v.setter
-    def v(self, val):
-        self._v = val
-
-    @property
-    def diff(self):
-        return self._diff
-
-    @property
-    def alpha(self):
-        return self._alpha
-
-    @property
-    def a_i(self):
-        return self._a_i
-
-    @property
-    def dS(self):
-        return self._dS
-
-    def isequal(self, prop):
-        dic = {key: self.__dict__[key] == prop.__dict__[key] for key in self.__dict__}
-        equal = np.all(list(dic.values()))
-        if not equal:
-            print("Attention, les propriétés ne sont pas égales :")
-            print(dic)
-        return equal
-
-
-class NumericalProperties:
-    def __init__(
-        self,
-        dx=0.1,
-        dt=1.0,
-        cfl=1.0,
-        fo=1.0,
-        schema="weno",
-        time_scheme="euler",
-        phy_prop=None,
-        Delta=None,
-    ):
-        if phy_prop is None and Delta is None:
-            raise Exception("Impossible sans phy_prop ou Delta")
-        if phy_prop is not None:
-            Delta = phy_prop.Delta
-        self._cfl_lim = cfl
-        self._fo_lim = fo
-        self._schema = schema
-        self._time_scheme = time_scheme
-        self._dx_lim = dx
-        nx = int(Delta / dx)
-        dx = Delta / nx
-        self._dx = dx
-        self._x = np.linspace(dx / 2.0, Delta - dx / 2.0, nx)
-        self._x_f = np.linspace(0.0, Delta, nx + 1)
-        self._dt_min = dt
-
-    @property
-    def cfl_lim(self):
-        return self._cfl_lim
-
-    @property
-    def fo_lim(self):
-        return self._fo_lim
-
-    @property
-    def schema(self):
-        return self._schema
-
-    @property
-    def time_scheme(self):
-        return self._time_scheme
-
-    @property
-    def x(self):
-        return self._x
-
-    @property
-    def x_f(self):
-        return self._x_f
-
-    @property
-    def dx(self):
-        return self._dx
-
-    @property
-    def dt_min(self):
-        return self._dt_min
-
-    @property
-    def dx_lim(self):
-        return self._dx_lim
-
-    def isequal(self, prop):
-        dic = {key: self.__dict__[key] == prop.__dict__[key] for key in self.__dict__}
-        for key in dic.keys():
-            if isinstance(dic[key], np.ndarray):
-                dic[key] = np.all(dic[key])
-        equal = np.all(list(dic.values()))
-        if not equal:
-            print("Attention, les propriétés numériques ne sont pas égales :")
-            print(dic)
-        return equal
+            source = 0.0
+        return source
 
 
 class Problem:
@@ -668,9 +278,6 @@ class Problem:
 
     def __init__(self, T0, markers=None, num_prop=None, phy_prop=None, name=None):
         self._imposed_name = name
-        print()
-        print(self.name)
-        print("=" * len(self.name))
         if phy_prop is None:
             print("Attention, les propriétés physiques par défaut sont utilisées")
             phy_prop = PhysicalProperties()
@@ -680,6 +287,9 @@ class Problem:
         self.phy_prop = deepcopy(phy_prop)  # type: PhysicalProperties
         self.num_prop = deepcopy(num_prop)  # type: NumericalProperties
         self.bulles = self._init_bulles(markers)
+        print()
+        print(self.name)
+        print("=" * len(self.name))
         self.T = T0(self.num_prop.x, markers=self.bulles, phy_prop=self.phy_prop)
         self.dt = self.get_time()
         self.time = 0.0
@@ -704,10 +314,14 @@ class Problem:
                 "Impossible de copier le Problème, il n'a pas les mm propriétés numériques"
             )
         try:
-            equal_init_markers = np.all(self.bulles.init_markers == pb.bulles.init_markers)
+            equal_init_markers = np.all(
+                self.bulles.init_markers == pb.bulles.init_markers
+            )
         except:
             equal_init_markers = True
-            print("Attention, les markers initiaux ne sont pas enregistrés dans la référence")
+            print(
+                "Attention, les markers initiaux ne sont pas enregistrés dans la référence"
+            )
         if not equal_init_markers:
             raise Exception(
                 "Impossible de copier le Problème, il n'a pas les mm markers de départ"
@@ -933,7 +547,7 @@ class Problem:
     def _compute_convection_flux(self, T, bulles, bool_debug=False, debug=None):
         indic = bulles.indicatrice_liquide(self.num_prop.x)
         T_u = interpolate(T, I=indic, schema=self.num_prop.schema) * self.phy_prop.v
-        return Flux(T_u)
+        return T_u
 
     def _compute_diffusion_flux(self, T, bulles, bool_debug=False, debug=None):
         indic = bulles.indicatrice_liquide(self.num_prop.x)
@@ -956,7 +570,7 @@ class Problem:
             debug.set_xticks(self.num_prop.x_f)
             debug.grid(b=True, which="major")
             debug.legend()
-        return Flux(lda_grad_T)
+        return lda_grad_T
 
     def _euler_timestep(self, debug=None, bool_debug=False):
         dx = self.num_prop.dx
@@ -1056,6 +670,9 @@ class Problem:
         debug=None,
         **kwargs
     ):
+        # TODO: a retirer en mm temps que Problem
+        from src.time_problem import SimuName
+
         if pb_name is None:
             pb_name = self.full_name
 
@@ -1090,108 +707,66 @@ class Problem:
         return t, E
 
 
-def get_T(x, markers=None, phy_prop=None):
-    if phy_prop is None:
-        raise Exception
-    else:
-        lda_1 = phy_prop.lda1
-        lda_2 = phy_prop.lda2
-    dx = x[1] - x[0]
-    Delta = x[-1] + dx / 2.0
-    if markers is None:
-        marker = np.array([[0.25 * Delta, 0.75 * Delta]])
-    elif isinstance(markers, Bulles):
-        marker = markers.markers
-    else:
-        marker = markers.copy()
+class MonofluidVar:
+    def __init__(self, val_liquid, val_vapeur):
+        self._val_liquid = val_liquid
+        self._val_vapeur = val_vapeur
 
-    if len(marker) > 1:
-        raise Exception("Le cas pour plus d une bulle n est pas enore implémenté")
-    marker = marker.squeeze()
-    if marker[0] < marker[1]:
-        m = np.mean(marker)
-    else:
-        m = np.mean([marker[0], marker[1] + Delta])
-        if m > Delta:
-            m -= Delta
-    T1 = lda_2 * np.cos(2 * np.pi * (x - m) / Delta)
-    w = opt.fsolve(
-        lambda y: y * np.sin(2 * np.pi * y * (marker[0] - m) / Delta)
-        - np.sin(2 * np.pi * (marker[0] - m) / Delta),
-        np.array(1.0),
-    )
-    b = lda_2 * np.cos(2 * np.pi / Delta * (marker[0] - m)) - lda_1 * np.cos(
-        2 * np.pi * w / Delta * (marker[0] - m)
-    )
-    T2 = lda_1 * np.cos(w * 2 * np.pi * ((x - m) / Delta)) + b
-    T = T1.copy()
-    if marker[0] < marker[1]:
-        bulle = (x > marker[0]) & (x < marker[1])
-    else:
-        bulle = (x < marker[1]) | (x > marker[0])
-    T[bulle] = T2[bulle]
-    T -= np.min(T)
-    T /= np.max(T)
-    return T
-
-
-def get_T_creneau(x, markers=None, phy_prop=None):
-    if phy_prop is None:
-        raise Exception(
-            "Attetion, il faut des propriétés thermiques pour déterminer auto le nbre de bulles"
+    def a(self, indicatrice_liquide):
+        return self._val_liquid * indicatrice_liquide + self._val_vapeur * (
+            1.0 - indicatrice_liquide
         )
-    if markers is None:
-        markers = Bulles(markers=markers, phy_prop=phy_prop)
-    indic_liqu = markers.indicatrice_liquide(x)
-    # T = 1. dans la vapeur, 0. dans le liquide, et Tm = int rhoCpT / int rhoCp dans les mailles diph.
-    T = (
-        phy_prop.rho_cp2
-        * (1.0 - indic_liqu)
-        / (phy_prop.rho_cp1 * indic_liqu + phy_prop.rho_cp2 * (1.0 - indic_liqu))
-    )
-    return T
 
-
-class SimuName:
-    def __init__(self, name: str, directory=None):
-        self._name = name
-        if directory is None:
-            self.directory = "../References"
-        else:
-            self.directory = directory
+    def h(self, indicatrice_liquide):
+        return 1.0 / (
+            indicatrice_liquide / self._val_liquid
+            + (1.0 - indicatrice_liquide) / self._val_vapeur
+        )
 
     @property
-    def name(self):
-        return self._name
+    def l(self):
+        return self._val_liquid
 
-    def get_closer_simu(self, t: float):
-        simu_list = glob(self.directory + "/" + self.name + "_t_" + "*" + ".pkl")
-        print("Liste des simus similaires : ")
-        print(simu_list)
-        closer_time = 0.0
-        closer_simu = None
-        for simu in simu_list:
-            time = self._get_time(simu)
-            if (time <= t) & (time > closer_time):
-                closer_time = time
-                closer_simu = simu
-        remaining_running_time = t - closer_time
-        assert remaining_running_time >= 0.0
-        return closer_simu  # , remaining_running_time
+    @property
+    def v(self):
+        return self._val_vapeur
 
-    @staticmethod
-    def _get_time(path_to_save_file: str) -> float:
-        time = path_to_save_file.split("_t_")[-1].split(".pkl")[0]
-        return round(float(time), 6)
+    def __mul__(self, other):
+        return MonofluidVar(self.l * other.l, self.v * other.v)
 
-    def get_save_path(self, t) -> str:
-        return self.directory + "/" + self.name + "_t_%f" % round(t, 6) + ".pkl"
+    def __rmul__(self, other):
+        return MonofluidVar(self.l * other.l, self.v * other.v)
 
+    def __truediv__(self, other):
+        if isinstance(other, self.__class__):
+            assert (other.l != 0.0) and (other.v != 0.0)
+            return MonofluidVar(self.l / other.l, self.v / other.v)
+        if isinstance(other, float) or isinstance(other, int):
+            assert other != 0.0
+            return MonofluidVar(self.l / other, self.v / other)
+        if isinstance(other, tuple):
+            assert (other[0] != 0.0) and (other[1] != 0.0)
+            return MonofluidVar(self.l / other[0], self.v / other[1])
 
-class Flux(np.ndarray):
-    def __new__(cls, input_array, *args, **kwargs):
-        obj = np.asarray(input_array, *args, **kwargs).view(cls)
-        return obj
+    def __rtruediv__(self, other):
+        if isinstance(other, self.__class__):
+            assert (other.l != 0.0) and (other.v != 0.0)
+            return MonofluidVar(other.l / self.l, other.v / self.v)
+        if isinstance(other, float) or isinstance(other, int):
+            assert other != 0.0
+            return MonofluidVar(other / self.l, other / self.v)
+        if isinstance(other, tuple):
+            assert (other[0] != 0.0) and (other[1] != 0.0)
+            return MonofluidVar(other[0] / self.l, other[1] / self.v)
 
-    def perio(self):
-        self[-1] = self[0]
+    def __add__(self, other):
+        return MonofluidVar(self.l + other.l, self.v + other.v)
+
+    def __radd__(self, other):
+        return MonofluidVar(self.l + other.l, self.v + other.v)
+
+    def __sub__(self, other):
+        return MonofluidVar(self.l - other.l, self.v - other.v)
+
+    def __rsub__(self, other):
+        return MonofluidVar(other.l - self.l, other.v - self.v)

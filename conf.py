@@ -31,12 +31,10 @@ sys.path.insert(0, os.path.abspath('.'))
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
 extensions = ['sphinx.ext.autodoc',
-    'sphinx.ext.doctest',
-    'sphinx.ext.coverage',
+    'sphinx.ext.autosummary',
     'sphinx.ext.mathjax',
     'sphinx.ext.napoleon',
     'nbsphinx',
-    'sphinx.ext.autosummary',
     'jupyter_sphinx']
 
 # Add any paths that contain templates here, relative to this directory.
@@ -75,7 +73,8 @@ language = 'fr'
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
 # This patterns also effect to html_static_path and html_extra_path
-exclude_patterns = ['doc/_build', '_build', 'Thumbs.db', '.DS_Store', 'venv*', 'Scratch' '.sos', 'local', 'tests']
+exclude_patterns = ['doc/_build', '_build', 'Thumbs.db', '.DS_Store',
+                    'venv*', 'Scratch' '.sos', 'local', 'tests']
 
 # The name of the Pygments (syntax highlighting) style to use.
 pygments_style = 'sphinx'
@@ -179,8 +178,13 @@ texinfo_documents = [
 ]
 
 # -- Options for automsummary -------------------------------------------
-autodoc_default_flags = ['members', 'undoc-members']
+# autodoc_default_flags = ['members', 'undoc-members'] depracated !
 autosummary_generate = True
+autodoc_default_options = {
+    'members': True,
+    'member-order': 'bysource',
+    'undoc-members': True,
+}
 
 # Example configuration for intersphinx: refer to the Python standard library.
 intersphinx_mapping = {'https://docs.python.org/': None}

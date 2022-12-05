@@ -14,10 +14,12 @@
 ##############################################################################
 
 import math
-from src.main_discontinu import *
+import re
 from src.main import *
+from src.main_discontinu import get_prop, BulleTemperature, StateProblemDiscontinu
 
 from matplotlib import rc
+import matplotlib.pyplot as plt
 
 rc("text", usetex=True)
 rc("font", size=18)
@@ -28,9 +30,6 @@ rc("figure", max_open_warning=50)
 # rc("figure", dpi=200)
 rc("savefig", dpi=300)
 rc("legend", loc="upper right")
-
-
-import matplotlib.pyplot as plt
 
 
 class Plotter:
@@ -171,7 +170,6 @@ class Plotter:
                 ax=self.ax,
                 ax2=self.ax2,
                 lda_gradT=self.lda_gradT,
-                flux_conv=self.flux_conv,
                 plot_Ti=plot_Ti,
                 color=c,
             )
@@ -277,6 +275,8 @@ class Plotter:
             self.ymini2 = min(self.ymini2, mini)
             self.ymaxi2 = max(self.ymaxi2, maxi)
             delta2 = self.ymaxi2 - self.ymini2
+        else:
+            delta2 = 1.0  # arbitraire, delta2 ne sert pas
 
         for markers in problem.bulles():
             bulle0 = decale_positif(markers[0] - x0, problem.phy_prop.Delta)
@@ -321,7 +321,7 @@ class Plotter:
         return c
 
 
-def plot_temp(problem, fig=None, x0=0.0, ax=None, label=None, **kwargs):
+def plot_temp(problem: StateProblem, fig=None, x0=0.0, ax=None, label=None, **kwargs):
     # fig.suptitle(problem.name.replace('_', ' '))
     x_dec, T_dec = decale_perio(
         problem.num_prop.x, problem.T, x0=x0, markers=problem.bulles
@@ -349,20 +349,15 @@ def plot_temp(problem, fig=None, x0=0.0, ax=None, label=None, **kwargs):
 
 
 def plot_temperature_bulles(
-    problem,
+    problem: StateProblemDiscontinu,
     x0=0.0,
     ax=None,
     ax2=None,
     quiver=False,
     lda_gradT=False,
-    flux_conv=False,
     plot_Ti=False,
     color=None,
 ):
-    if flux_conv is True:
-        label_conv = r"Flux convectif"
-    else:
-        label_conv = flux_conv
     n = len(problem.num_prop.x)
     Delta = problem.phy_prop.Delta
     while x0 - Delta > -problem.num_prop.dx:
@@ -472,7 +467,7 @@ def align_y_axis(ax1, ax2):
         ax2.set_ylim(ylim2[0], new_y1)
 
 
-def get_ticks(problem, x0=0.0):
+def get_ticks(problem: StateProblem, x0=0.0):
     Delta = problem.phy_prop.Delta
     M1, M2 = problem.bulles.markers[0] - x0
     if M2 < M1:
@@ -579,13 +574,69 @@ def decale_perio(x, T, Delta=None, x0=0.0, markers=None, plot=False):
     return x_decale, T_decale
 
 
+class Animate:
+    def __init__(self, tpb, ax: plt.Axes):
+        self.tpb = tpb
+        self.ax = ax
+        self.ax.minorticks_on()
+        self.ax.grid(visible=True, which="major")
+        self.ax.grid(visible=True, which="minor", alpha=0.2)
+        self.ax.set_xlim(self.tpb.problem_state.x[0], self.tpb.problem_state.x[-1])
+        self.ax.set_ylim(0.0, 1.2)
+        (self.line,) = self.ax.plot([], [])
+
+    def __call__(self, i):
+        self.tpb.timestep(n=1)
+        self.line.set_data(self.tpb.problem_state.x, self.tpb.problem_state.T)
+        return (self.line,)
+
+
+class Compare:
+    def __init__(
+        self,
+        tpbs,
+        ax: plt.Axes,
+        ylim=(None, None),
+        n_dt_per_frame=None,
+        run_time=None,
+        n_frames=15,
+    ):
+        self.tpbs = tpbs
+        self.ax = ax
+        self.ax.minorticks_on()
+        self.ax.grid(visible=True, which="major")
+        self.ax.grid(visible=True, which="minor", alpha=0.2)
+        self.ax.set_xlim(
+            self.tpbs[0].problem_state.x[0], self.tpbs[0].problem_state.x[-1]
+        )
+        self.ax.set_ylim(*ylim)
+        if n_dt_per_frame is None and run_time is None:
+            n_dt_per_frame = 1
+        if run_time is not None:
+            self.dt = run_time / n_frames
+            assert self.dt > max([tpb.dt for tpb in self.tpbs])
+        else:
+            self.dt = n_dt_per_frame * max([tpb.dt for tpb in self.tpbs])
+
+        self.lines = []
+        for _ in self.tpbs:
+            (line,) = self.ax.plot([], [])
+            self.lines.append(line)
+
+    def __call__(self, i):
+        for j, tpb in enumerate(self.tpbs):
+            time_fin = i * self.dt
+            dt = time_fin - tpb.problem_state.time
+            tpb.timestep(t_fin=dt)
+            spb = tpb.problem_state
+            self.lines[j].set_data(spb.x, spb.T)
+        return (self.lines,)
+
+
 def decale_positif(mark, Delta):
     while mark < 0.0:
         mark += Delta
     return mark
-
-
-import re
 
 
 def to_scientific(leg):
@@ -597,55 +648,3 @@ def to_scientific(leg):
     else:
         leg = leg[0]
     return leg
-
-
-class EnergiePlot:
-    def __init__(self, e0=None):
-        self.fig, self.ax = plt.subplots(1)
-        self.fig.set_size_inches(9.5, 5)
-        self.ax.minorticks_on()
-        self.ax.grid(b=True, which="major")
-        self.ax.grid(b=True, which="minor", alpha=0.2)
-        self.ax.set_xlabel(r"$t [s]$")
-        self.ax.set_ylabel(r"$E_{tot} [J/m^3]$")
-        self.e0 = e0
-
-    def plot(self, t, e, label=None):
-        if self.e0 is None:
-            self.e0 = e[0]
-
-        self.ax.plot(t, e, label=label)
-        self.ax.legend(loc="upper right")
-        self.fig.tight_layout()
-
-        n = len(e)
-        i0 = int(n / 5)
-        dedt_adim = (
-            (e[-1] - e[i0]) / (t[-1] - t[i0]) * (t[1] - t[0]) / self.e0
-        )  # on a mult
-
-        print()
-        if label is not None:
-            print(label)
-            print("=" * len(label))
-        else:
-            print("Calcul sans label")
-            print("=================")
-        print("dE*/dt* = %g" % dedt_adim)
-
-    def plot_pb(self, pb: Problem, fac=None, label=None):
-        if fac is None:
-            fac = pb.phy_prop.Delta * pb.phy_prop.dS
-        if label is None:
-            label = pb.name
-        self.plot(pb.t, pb.E / fac, label=label)
-
-    def add_E0(self):
-        self.fig.canvas.draw_idle()
-        labels = [item.get_text() for item in self.ax.get_yticklabels()]
-        ticks = list(self.ax.get_yticks())
-        ticks.append(self.e0)
-        labels.append(r"$E_0$")
-        self.ax.set_yticks(ticks)
-        self.ax.set_yticklabels(labels)
-        self.fig.tight_layout()

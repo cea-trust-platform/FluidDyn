@@ -271,6 +271,11 @@ class StateProblem:
         return source
 
 
+"""
+Gardée pour des raisons de compatibilité avec certaines études, mais obsolète.
+La classe problème est remplacée par la classe TimeProblem, qui sépare la gestion
+temporelle, la gestion des statistiques et celle d'un état.
+"""
 class Problem:
     bulles: Bulles
     num_prop: NumericalProperties

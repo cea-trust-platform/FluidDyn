@@ -1,24 +1,3 @@
 [build-system]
 requires = ["setuptools", "wheel"]
 build-backend = "setuptools.build_meta"
-
-[metadata]
-name = "Flu1dDyn"
-version = "1.0"
-author = "CEA"
-author_email = "aymeric.sonolet@cea.fr"
-description = "Allows one to simulate the advection convection of a bubble in 1D."
-long_description = """
-Allows one to simulate the advection convection of a bubble in 1D
-using the front-tracking and finite volume paradigm.
-Multiple numerical schemes for vinite volumes/finite differences are already implemented,
-but the advantage of this 1D package is to easily implement new ones.
-The times schemes implemented are explicit.
-"""
-keywords = ["simulation", "numerical scheme", "multiphase flows", "front-tracking", "one-dimension"]
-license = "CEA"
-url = "https://github.com/cea-trust-platform/FluidDyn"
-
-[options]
-packages = ["flu1ddyn"]
-install_requires = ['numpy', 're', 'matplotlib', 'pickle']

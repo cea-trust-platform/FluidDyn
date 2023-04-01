@@ -15,8 +15,8 @@
 
 import math
 import re
-from src.main import *
-from src.main_discontinu import get_prop, BulleTemperature, StateProblemDiscontinu
+from flu1ddyn.main import *
+from flu1ddyn.main_discontinu import get_prop, BulleTemperature, StateProblemDiscontinu
 
 from matplotlib import rc
 import matplotlib.pyplot as plt

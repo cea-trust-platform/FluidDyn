@@ -15,10 +15,10 @@
 
 from glob import glob
 
-from src.time_scheme import *
-from src.main_discontinu import *
-from src.statistics import Statistics
-from src.plot_fields import Plotter
+from flu1ddyn.time_scheme import *
+from flu1ddyn.main_discontinu import *
+from flu1ddyn.statistics import Statistics
+from flu1ddyn.plot_fields import Plotter
 
 
 class TimeProblem:

@@ -1,6 +1,6 @@
 import numpy as np
 from scipy import optimize as opt
-from src.main import Bulles
+from flu1ddyn.main import Bulles
 
 
 def get_T(x, markers=None, phy_prop=None):

@@ -14,7 +14,7 @@
 ##############################################################################
 
 import numpy as np
-from src.main import StateProblem
+from flu1ddyn.main import StateProblem
 
 
 class Statistics:

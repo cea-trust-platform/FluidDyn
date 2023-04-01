@@ -1,15 +1,15 @@
 import numpy as np
 
-from src.interpolation_methods import (
+from flu1ddyn.interpolation_methods import (
     Flux,
     interpolate,
     grad,
     integrale_vol_div,
     interpolate_from_center_to_face_quick,
 )
-from src.main import Problem
-from src.main_discontinu import BulleTemperature, cl_perio, get_prop
-from src.problem_definition import Bulles
+from flu1ddyn.main import Problem
+from flu1ddyn.main_discontinu import BulleTemperature, cl_perio, get_prop
+from flu1ddyn.problem_definition import Bulles
 
 
 class CellsInterface:

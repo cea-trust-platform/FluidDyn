@@ -15,7 +15,7 @@
 
 import numpy as np
 from abc import ABC, abstractmethod
-from src.interpolation_methods import (
+from flu1ddyn.interpolation_methods import (
     interpolate_from_center_to_face_quick,
 )
 

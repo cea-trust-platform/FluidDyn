@@ -16,9 +16,9 @@
 import pickle
 from copy import deepcopy
 
-from src.problem_definition import *
-from src.interpolation_methods import interpolate, integrale_vol_div, grad, Flux
-from src.temperature_initialisation_functions import *
+from flu1ddyn.problem_definition import *
+from flu1ddyn.interpolation_methods import interpolate, integrale_vol_div, grad, Flux
+from flu1ddyn.temperature_initialisation_functions import *
 
 
 class StateProblem:
@@ -676,7 +676,7 @@ class Problem:
         **kwargs
     ):
         # TODO: a retirer en mm temps que Problem
-        from src.time_problem import SimuName
+        from flu1ddyn.time_problem import SimuName
 
         if pb_name is None:
             pb_name = self.full_name

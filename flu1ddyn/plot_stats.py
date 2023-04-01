@@ -13,9 +13,9 @@
 #
 ##############################################################################
 
-from src.main import *
-from src.statistics import Statistics
-from src.time_problem import TimeProblem
+from flu1ddyn.main import *
+from flu1ddyn.statistics import Statistics
+from flu1ddyn.time_problem import TimeProblem
 
 from matplotlib import rc
 import matplotlib.pyplot as plt

@@ -1,7 +1,7 @@
 import numpy as np
 from abc import ABC, abstractmethod
-from src.main import StateProblem
-from src.main_discontinu import StateProblemDiscontinuEnergieTemperatureBase
+from flu1ddyn.main import StateProblem
+from flu1ddyn.main_discontinu import StateProblemDiscontinuEnergieTemperatureBase
 
 
 class TimestepBase(ABC):

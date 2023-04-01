@@ -10,3 +10,7 @@ local
 widget_state.json
 sync.sh
 doc/src.*
+build/
+dist/
+*egg-info/
+figures/Movie/

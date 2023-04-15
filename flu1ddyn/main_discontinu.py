@@ -12,8 +12,16 @@
 # OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #
 ##############################################################################
-from flu1ddyn.main import *
-from flu1ddyn.cells_interface import *
+from copy import deepcopy
+
+import numpy as np
+from abc import abstractmethod, ABC
+
+from flu1ddyn.interpolation_methods import interpolate, integrale_vol_div, grad, Flux
+from flu1ddyn.main import StateProblem, Problem
+from flu1ddyn.problem_definition import Bulles, NumericalProperties
+import flu1ddyn.face_interpolation as finterp
+import flu1ddyn.cells_interface as interf
 
 
 class BulleTemperature(Bulles):
@@ -79,7 +87,7 @@ class BulleTemperature(Bulles):
         super().shift(dx)
         self._set_indices_markers(self.x)
 
-    def post(self, cells: InterfaceCellsBase, i_int: int, ist: int):
+    def post(self, cells: interf.InterfaceCellsBase, i_int: int, ist: int):
         self.cells[2 * i_int + ist] = cells
         self.lda_grad_T[i_int, ist] = cells.lda_gradTi
         self.T[i_int, ist] = cells.Ti
@@ -288,84 +296,84 @@ class StateProblemDiscontinu(StateProblem, ABC):
         print("Face interp : ", self.conv_interf)
         print("Time integration method for surfaces :", self.time_integral)
 
-        if isinstance(self.interp_type, InterfaceInterpolationBase):
+        if isinstance(self.interp_type, interf.InterfaceInterpolationBase):
             self.interpolation_interface = self.interp_type
         # Le reste est hérité de l'ancienne manière de faire. À supprimer à terme.
         elif self.interp_type == "Ti":
-            self.interpolation_interface = InterfaceInterpolation1_0(dx=num_prop.dx)
+            self.interpolation_interface = interf.InterfaceInterpolation1_0(dx=num_prop.dx)
         elif self.interp_type == "Ti2":
-            self.interpolation_interface = InterfaceInterpolation2(dx=num_prop.dx)
+            self.interpolation_interface = interf.InterfaceInterpolation2(dx=num_prop.dx)
         elif self.interp_type == "Ti2_vol":
-            self.interpolation_interface = InterfaceInterpolation2(
+            self.interpolation_interface = interf.InterfaceInterpolation2(
                 dx=num_prop.dx, volume_integration=True
             )
         elif self.interp_type == "Ti3":
-            self.interpolation_interface = InterfaceInterpolation3(dx=num_prop.dx)
+            self.interpolation_interface = interf.InterfaceInterpolation3(dx=num_prop.dx)
         elif self.interp_type == "Ti3_vol":
-            self.interpolation_interface = InterfaceInterpolation3(
+            self.interpolation_interface = interf.InterfaceInterpolation3(
                 dx=num_prop.dx, volume_integration=True
             )
         elif self.interp_type == "Ti3_1_vol":
             raise NotImplementedError
         elif self.interp_type == "gradTi":
-            self.interpolation_interface = InterfaceInterpolationContinuousFlux1(
+            self.interpolation_interface = interf.InterfaceInterpolationContinuousFlux1(
                 dx=num_prop.dx
             )
         elif self.interp_type == "gradTi2":
-            self.interpolation_interface = InterfaceInterpolationContinuousFlux2(
+            self.interpolation_interface = interf.InterfaceInterpolationContinuousFlux2(
                 dx=num_prop.dx
             )
         elif self.interp_type == "energie_temperature":
-            self.interpolation_interface = InterfaceInterpolationEnergieTemperature(
+            self.interpolation_interface = interf.InterfaceInterpolationEnergieTemperature(
                 dx=num_prop.dx
             )
         elif self.interp_type == "integrale":
-            self.interpolation_interface = InterfaceInterpolationIntegral(
+            self.interpolation_interface = interf.InterfaceInterpolationIntegral(
                 dx=num_prop.dx
             )
         else:
             raise NotImplementedError
 
-        if isinstance(self.conv_interf, FaceInterpolationBase):
+        if isinstance(self.conv_interf, finterp.FaceInterpolationBase):
             self.face_interpolation = self.conv_interf
         elif self.interp_type.endswith("_vol"):
-            self.face_interpolation = FaceInterpolationQuick(
+            self.face_interpolation = finterp.FaceInterpolationQuick(
                 vdt=self.phy_prop.v * self.dt, time_integral=self.time_integral
             )
         elif self.interp_type == "energie_temperature":
-            self.face_interpolation = FaceInterpolationQuick(
+            self.face_interpolation = finterp.FaceInterpolationQuick(
                 vdt=self.phy_prop.v * self.dt, time_integral=self.time_integral
             )
         elif self.conv_interf == "weno":
-            self.face_interpolation = FaceInterpolationQuick(
+            self.face_interpolation = finterp.FaceInterpolationQuick(
                 vdt=self.phy_prop.v * self.dt, time_integral=self.time_integral
             )
         elif self.conv_interf == "quick":
-            self.face_interpolation = FaceInterpolationQuick(
+            self.face_interpolation = finterp.FaceInterpolationQuick(
                 vdt=self.phy_prop.v * self.dt, time_integral=self.time_integral
             )
         elif self.conv_interf == "quick_ghost":
-            self.face_interpolation = FaceInterpolationQuickGhost(
+            self.face_interpolation = finterp.FaceInterpolationQuickGhost(
                 vdt=self.phy_prop.v * self.dt, time_integral=self.time_integral
             )
         elif self.conv_interf == "quick_ghost_qi":
-            self.face_interpolation = FaceInterpolationQuickGhostLdaGradTi(
+            self.face_interpolation = finterp.FaceInterpolationQuickGhostLdaGradTi(
                 vdt=self.phy_prop.v * self.dt, time_integral=self.time_integral
             )
         elif self.conv_interf == "quick_upwind_ghost":
-            self.face_interpolation = FaceInterpolationQuickUpwindGhost(
+            self.face_interpolation = finterp.FaceInterpolationQuickUpwindGhost(
                 vdt=self.phy_prop.v * self.dt, time_integral=self.time_integral
             )
         elif self.conv_interf == "downwind_only_quick":
-            self.face_interpolation = FaceInterpolationDiphOnlyQuick(
+            self.face_interpolation = finterp.FaceInterpolationDiphOnlyQuick(
                 vdt=self.phy_prop.v * self.dt, time_integral=self.time_integral
             )
         elif self.conv_interf == "upwind":
-            self.face_interpolation = FaceInterpolationUpwind(
+            self.face_interpolation = finterp.FaceInterpolationUpwind(
                 vdt=self.phy_prop.v * self.dt, time_integral=self.time_integral
             )
         elif self.conv_interf == "amont_centre":
-            self.face_interpolation = FaceInterpolationAmontCentre(
+            self.face_interpolation = finterp.FaceInterpolationAmontCentre(
                 vdt=self.phy_prop.v * self.dt, time_integral=self.time_integral
             )
         else:

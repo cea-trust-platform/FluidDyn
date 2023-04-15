@@ -2619,9 +2619,7 @@ class ProblemDiscontinuE(Problem):
         rho_cp_a_np1 = (
             I_np1 * self.phy_prop.rho_cp1 + (1.0 - I_np1) * self.phy_prop.rho_cp2
         )
-        self.flux_conv = self._compute_convection_flux(
-            self.rho_cp_a * self.T, self.bulles, bool_debug, debug
-        )
+        self.flux_conv = self._compute_convection_flux(self.rho_cp_a * self.T, self.bulles, debug)
         self.flux_diff = self._compute_diffusion_flux(
             self.T, self.bulles, bool_debug, debug
         )
@@ -2784,9 +2782,7 @@ class ProblemDiscontinuE_CN(Problem):
         rho_cp_a_np1 = (
             I_np1 * self.phy_prop.rho_cp1 + (1.0 - I_np1) * self.phy_prop.rho_cp2
         )
-        self.flux_conv = self._compute_convection_flux(
-            self.rho_cp_a * self.T, self.bulles, bool_debug, debug
-        )
+        self.flux_conv = self._compute_convection_flux(self.rho_cp_a * self.T, self.bulles, debug)
         self.flux_diff = self._compute_diffusion_flux(
             self.T, self.bulles, bool_debug, debug
         )
@@ -2941,9 +2937,7 @@ class ProblemDiscontinuEsansq(Problem):
         rho_cp_a_np1 = (
             I_np1 * self.phy_prop.rho_cp1 + (1.0 - I_np1) * self.phy_prop.rho_cp2
         )
-        self.flux_conv = self._compute_convection_flux(
-            self.rho_cp_a * self.T, self.bulles, bool_debug, debug
-        )
+        self.flux_conv = self._compute_convection_flux(self.rho_cp_a * self.T, self.bulles, debug)
         self.flux_diff = self._compute_diffusion_flux(
             self.T, self.bulles, bool_debug, debug
         )
@@ -3077,9 +3071,7 @@ class ProblemDiscontinuEcomme3D(Problem):
         rho_cp_a_np1 = (
             I_np1 * self.phy_prop.rho_cp1 + (1.0 - I_np1) * self.phy_prop.rho_cp2
         )
-        self.flux_conv = self.rho_cp_f * self._compute_convection_flux(
-            self.T, self.bulles, bool_debug, debug
-        )
+        self.flux_conv = self.rho_cp_f * self._compute_convection_flux(self.T, self.bulles, debug)
         self.flux_diff = self._compute_diffusion_flux(
             self.T, self.bulles, bool_debug, debug
         )
@@ -3245,9 +3237,7 @@ class ProblemDiscontinuEcomme3D_ghost(Problem):
         rho_cp_a_np1 = (
             I_np1 * self.phy_prop.rho_cp1 + (1.0 - I_np1) * self.phy_prop.rho_cp2
         )
-        self.flux_conv = self.rho_cp_f * self._compute_convection_flux(
-            self.T, self.bulles, bool_debug, debug
-        )
+        self.flux_conv = self.rho_cp_f * self._compute_convection_flux(self.T, self.bulles, debug)
         self.flux_diff = self._compute_diffusion_flux(
             self.T, self.bulles, bool_debug, debug
         )
@@ -3283,9 +3273,7 @@ class ProblemDiscontinuEcomme3D_ghost(Problem):
                 I_kp1 * self.phy_prop.rho_cp1 + (1.0 - I_kp1) * self.phy_prop.rho_cp2
             )
 
-            flux_conv = rho_cp_f * self._compute_convection_flux(
-                T_int, markers_int, bool_debug, debug
-            )
+            flux_conv = rho_cp_f * self._compute_convection_flux(T_int, markers_int, debug)
             flux_diff = self._compute_diffusion_flux(
                 T_int, markers_int, bool_debug, debug
             )
@@ -3457,9 +3445,7 @@ class ProblemDiscontinuEcomme3D_ghost_exactSf(Problem):
         rho_cp_a_np1 = (
             I_np1 * self.phy_prop.rho_cp1 + (1.0 - I_np1) * self.phy_prop.rho_cp2
         )
-        self.flux_conv = self.rho_cp_f * self._compute_convection_flux(
-            self.T, self.bulles, bool_debug, debug
-        )
+        self.flux_conv = self.rho_cp_f * self._compute_convection_flux(self.T, self.bulles, debug)
         self.flux_diff = self._compute_diffusion_flux(
             self.T, self.bulles, bool_debug, debug
         )
@@ -3631,9 +3617,7 @@ class ProblemDiscontinuEcomme3Davecq_ghost(Problem):
         rho_cp_a_np1 = (
             I_np1 * self.phy_prop.rho_cp1 + (1.0 - I_np1) * self.phy_prop.rho_cp2
         )
-        self.flux_conv = self.rho_cp_f * self._compute_convection_flux(
-            self.T, self.bulles, bool_debug, debug
-        )
+        self.flux_conv = self.rho_cp_f * self._compute_convection_flux(self.T, self.bulles, debug)
         self.flux_diff = self._compute_diffusion_flux(
             self.T, self.bulles, bool_debug, debug
         )
@@ -3805,9 +3789,7 @@ class ProblemDiscontinuEcomme3Davecq_I(Problem):
         rho_cp_a_np1 = (
             I_np1 * self.phy_prop.rho_cp1 + (1.0 - I_np1) * self.phy_prop.rho_cp2
         )
-        self.flux_conv = self.rho_cp_f * self._compute_convection_flux(
-            self.T, self.bulles, bool_debug, debug
-        )
+        self.flux_conv = self.rho_cp_f * self._compute_convection_flux(self.T, self.bulles, debug)
         self.flux_diff = self._compute_diffusion_flux(
             self.T, self.bulles, bool_debug, debug
         )
@@ -3979,9 +3961,7 @@ class ProblemDiscontinuEcomme3D_ghost_avecq_I_exactSf(Problem):
         rho_cp_a_np1 = (
             I_np1 * self.phy_prop.rho_cp1 + (1.0 - I_np1) * self.phy_prop.rho_cp2
         )
-        self.flux_conv = self.rho_cp_f * self._compute_convection_flux(
-            self.T, self.bulles, bool_debug, debug
-        )
+        self.flux_conv = self.rho_cp_f * self._compute_convection_flux(self.T, self.bulles, debug)
         self.flux_diff = self._compute_diffusion_flux(
             self.T, self.bulles, bool_debug, debug
         )
@@ -4149,9 +4129,7 @@ class ProblemDiscontinuT(Problem):
         bulles = self.bulles.copy()
         bulles.shift(self.phy_prop.v * self.dt)
         Inp1 = bulles.indicatrice_liquide(self.num_prop.x)
-        self.flux_conv = self._compute_convection_flux(
-            self.T, self.bulles, bool_debug, debug
-        )
+        self.flux_conv = self._compute_convection_flux(self.T, self.bulles, debug)
         self.flux_diff = self._compute_diffusion_flux(
             self.T, self.bulles, bool_debug, debug
         )
@@ -4873,10 +4851,8 @@ class ProblemRhoCpDiscontinuE(Problem):
         rho_cp_a_np1 = (
             I_np1 * self.phy_prop.rho_cp1 + (1.0 - I_np1) * self.phy_prop.rho_cp2
         )
-        self.flux_conv = self._compute_convection_flux(
-            self.rho_cp_a * self.T, self.bulles, bool_debug, debug
-        )
-        T_f = self._compute_convection_flux(self.T, self.bulles, bool_debug, debug)
+        self.flux_conv = self._compute_convection_flux(self.rho_cp_a * self.T, self.bulles, debug)
+        T_f = self._compute_convection_flux(self.T, self.bulles, debug)
         self.flux_diff = self._compute_diffusion_flux(
             self.T, self.bulles, bool_debug, debug
         )

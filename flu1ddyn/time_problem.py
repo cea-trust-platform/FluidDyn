@@ -14,6 +14,7 @@
 ##############################################################################
 
 from glob import glob
+import pickle
 
 from flu1ddyn.time_scheme import *
 from flu1ddyn.main_discontinu import *

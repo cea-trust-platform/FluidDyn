@@ -13,12 +13,13 @@
 #
 ##############################################################################
 
+import numpy as np
 import pickle
 from copy import deepcopy
 
-from flu1ddyn.problem_definition import *
+from flu1ddyn.problem_definition import PhysicalProperties, NumericalProperties, Bulles
 from flu1ddyn.interpolation_methods import interpolate, integrale_vol_div, grad, Flux
-from flu1ddyn.temperature_initialisation_functions import *
+from flu1ddyn.temperature_initialisation_functions import get_T, get_T_creneau
 
 
 class StateProblem:
@@ -331,7 +332,6 @@ class Problem:
             raise Exception(
                 "Impossible de copier le Problème, il n'a pas les mm markers de départ"
             )
-        # self.num_prop = deepcopy(self.num_prop)
         self.bulles = deepcopy(pb.bulles)
         self.T = pb.T.copy()
         self.dt = pb.dt
@@ -471,32 +471,9 @@ class Problem:
     ):
         if plotter is None:
             raise (Exception("plotter is a mandatory argument"))
-        if (n is None) and (t_fin is None):
-            raise NotImplementedError
-        elif (n is not None) and (t_fin is not None):
-            n = min(n, int(t_fin / self.dt))
-        elif t_fin is not None:
-            n = int(t_fin / self.dt)
-        if number_of_plots is not None:
-            plot_for_each = int((n - 1) / number_of_plots)
-        if plot_for_each <= 0:
-            plot_for_each = 1
-        # if isinstance(plotter, list):
-        #     for plott in plotter:
-        #         plott.plot(self)
-        # else:
-        #     plotter.plot(self)
-        if self.E is None:
-            offset = 0
-            self.E = np.zeros((n + 1,))
-            self.t = np.linspace(0, n * self.dt, n + 1).copy()
-            self.E[0] = self.energy
-        else:
-            offset = self.E.size - 1
-            self.E = np.r_[self.E, np.zeros((n,))]
-            self.t = np.r_[
-                self.t, np.linspace(self.time + self.dt, self.time + n * self.dt, n)
-            ]
+        n, plot_for_each = self._compute_n_and_plot_for_each(n=n, t_fin=t_fin, plot_for_each=plot_for_each,
+                                                        number_of_plots=number_of_plots)
+        offset = self._set_up_time_and_energy_arrays(n)
         for i in range(n):
             if self.num_prop.time_scheme == "euler":
                 self._euler_timestep(debug=debug, bool_debug=(i % plot_for_each == 0))
@@ -524,6 +501,39 @@ class Problem:
             plotter.plot(self, **kwargs)
         return self.t, self.E
 
+    def _set_up_time_and_energy_arrays(self, n):
+        if self.E is None:
+            offset = 0
+            self.E = np.zeros((n + 1,))
+            self.t = np.linspace(0, n * self.dt, n + 1).copy()
+            self.E[0] = self.energy
+        else:
+            offset = self.E.size - 1
+            self.E = np.r_[self.E, np.zeros((n,))]
+            self.t = np.r_[
+                self.t, np.linspace(self.time + self.dt, self.time + n * self.dt, n)
+            ]
+        return offset
+
+    def _compute_n_and_plot_for_each(
+        self,
+        n=None,
+        t_fin=None,
+        plot_for_each=1,
+        number_of_plots=None,
+    ):
+        if (n is None) and (t_fin is None):
+            raise NotImplementedError
+        elif (n is not None) and (t_fin is not None):
+            n = min(n, int(t_fin / self.dt))
+        elif t_fin is not None:
+            n = int(t_fin / self.dt)
+        if number_of_plots is not None:
+            plot_for_each = int((n - 1) / number_of_plots)
+        if plot_for_each <= 0:
+            plot_for_each = 1
+        return n, plot_for_each
+
     def _echange_flux(self):
         """
         Cette méthode permet de forcer que le flux sortant soit bien égal au flux entrant
@@ -549,7 +559,7 @@ class Problem:
         """
         pass
 
-    def _compute_convection_flux(self, T, bulles, bool_debug=False, debug=None):
+    def _compute_convection_flux(self, T, bulles, debug=None):
         indic = bulles.indicatrice_liquide(self.num_prop.x)
         T_u = interpolate(T, I=indic, schema=self.num_prop.schema) * self.phy_prop.v
         return T_u
@@ -579,9 +589,7 @@ class Problem:
 
     def _euler_timestep(self, debug=None, bool_debug=False):
         dx = self.num_prop.dx
-        self.flux_conv = self._compute_convection_flux(
-            self.T, self.bulles, bool_debug, debug
-        )
+        self.flux_conv = self._compute_convection_flux(self.T, self.bulles, debug)
         self.flux_diff = self._compute_diffusion_flux(
             self.T, self.bulles, bool_debug, debug
         )
@@ -603,10 +611,7 @@ class Problem:
         coeff_dTdtm1 = np.array([0.0, -5.0 / 9, -153.0 / 128])
         coeff_dTdt = np.array([1.0, 4.0 / 9, 15.0 / 32])
         for step, h in enumerate(coeff_h):
-            # convection, conduction, dTdt = self.compute_dT_dt(T_int, markers_int, bool_debug, debug)
-            convection = self._compute_convection_flux(
-                T_int, markers_int, bool_debug, debug
-            )
+            convection = self._compute_convection_flux(T_int, markers_int, debug)
             conduction = self._compute_diffusion_flux(
                 T_int, markers_int, bool_debug, debug
             )
@@ -629,10 +634,7 @@ class Problem:
                 print("K    : ", K)
             T_int += h * self.dt * K / coeff_dTdt[step]  # coeff_dTdt est calculé de
             # sorte à ce que le coefficient total devant les dérviées vale 1.
-            # convection_l.append(convection)
-            # conduction_l.append(conduction)
             markers_int.shift(self.phy_prop.v * h * self.dt)
-        # coeff = np.array([1./6, 3./10, 8/15.])
         self.T = T_int
 
     def _rk4_timestep(self, debug=None, bool_debug=False):
@@ -645,9 +647,7 @@ class Problem:
             markers_int = self.bulles.copy()
             markers_int.shift(self.phy_prop.v * h * self.dt)
             T = self.T + h * self.dt * K[-1]
-            convection = self._compute_convection_flux(
-                T, markers_int, bool_debug, debug
-            )
+            convection = self._compute_convection_flux(T, markers_int, debug)
             conduction = self._compute_diffusion_flux(T, markers_int, bool_debug, debug)
             # TODO: vérifier qu'il ne faudrait pas plutôt utiliser rho_cp^{n,k}
             rho_cp_inv_h = 1.0 / self.rho_cp_h

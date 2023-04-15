@@ -246,7 +246,7 @@ def interpolate_from_center_to_face_quick(a, cl=1, cv_0=0.0, cv_n=0.0):
     return interpolated_value
 
 
-def interpolate_from_center_fot_face_lin3(a, cl=1, cv_0=0.0, cv_n=0.0):
+def interpolate_from_center_to_face_lin3(a, cl=1, cv_0=0.0, cv_n=0.0):
     center_values = np.empty(a.size + 4)
     if cl == 1:
         center_values[:2] = a[-2:]

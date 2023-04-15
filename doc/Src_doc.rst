@@ -5,4 +5,4 @@ Flu1dDyn
     :recursive:
     :toctree:
 
-    src
+    flu1ddyn

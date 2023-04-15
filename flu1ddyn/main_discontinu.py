@@ -354,19 +354,12 @@ class StateProblemDiscontinu(StateProblem, ABC):
 
         if isinstance(self.conv_interf, finterp.FaceInterpolationBase):
             self.face_interpolation = self.conv_interf
-        elif self.interp_type.endswith("_vol"):
-            self.face_interpolation = finterp.FaceInterpolationQuick(
-                vdt=self.phy_prop.v * self.dt, time_integral=self.time_integral
-            )
-        elif self.interp_type == "energie_temperature":
-            self.face_interpolation = finterp.FaceInterpolationQuick(
-                vdt=self.phy_prop.v * self.dt, time_integral=self.time_integral
-            )
-        elif self.conv_interf == "weno":
-            self.face_interpolation = finterp.FaceInterpolationQuick(
-                vdt=self.phy_prop.v * self.dt, time_integral=self.time_integral
-            )
-        elif self.conv_interf == "quick":
+        elif (
+            self.interp_type.endswith("_vol")
+            or (self.interp_type == "energie_temperature")
+            or (self.interp_type == "weno")
+            or (self.conv_interf == "quick")
+        ):
             self.face_interpolation = finterp.FaceInterpolationQuick(
                 vdt=self.phy_prop.v * self.dt, time_integral=self.time_integral
             )

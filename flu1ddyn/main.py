@@ -17,8 +17,17 @@ import numpy as np
 import pickle
 from copy import deepcopy
 
-from flu1ddyn.problem_definition import PhysicalProperties, NumericalProperties, Bulles
-from flu1ddyn.interpolation_methods import interpolate, integrale_vol_div, grad, Flux
+from flu1ddyn.problem_definition import (
+    PhysicalProperties,
+    NumericalProperties,
+    Bulles,
+)
+from flu1ddyn.interpolation_methods import (
+    interpolate,
+    integrale_vol_div,
+    grad,
+    Flux,
+)
 from flu1ddyn.temperature_initialisation_functions import get_T, get_T_creneau
 
 
@@ -277,6 +286,8 @@ Gardée pour des raisons de compatibilité avec certaines études, mais obsolèt
 La classe problème est remplacée par la classe TimeProblem, qui sépare la gestion
 temporelle, la gestion des statistiques et celle d'un état.
 """
+
+
 class Problem:
     bulles: Bulles
     num_prop: NumericalProperties
@@ -471,8 +482,12 @@ class Problem:
     ):
         if plotter is None:
             raise (Exception("plotter is a mandatory argument"))
-        n, plot_for_each = self._compute_n_and_plot_for_each(n=n, t_fin=t_fin, plot_for_each=plot_for_each,
-                                                        number_of_plots=number_of_plots)
+        n, plot_for_each = self._compute_n_and_plot_for_each(
+            n=n,
+            t_fin=t_fin,
+            plot_for_each=plot_for_each,
+            number_of_plots=number_of_plots,
+        )
         offset = self._set_up_time_and_energy_arrays(n)
         for i in range(n):
             if self.num_prop.time_scheme == "euler":
@@ -511,7 +526,8 @@ class Problem:
             offset = self.E.size - 1
             self.E = np.r_[self.E, np.zeros((n,))]
             self.t = np.r_[
-                self.t, np.linspace(self.time + self.dt, self.time + n * self.dt, n)
+                self.t,
+                np.linspace(self.time + self.dt, self.time + n * self.dt, n),
             ]
         return offset
 
@@ -580,7 +596,9 @@ class Problem:
                 label="lda_h grad T, time = %f" % self.time,
             )
             debug.plot(
-                self.num_prop.x_f, lda_grad_T, label="lda_grad_T, time = %f" % self.time
+                self.num_prop.x_f,
+                lda_grad_T,
+                label="lda_grad_T, time = %f" % self.time,
             )
             debug.set_xticks(self.num_prop.x_f)
             debug.grid(b=True, which="major")

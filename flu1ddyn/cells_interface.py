@@ -731,9 +731,7 @@ class InterfaceInterpolationEnergieTemperature(InterfaceInterpolationBase):
                 [self.ag, self.ad],
             ]
         )
-        self.Tgc, self.Tdc = np.dot(
-            np.linalg.inv(system), np.array([h, T_mean])
-        )
+        self.Tgc, self.Tdc = np.dot(np.linalg.inv(system), np.array([h, T_mean]))
 
     def _compute_Ti(self):
         # On commence par calculer T_I et lda_grad_Ti en fonction de Tgc et Tdc :
@@ -837,13 +835,9 @@ class InterfaceInterpolationContinuousFluxBase(InterfaceInterpolationBase):
         return Ti
 
 
-class InterfaceInterpolationContinuousFlux1(
-    InterfaceInterpolationContinuousFluxBase
-):
+class InterfaceInterpolationContinuousFlux1(InterfaceInterpolationContinuousFluxBase):
     def __init__(self, *args, **kwargs):
-        super(InterfaceInterpolationContinuousFlux1, self).__init__(
-            *args, **kwargs
-        )
+        super(InterfaceInterpolationContinuousFlux1, self).__init__(*args, **kwargs)
         self._interpolation_name = "ldagradT1"
 
     def _get_lda_grad_T_i_from_ldagradT_continuity(
@@ -930,13 +924,9 @@ class InterfaceInterpolationContinuousFlux1(
         self.Td[0] = self.Td[1] - self.lda_gradTd / self.ldad * self.dx
 
 
-class InterfaceInterpolationContinuousFlux2(
-    InterfaceInterpolationContinuousFluxBase
-):
+class InterfaceInterpolationContinuousFlux2(InterfaceInterpolationContinuousFluxBase):
     def __init__(self, *args, **kwargs):
-        super(InterfaceInterpolationContinuousFlux2, self).__init__(
-            *args, **kwargs
-        )
+        super(InterfaceInterpolationContinuousFlux2, self).__init__(*args, **kwargs)
         self._interpolation_name = "ldagradT2"
 
     def _interpolate_ldagradT(self):

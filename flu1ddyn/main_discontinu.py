@@ -12,12 +12,24 @@
 # OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #
 ##############################################################################
+
+
+"""
+This module defines the standard classes used for the discontinuous schemes (schemes corrected near the interface).
+"""
+
+
 from copy import deepcopy
 
 import numpy as np
 from abc import abstractmethod, ABC
 
-from flu1ddyn.interpolation_methods import interpolate, integrale_vol_div, grad, Flux
+from flu1ddyn.interpolation_methods import (
+    interpolate,
+    integrale_vol_div,
+    grad,
+    Flux,
+)
 from flu1ddyn.main import StateProblem, Problem
 from flu1ddyn.problem_definition import Bulles, NumericalProperties
 import flu1ddyn.face_interpolation as finterp
@@ -300,15 +312,21 @@ class StateProblemDiscontinu(StateProblem, ABC):
             self.interpolation_interface = self.interp_type
         # Le reste est hérité de l'ancienne manière de faire. À supprimer à terme.
         elif self.interp_type == "Ti":
-            self.interpolation_interface = interf.InterfaceInterpolation1_0(dx=num_prop.dx)
+            self.interpolation_interface = interf.InterfaceInterpolation1_0(
+                dx=num_prop.dx
+            )
         elif self.interp_type == "Ti2":
-            self.interpolation_interface = interf.InterfaceInterpolation2(dx=num_prop.dx)
+            self.interpolation_interface = interf.InterfaceInterpolation2(
+                dx=num_prop.dx
+            )
         elif self.interp_type == "Ti2_vol":
             self.interpolation_interface = interf.InterfaceInterpolation2(
                 dx=num_prop.dx, volume_integration=True
             )
         elif self.interp_type == "Ti3":
-            self.interpolation_interface = interf.InterfaceInterpolation3(dx=num_prop.dx)
+            self.interpolation_interface = interf.InterfaceInterpolation3(
+                dx=num_prop.dx
+            )
         elif self.interp_type == "Ti3_vol":
             self.interpolation_interface = interf.InterfaceInterpolation3(
                 dx=num_prop.dx, volume_integration=True
@@ -324,8 +342,8 @@ class StateProblemDiscontinu(StateProblem, ABC):
                 dx=num_prop.dx
             )
         elif self.interp_type == "energie_temperature":
-            self.interpolation_interface = interf.InterfaceInterpolationEnergieTemperature(
-                dx=num_prop.dx
+            self.interpolation_interface = (
+                interf.InterfaceInterpolationEnergieTemperature(dx=num_prop.dx)
             )
         elif self.interp_type == "integrale":
             self.interpolation_interface = interf.InterfaceInterpolationIntegral(
@@ -358,11 +376,13 @@ class StateProblemDiscontinu(StateProblem, ABC):
             )
         elif self.conv_interf == "quick_ghost_qi":
             self.face_interpolation = finterp.FaceInterpolationQuickGhostLdaGradTi(
-                vdt=self.phy_prop.v * self.dt, time_integral=self.time_integral
+                vdt=self.phy_prop.v * self.dt,
+                time_integral=self.time_integral,
             )
         elif self.conv_interf == "quick_upwind_ghost":
             self.face_interpolation = finterp.FaceInterpolationQuickUpwindGhost(
-                vdt=self.phy_prop.v * self.dt, time_integral=self.time_integral
+                vdt=self.phy_prop.v * self.dt,
+                time_integral=self.time_integral,
             )
         elif self.conv_interf == "downwind_only_quick":
             self.face_interpolation = finterp.FaceInterpolationDiphOnlyQuick(
@@ -400,7 +420,9 @@ class StateProblemDiscontinu(StateProblem, ABC):
             return markers.copy()
         elif isinstance(markers, Bulles):
             return BulleTemperature(
-                markers=markers.markers, phy_prop=self.phy_prop, x=self.num_prop.x
+                markers=markers.markers,
+                phy_prop=self.phy_prop,
+                x=self.num_prop.x,
             )
         else:
             print(markers)
@@ -510,7 +532,9 @@ class StateProblemDiscontinuEnergieTemperatureBase(StateProblemDiscontinu, ABC):
             self.flux_diff, self._get_new_flux_diff, stencil_interf
         )
         self._corrige_flux_local(
-            self.flux_conv_energie, self._get_new_flux_conv_energie, stencil_interf
+            self.flux_conv_energie,
+            self._get_new_flux_conv_energie,
+            stencil_interf,
         )
 
     def _echange_flux(self):
@@ -604,7 +628,9 @@ class StateProblemDiscontinuEnergieTemperatureInt(
             self.flux_diff, self._get_new_flux_diff, stencil_interf
         )
         self._corrige_flux_local(
-            self.flux_conv_energie, self._get_new_flux_conv_energie, stencil_interf
+            self.flux_conv_energie,
+            self._get_new_flux_conv_energie,
+            stencil_interf,
         )
         self._corrige_flux_local(
             self.flux_diff_temp, self._get_new_flux_diff_temp, stencil_interf

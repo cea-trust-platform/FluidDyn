@@ -1009,7 +1009,10 @@ class CellsInterface:
             Rien mais mets à jour Tgc et Tdc
         """
         system = np.array(
-            [[self.ag * self.rhocpg, self.ad * self.rhocpd], [self.ag, self.ad]]
+            [
+                [self.ag * self.rhocpg, self.ad * self.rhocpd],
+                [self.ag, self.ad],
+            ]
         )
         self.Tgc, self.Tdc = np.dot(np.linalg.inv(system), np.array([h, T_mean]))
 
@@ -1064,7 +1067,10 @@ class CellsInterface:
         else:
             self._compute_Tgc_Tdc(h, T_mean)
             self._Ti, self._lda_gradTi = self._get_T_i_and_lda_grad_T_i(
-                self.Tgc, self.Tdc, self.ag / 2.0 * self.dx, self.ad / 2.0 * self.dx
+                self.Tgc,
+                self.Tdc,
+                self.ag / 2.0 * self.dx,
+                self.ad / 2.0 * self.dx,
             )
 
         self._dTdxg = self._lda_gradTi / self.ldag
@@ -1184,7 +1190,13 @@ class CellsInterface:
         return T_i, (lda_grad_T_ig + lda_grad_T_id) / 2.0
 
     def _get_T_i_and_lda_grad_T_i_limited(
-        self, Tg: float, Td: float, Tgg: float, Tdd: float, dg: float, dd: float
+        self,
+        Tg: float,
+        Td: float,
+        Tgg: float,
+        Tdd: float,
+        dg: float,
+        dd: float,
     ) -> (float, float):
         """
         On utilise la continuité de lda_grad_T pour interpoler en Ti, on en déduit Ti et lda_grad_Ti
@@ -1233,7 +1245,13 @@ class CellsInterface:
         return T_i, lda_grad_T
 
     def _get_T_i_and_lda_grad_T_i2(
-        self, Tg: float, Td: float, Tgg: float, Tdd: float, dg: float, dd: float
+        self,
+        Tg: float,
+        Td: float,
+        Tgg: float,
+        Tdd: float,
+        dg: float,
+        dd: float,
     ) -> (float, float, float, float):
         """
         On utilise la continuité de lad_grad_T pour interpoler linéairement à partir des valeurs en im32 et ip32
@@ -1336,7 +1354,13 @@ class CellsInterface:
         return T_i, lda_grad_T, d2Tdx2g, d2Tdx2d, d3Tdx3g, d3Tdx3d
 
     def _get_T_i_and_lda_grad_T_i2_vol(
-        self, Tg: float, Td: float, Tgg: float, Tdd: float, dg: float, dd: float
+        self,
+        Tg: float,
+        Td: float,
+        Tgg: float,
+        Tdd: float,
+        dg: float,
+        dd: float,
     ) -> (float, float, float, float):
         """
         On utilise la continuité de lad_grad_T pour interpoler linéairement à partir des valeurs en im32 et ip32
@@ -1402,9 +1426,30 @@ class CellsInterface:
         dddd = dd + 2.0 * self.dx
         mat = np.array(
             [
-                [1.0, -dg, dg**2 * 2.0 / 3.0, 0.0, -(dg**3) * 1.0 / 3.0, 0.0],
-                [1.0, -dgg, dgg**2 * 2.0 / 3.0, 0.0, -(dgg**3) * 1.0 / 3.0, 0.0],
-                [1.0, -dggg, dggg**2 * 2.0 / 3.0, 0.0, -(dggg**3) * 1.0 / 3.0, 0.0],
+                [
+                    1.0,
+                    -dg,
+                    dg**2 * 2.0 / 3.0,
+                    0.0,
+                    -(dg**3) * 1.0 / 3.0,
+                    0.0,
+                ],
+                [
+                    1.0,
+                    -dgg,
+                    dgg**2 * 2.0 / 3.0,
+                    0.0,
+                    -(dgg**3) * 1.0 / 3.0,
+                    0.0,
+                ],
+                [
+                    1.0,
+                    -dggg,
+                    dggg**2 * 2.0 / 3.0,
+                    0.0,
+                    -(dggg**3) * 1.0 / 3.0,
+                    0.0,
+                ],
                 [
                     1.0,
                     dd * self.ldag / self.ldad,
@@ -1439,7 +1484,13 @@ class CellsInterface:
         return T_i, lda_grad_T, d2Tdx2g, d2Tdx2d, d3Tdx3g, d3Tdx3d
 
     def _get_T_i_and_lda_grad_T_i3_1_vol(
-        self, Tggg: float, Tgg: float, Tg: float, Td: float, dg: float, dd: float
+        self,
+        Tggg: float,
+        Tgg: float,
+        Tg: float,
+        Td: float,
+        dg: float,
+        dd: float,
     ) -> (float, float, float, float):
         """
         On utilise la continuité de lad_grad_T et on écrit un DL à l'ordre 3 à droite et à gauche.
@@ -1598,7 +1649,13 @@ class CellsInterface:
         return Tint, dTdx_int, d2Tdx2_int
 
     def _interp_lagrange_amont_grad_vol(
-        self, T0: float, T1: float, gradT0: float, x0: float, x1: float, x_int: float
+        self,
+        T0: float,
+        T1: float,
+        gradT0: float,
+        x0: float,
+        x1: float,
+        x_int: float,
     ) -> (float, float, float):
 
         """
@@ -1643,7 +1700,13 @@ class CellsInterface:
 
     @staticmethod
     def _interp_lagrange_aval(
-        T0: float, T1: float, T2: float, x0: float, x1: float, x2: float, x_int: float
+        T0: float,
+        T1: float,
+        T2: float,
+        x0: float,
+        x1: float,
+        x2: float,
+        x_int: float,
     ) -> (float, float, float):
         """
         Dans cette méthode on veux que T0 seulement soit amont de x_int.
@@ -1679,7 +1742,13 @@ class CellsInterface:
 
     @staticmethod
     def _interp_lagrange_amont_centre(
-        T0: float, T1: float, T2: float, x0: float, x1: float, x2: float, x_int: float
+        T0: float,
+        T1: float,
+        T2: float,
+        x0: float,
+        x1: float,
+        x2: float,
+        x_int: float,
     ) -> (float, float, float):
         """
         Dans cette méthode on veux que T0 et T1 soient amont de x_int
@@ -1706,7 +1775,13 @@ class CellsInterface:
 
     @staticmethod
     def _interp_lagrange_amont(
-        T0: float, T1: float, T2: float, x0: float, x1: float, x2: float, x_int: float
+        T0: float,
+        T1: float,
+        T2: float,
+        x0: float,
+        x1: float,
+        x2: float,
+        x_int: float,
     ) -> (float, float, float):
         """
         Dans cette méthode on veux que T0 et T1 soient amont de x_int
@@ -1762,7 +1837,11 @@ class CellsInterface:
         d1 = x1 - x_int
 
         mat = np.array(
-            [[1.0, d0, d0**2 / 2.0], [1.0, d1, d1**2 / 2.0], [0.0, 1.0, d0]],
+            [
+                [1.0, d0, d0**2 / 2.0],
+                [1.0, d1, d1**2 / 2.0],
+                [0.0, 1.0, d0],
+            ],
             dtype=np.float_,
         )
         Tint, dTdx_int, d2Tdx2_int = np.dot(
@@ -1819,7 +1898,13 @@ class CellsInterface:
         return Tint, dTdx_int, d2Tdx2_int
 
     def _get_lda_grad_T_i_from_ldagradT_continuity(
-        self, Tim2: float, Tim1: float, Tip1: float, Tip2: float, dg: float, dd: float
+        self,
+        Tim2: float,
+        Tim1: float,
+        Tip1: float,
+        Tip2: float,
+        dg: float,
+        dd: float,
     ) -> (float, float, float, float, float):
         """
         On utilise la continuité de lad_grad_T pour interpoler linéairement à partir des valeurs en im32 et ip32
@@ -1845,12 +1930,16 @@ class CellsInterface:
         ldagradTgg = self.ldag * (Tim1 - Tim2) / self.dx
         ldagradTdd = self.ldad * (Tip2 - Tip1) / self.dx
         lda_gradTg = self.pid_interp(
-            np.array([ldagradTgg, ldagradTdd]), np.array([self.dx, 2.0 * self.dx])
+            np.array([ldagradTgg, ldagradTdd]),
+            np.array([self.dx, 2.0 * self.dx]),
         )
         lda_gradTgi = self.pid_interp(
             np.array([ldagradTgg, ldagradTdd]),
             np.array(
-                [dg - (dg - 0.5 * self.dx) / 2.0, dd + (dg - 0.5 * self.dx) / 2.0]
+                [
+                    dg - (dg - 0.5 * self.dx) / 2.0,
+                    dd + (dg - 0.5 * self.dx) / 2.0,
+                ]
             ),
         )
         lda_gradTi = self.pid_interp(
@@ -1859,11 +1948,15 @@ class CellsInterface:
         lda_gradTdi = self.pid_interp(
             np.array([ldagradTgg, ldagradTdd]),
             np.array(
-                [dg + (dd - 0.5 * self.dx) / 2.0, dd - (dd - 0.5 * self.dx) / 2.0]
+                [
+                    dg + (dd - 0.5 * self.dx) / 2.0,
+                    dd - (dd - 0.5 * self.dx) / 2.0,
+                ]
             ),
         )
         lda_gradTd = self.pid_interp(
-            np.array([ldagradTgg, ldagradTdd]), np.array([2.0 * self.dx, self.dx])
+            np.array([ldagradTgg, ldagradTdd]),
+            np.array([2.0 * self.dx, self.dx]),
         )
         return lda_gradTg, lda_gradTgi, lda_gradTi, lda_gradTdi, lda_gradTd
 
@@ -1913,10 +2006,12 @@ class CellsInterface:
         lda_gradTi = (ldagradTig + ldagradTid) / 2.0
 
         lda_gradTg = self.pid_interp(
-            np.array([lda_gradTim32, lda_gradTi]), np.array([self.dx, ag * self.dx])
+            np.array([lda_gradTim32, lda_gradTi]),
+            np.array([self.dx, ag * self.dx]),
         )
         lda_gradTd = self.pid_interp(
-            np.array([lda_gradTi, lda_gradTip32]), np.array([ad * self.dx, self.dx])
+            np.array([lda_gradTi, lda_gradTip32]),
+            np.array([ad * self.dx, self.dx]),
         )
         dgi = (1 / 2.0 + ag) * self.dx
         lda_gradTgi = self.pid_interp(
@@ -2165,7 +2260,9 @@ class ProblemDiscontinuEnergieTemperature(Problem):
             return markers.copy()
         elif isinstance(markers, Bulles):
             return BulleTemperature(
-                markers=markers.markers, phy_prop=self.phy_prop, x=self.num_prop.x
+                markers=markers.markers,
+                phy_prop=self.phy_prop,
+                x=self.num_prop.x,
             )
         else:
             print(markers)
@@ -2340,7 +2437,9 @@ class ProblemDiscontinuEnergieTemperatureInt(Problem):
             return markers.copy()
         elif isinstance(markers, Bulles):
             return BulleTemperature(
-                markers=markers.markers, phy_prop=self.phy_prop, x=self.num_prop.x
+                markers=markers.markers,
+                phy_prop=self.phy_prop,
+                x=self.num_prop.x,
             )
         else:
             print(markers)
@@ -2538,7 +2637,9 @@ class ProblemDiscontinuE(Problem):
             return markers.copy()
         elif isinstance(markers, Bulles):
             return BulleTemperature(
-                markers=markers.markers, phy_prop=self.phy_prop, x=self.num_prop.x
+                markers=markers.markers,
+                phy_prop=self.phy_prop,
+                x=self.num_prop.x,
             )
         else:
             print(markers)
@@ -2619,7 +2720,9 @@ class ProblemDiscontinuE(Problem):
         rho_cp_a_np1 = (
             I_np1 * self.phy_prop.rho_cp1 + (1.0 - I_np1) * self.phy_prop.rho_cp2
         )
-        self.flux_conv = self._compute_convection_flux(self.rho_cp_a * self.T, self.bulles, debug)
+        self.flux_conv = self._compute_convection_flux(
+            self.rho_cp_a * self.T, self.bulles, debug
+        )
         self.flux_diff = self._compute_diffusion_flux(
             self.T, self.bulles, bool_debug, debug
         )
@@ -2700,7 +2803,9 @@ class ProblemDiscontinuE_CN(Problem):
             return markers.copy()
         elif isinstance(markers, Bulles):
             return BulleTemperature(
-                markers=markers.markers, phy_prop=self.phy_prop, x=self.num_prop.x
+                markers=markers.markers,
+                phy_prop=self.phy_prop,
+                x=self.num_prop.x,
             )
         else:
             print(markers)
@@ -2782,7 +2887,9 @@ class ProblemDiscontinuE_CN(Problem):
         rho_cp_a_np1 = (
             I_np1 * self.phy_prop.rho_cp1 + (1.0 - I_np1) * self.phy_prop.rho_cp2
         )
-        self.flux_conv = self._compute_convection_flux(self.rho_cp_a * self.T, self.bulles, debug)
+        self.flux_conv = self._compute_convection_flux(
+            self.rho_cp_a * self.T, self.bulles, debug
+        )
         self.flux_diff = self._compute_diffusion_flux(
             self.T, self.bulles, bool_debug, debug
         )
@@ -2863,7 +2970,9 @@ class ProblemDiscontinuEsansq(Problem):
             return markers.copy()
         elif isinstance(markers, Bulles):
             return BulleTemperature(
-                markers=markers.markers, phy_prop=self.phy_prop, x=self.num_prop.x
+                markers=markers.markers,
+                phy_prop=self.phy_prop,
+                x=self.num_prop.x,
             )
         else:
             print(markers)
@@ -2937,7 +3046,9 @@ class ProblemDiscontinuEsansq(Problem):
         rho_cp_a_np1 = (
             I_np1 * self.phy_prop.rho_cp1 + (1.0 - I_np1) * self.phy_prop.rho_cp2
         )
-        self.flux_conv = self._compute_convection_flux(self.rho_cp_a * self.T, self.bulles, debug)
+        self.flux_conv = self._compute_convection_flux(
+            self.rho_cp_a * self.T, self.bulles, debug
+        )
         self.flux_diff = self._compute_diffusion_flux(
             self.T, self.bulles, bool_debug, debug
         )
@@ -3001,7 +3112,9 @@ class ProblemDiscontinuEcomme3D(Problem):
             return markers.copy()
         elif isinstance(markers, Bulles):
             return BulleTemperature(
-                markers=markers.markers, phy_prop=self.phy_prop, x=self.num_prop.x
+                markers=markers.markers,
+                phy_prop=self.phy_prop,
+                x=self.num_prop.x,
             )
         else:
             print(markers)
@@ -3071,7 +3184,9 @@ class ProblemDiscontinuEcomme3D(Problem):
         rho_cp_a_np1 = (
             I_np1 * self.phy_prop.rho_cp1 + (1.0 - I_np1) * self.phy_prop.rho_cp2
         )
-        self.flux_conv = self.rho_cp_f * self._compute_convection_flux(self.T, self.bulles, debug)
+        self.flux_conv = self.rho_cp_f * self._compute_convection_flux(
+            self.T, self.bulles, debug
+        )
         self.flux_diff = self._compute_diffusion_flux(
             self.T, self.bulles, bool_debug, debug
         )
@@ -3164,7 +3279,9 @@ class ProblemDiscontinuEcomme3D_ghost(Problem):
             return markers.copy()
         elif isinstance(markers, Bulles):
             return BulleTemperature(
-                markers=markers.markers, phy_prop=self.phy_prop, x=self.num_prop.x
+                markers=markers.markers,
+                phy_prop=self.phy_prop,
+                x=self.num_prop.x,
             )
         else:
             print(markers)
@@ -3237,7 +3354,9 @@ class ProblemDiscontinuEcomme3D_ghost(Problem):
         rho_cp_a_np1 = (
             I_np1 * self.phy_prop.rho_cp1 + (1.0 - I_np1) * self.phy_prop.rho_cp2
         )
-        self.flux_conv = self.rho_cp_f * self._compute_convection_flux(self.T, self.bulles, debug)
+        self.flux_conv = self.rho_cp_f * self._compute_convection_flux(
+            self.T, self.bulles, debug
+        )
         self.flux_diff = self._compute_diffusion_flux(
             self.T, self.bulles, bool_debug, debug
         )
@@ -3273,7 +3392,9 @@ class ProblemDiscontinuEcomme3D_ghost(Problem):
                 I_kp1 * self.phy_prop.rho_cp1 + (1.0 - I_kp1) * self.phy_prop.rho_cp2
             )
 
-            flux_conv = rho_cp_f * self._compute_convection_flux(T_int, markers_int, debug)
+            flux_conv = rho_cp_f * self._compute_convection_flux(
+                T_int, markers_int, debug
+            )
             flux_diff = self._compute_diffusion_flux(
                 T_int, markers_int, bool_debug, debug
             )
@@ -3372,7 +3493,9 @@ class ProblemDiscontinuEcomme3D_ghost_exactSf(Problem):
             return markers.copy()
         elif isinstance(markers, Bulles):
             return BulleTemperature(
-                markers=markers.markers, phy_prop=self.phy_prop, x=self.num_prop.x
+                markers=markers.markers,
+                phy_prop=self.phy_prop,
+                x=self.num_prop.x,
             )
         else:
             print(markers)
@@ -3445,7 +3568,9 @@ class ProblemDiscontinuEcomme3D_ghost_exactSf(Problem):
         rho_cp_a_np1 = (
             I_np1 * self.phy_prop.rho_cp1 + (1.0 - I_np1) * self.phy_prop.rho_cp2
         )
-        self.flux_conv = self.rho_cp_f * self._compute_convection_flux(self.T, self.bulles, debug)
+        self.flux_conv = self.rho_cp_f * self._compute_convection_flux(
+            self.T, self.bulles, debug
+        )
         self.flux_diff = self._compute_diffusion_flux(
             self.T, self.bulles, bool_debug, debug
         )
@@ -3538,7 +3663,9 @@ class ProblemDiscontinuEcomme3Davecq_ghost(Problem):
             return markers.copy()
         elif isinstance(markers, Bulles):
             return BulleTemperature(
-                markers=markers.markers, phy_prop=self.phy_prop, x=self.num_prop.x
+                markers=markers.markers,
+                phy_prop=self.phy_prop,
+                x=self.num_prop.x,
             )
         else:
             print(markers)
@@ -3617,7 +3744,9 @@ class ProblemDiscontinuEcomme3Davecq_ghost(Problem):
         rho_cp_a_np1 = (
             I_np1 * self.phy_prop.rho_cp1 + (1.0 - I_np1) * self.phy_prop.rho_cp2
         )
-        self.flux_conv = self.rho_cp_f * self._compute_convection_flux(self.T, self.bulles, debug)
+        self.flux_conv = self.rho_cp_f * self._compute_convection_flux(
+            self.T, self.bulles, debug
+        )
         self.flux_diff = self._compute_diffusion_flux(
             self.T, self.bulles, bool_debug, debug
         )
@@ -3710,7 +3839,9 @@ class ProblemDiscontinuEcomme3Davecq_I(Problem):
             return markers.copy()
         elif isinstance(markers, Bulles):
             return BulleTemperature(
-                markers=markers.markers, phy_prop=self.phy_prop, x=self.num_prop.x
+                markers=markers.markers,
+                phy_prop=self.phy_prop,
+                x=self.num_prop.x,
             )
         else:
             print(markers)
@@ -3789,7 +3920,9 @@ class ProblemDiscontinuEcomme3Davecq_I(Problem):
         rho_cp_a_np1 = (
             I_np1 * self.phy_prop.rho_cp1 + (1.0 - I_np1) * self.phy_prop.rho_cp2
         )
-        self.flux_conv = self.rho_cp_f * self._compute_convection_flux(self.T, self.bulles, debug)
+        self.flux_conv = self.rho_cp_f * self._compute_convection_flux(
+            self.T, self.bulles, debug
+        )
         self.flux_diff = self._compute_diffusion_flux(
             self.T, self.bulles, bool_debug, debug
         )
@@ -3882,7 +4015,9 @@ class ProblemDiscontinuEcomme3D_ghost_avecq_I_exactSf(Problem):
             return markers.copy()
         elif isinstance(markers, Bulles):
             return BulleTemperature(
-                markers=markers.markers, phy_prop=self.phy_prop, x=self.num_prop.x
+                markers=markers.markers,
+                phy_prop=self.phy_prop,
+                x=self.num_prop.x,
             )
         else:
             print(markers)
@@ -3961,7 +4096,9 @@ class ProblemDiscontinuEcomme3D_ghost_avecq_I_exactSf(Problem):
         rho_cp_a_np1 = (
             I_np1 * self.phy_prop.rho_cp1 + (1.0 - I_np1) * self.phy_prop.rho_cp2
         )
-        self.flux_conv = self.rho_cp_f * self._compute_convection_flux(self.T, self.bulles, debug)
+        self.flux_conv = self.rho_cp_f * self._compute_convection_flux(
+            self.T, self.bulles, debug
+        )
         self.flux_diff = self._compute_diffusion_flux(
             self.T, self.bulles, bool_debug, debug
         )
@@ -4037,7 +4174,9 @@ class ProblemDiscontinuT(Problem):
             return markers.copy()
         elif isinstance(markers, Bulles):
             return BulleTemperature(
-                markers=markers.markers, phy_prop=self.phy_prop, x=self.num_prop.x
+                markers=markers.markers,
+                phy_prop=self.phy_prop,
+                x=self.num_prop.x,
             )
         else:
             print(markers)
@@ -4204,7 +4343,9 @@ class ProblemDiscontinuSautdTdt(Problem):
             return markers.copy()
         elif isinstance(markers, Bulles):
             return BulleTemperature(
-                markers=markers.markers, phy_prop=self.phy_prop, x=self.num_prop.x
+                markers=markers.markers,
+                phy_prop=self.phy_prop,
+                x=self.num_prop.x,
             )
         else:
             print(markers)
@@ -4313,7 +4454,10 @@ class ProblemDiscontinuSautdTdt(Problem):
                             - cells.grad_lda_gradT_n_g / rhocpg
                         ),
                     )
-                    print("delta * ... : ", delta0 * ad * (rhocpd - self.rho_cp_a[i0]))
+                    print(
+                        "delta * ... : ",
+                        delta0 * ad * (rhocpd - self.rho_cp_a[i0]),
+                    )
                     print("int_I... : ", (rhocpd - rhocpg) * int_S_Ti_v_n2_dS_0)
                     print(
                         "int_I... + delta * ... : ",
@@ -4403,7 +4547,9 @@ class ProblemDiscontinuSepIntT(Problem):
             return markers.copy()
         elif isinstance(markers, Bulles):
             return BulleTemperature(
-                markers=markers.markers, phy_prop=self.phy_prop, x=self.num_prop.x
+                markers=markers.markers,
+                phy_prop=self.phy_prop,
+                x=self.num_prop.x,
             )
         else:
             print(markers)
@@ -4590,7 +4736,9 @@ class ProblemDiscontinuECorrige(Problem):
             return markers.copy()
         elif isinstance(markers, Bulles):
             return BulleTemperature(
-                markers=markers.markers, phy_prop=self.phy_prop, x=self.num_prop.x
+                markers=markers.markers,
+                phy_prop=self.phy_prop,
+                x=self.num_prop.x,
             )
         else:
             print(markers)
@@ -4775,7 +4923,9 @@ class ProblemRhoCpDiscontinuE(Problem):
             return markers.copy()
         elif isinstance(markers, Bulles):
             return BulleTemperature(
-                markers=markers.markers, phy_prop=self.phy_prop, x=self.num_prop.x
+                markers=markers.markers,
+                phy_prop=self.phy_prop,
+                x=self.num_prop.x,
             )
         else:
             print(markers)
@@ -4851,7 +5001,9 @@ class ProblemRhoCpDiscontinuE(Problem):
         rho_cp_a_np1 = (
             I_np1 * self.phy_prop.rho_cp1 + (1.0 - I_np1) * self.phy_prop.rho_cp2
         )
-        self.flux_conv = self._compute_convection_flux(self.rho_cp_a * self.T, self.bulles, debug)
+        self.flux_conv = self._compute_convection_flux(
+            self.rho_cp_a * self.T, self.bulles, debug
+        )
         T_f = self._compute_convection_flux(self.T, self.bulles, debug)
         self.flux_diff = self._compute_diffusion_flux(
             self.T, self.bulles, bool_debug, debug
@@ -4917,7 +5069,9 @@ class ProblemDiscontinuCoupleConserv(Problem):
             return markers.copy()
         elif isinstance(markers, Bulles):
             return BulleTemperature(
-                markers=markers.markers, phy_prop=self.phy_prop, x=self.num_prop.x
+                markers=markers.markers,
+                phy_prop=self.phy_prop,
+                x=self.num_prop.x,
             )
         else:
             print(markers)
@@ -5114,7 +5268,9 @@ class ProblemDiscontinuFT(Problem):
             return markers.copy()
         elif isinstance(markers, Bulles):
             return BulleTemperature(
-                markers=markers.markers, phy_prop=self.phy_prop, x=self.num_prop.x
+                markers=markers.markers,
+                phy_prop=self.phy_prop,
+                x=self.num_prop.x,
             )
         else:
             print(markers)

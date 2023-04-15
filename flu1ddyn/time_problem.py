@@ -106,7 +106,9 @@ class TimeProblem:
 
         for i in range(n):
             self.timestep_scheme.step(
-                self.problem_state, debug=debug, bool_debug=(i % plot_for_each == 0)
+                self.problem_state,
+                debug=debug,
+                bool_debug=(i % plot_for_each == 0),
             )
             self.stat.collect(self.problem_state)
             # intermediary plots

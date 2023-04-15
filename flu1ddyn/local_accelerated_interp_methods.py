@@ -1,15 +1,21 @@
+"""
+In this module common local interpolation functions are defined and jit-compiled.
+"""
+
+
 import numpy as np
 from numba import njit
 
+
 @njit
 def lagrange_amont(
-        T0: float,
-        T1: float,
-        T2: float,
-        x0: float,
-        x1: float,
-        x2: float,
-        x_int: float,
+    T0: float,
+    T1: float,
+    T2: float,
+    x0: float,
+    x1: float,
+    x2: float,
+    x_int: float,
 ) -> (float, float, float):
     """
     Dans cette méthode on veux que T0 et T1 soient amont de x_int
@@ -39,15 +45,13 @@ def lagrange_amont(
         ],
         dtype=np.float_,
     )
-    Tint, dTdx_int, d2Tdx2_int = np.dot(
-        np.linalg.inv(mat), np.array([T0, T1, T2])
-    )
+    Tint, dTdx_int, d2Tdx2_int = np.dot(np.linalg.inv(mat), np.array([T0, T1, T2]))
     return Tint, dTdx_int, d2Tdx2_int
 
 
 @njit
 def lagrange_amont_grad(
-        T0: float, T1: float, gradT0: float, x0: float, x1: float, x_int: float
+    T0: float, T1: float, gradT0: float, x0: float, x1: float, x_int: float
 ) -> (float, float, float):
 
     """
@@ -71,22 +75,20 @@ def lagrange_amont_grad(
         [[1.0, d0, d0**2 / 2.0], [1.0, d1, d1**2 / 2.0], [0.0, 1.0, d0]],
         dtype=np.float_,
     )
-    Tint, dTdx_int, d2Tdx2_int = np.dot(
-        np.linalg.inv(mat), np.array([T0, T1, gradT0])
-    )
+    Tint, dTdx_int, d2Tdx2_int = np.dot(np.linalg.inv(mat), np.array([T0, T1, gradT0]))
     return Tint, dTdx_int, d2Tdx2_int
 
 
 @njit
 def lagrange_centre_grad(
-        Tgg: float,
-        Tg: float,
-        Ti: float,
-        gradTi: float,
-        xgg: float,
-        xg: float,
-        xi: float,
-        x_face: float,
+    Tgg: float,
+    Tg: float,
+    Ti: float,
+    gradTi: float,
+    xgg: float,
+    xg: float,
+    xi: float,
+    x_face: float,
 ) -> (float, float, float):
     """
     On utilise la continuité de lad_grad_T et on écrit un DL à l'ordre 3 avec les points Tgg, Tg et Ti.
@@ -127,23 +129,34 @@ def lagrange_centre_grad(
 
 
 @njit
-def upwind(
-        T0: float, T1: float, x0: float, x1: float
-) -> (float, float, float):
+def upwind(T0: float, T1: float, x0: float, x1: float) -> (float, float, float):
+    """
+    Uses upwind temperature for interpolation.
+
+    Args:
+        T0:
+        T1:
+        x0:
+        x1:
+
+    Returns:
+        T, dTdx, d2Tdx2
+    """
     Tint = T0
     dTdx_int = (T1 - T0) / (x1 - x0)
     d2Tdx2_int = 0.0
     return Tint, dTdx_int, d2Tdx2_int
 
+
 @njit
 def lagrange_amont_centre(
-        T0: float,
-        T1: float,
-        T2: float,
-        x0: float,
-        x1: float,
-        x2: float,
-        x_int: float,
+    T0: float,
+    T1: float,
+    T2: float,
+    x0: float,
+    x1: float,
+    x2: float,
+    x_int: float,
 ) -> (float, float, float):
     """
     Dans cette méthode on veux que T0 et T1 soient amont de x_int
@@ -171,7 +184,7 @@ def lagrange_amont_centre(
 
 @njit
 def amont_decentre(
-        T0: float, gradT0: float, x0: float, xint: float
+    T0: float, gradT0: float, x0: float, xint: float
 ) -> (float, float, float):
     """
     Dans cette méthode on veux que T0 soit amont de xint, et gradT0 soit le gradient en T0.

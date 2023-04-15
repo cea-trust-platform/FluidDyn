@@ -1,3 +1,8 @@
+"""
+Different FaceInterpolation implementations.
+"""
+
+
 from abc import ABC, abstractmethod
 import numpy as np
 from flu1ddyn.cells_interface import InterfaceInterpolationBase
@@ -9,9 +14,9 @@ import flu1ddyn.local_accelerated_interp_methods as interp
 
 class FaceInterpolationBase(ABC):
     def __init__(
-            self,
-            vdt=0.0,
-            time_integral="exact",
+        self,
+        vdt=0.0,
+        time_integral="exact",
     ):
         self.interface_cells = None  # InterfaceInterpolationBase()
         self.rhocpg = 1.0
@@ -31,7 +36,7 @@ class FaceInterpolationBase(ABC):
         return self._name + ", " + self.time_integral
 
     def interpolate_on_faces(
-            self, interface_cells: InterfaceInterpolationBase, rhocpg, rhocpd
+        self, interface_cells: InterfaceInterpolationBase, rhocpg, rhocpd
     ):
         """
         Cellule type ::
@@ -101,8 +106,7 @@ class FaceInterpolationBase(ABC):
             self._rhocp_f[3] = self._crank_nicolson(self.rhocpg, self.rhocpd)
         else:
             raise Exception(
-                "L'attribut time_integral : %s n'est pas reconnu"
-                % self.time_integral
+                "L'attribut time_integral : %s n'est pas reconnu" % self.time_integral
             )
         return self._rhocp_f
 
@@ -127,8 +131,7 @@ class FaceInterpolationBase(ABC):
         self._inv_rhocp_f[:3] = 1.0 / self.rhocpg
         self._inv_rhocp_f[4:] = 1.0 / self.rhocpd
         self._inv_rhocp_f[3] = (
-                self.coeff_d * 1.0 / self.rhocpd
-                + (1.0 - self.coeff_d) * 1.0 / self.rhocpg
+            self.coeff_d * 1.0 / self.rhocpd + (1.0 - self.coeff_d) * 1.0 / self.rhocpg
         )
         return self._inv_rhocp_f
 
@@ -154,31 +157,31 @@ class FaceInterpolationUpwind(FaceInterpolationBase):
             self.interface_cells.Tg[2],
             -1.0 * self.dx,
             0.0 * self.dx,
-            )
+        )
         Tim12, dTdxim12, _ = interp.upwind(
             self.interface_cells.Tg[-1],
             self.interface_cells.Tg[0],
             -1.0 * self.dx,
             0.0 * self.dx,
-            )
+        )
         Tip12, dTdxip12, _ = interp.upwind(
             self.interface_cells.Td[0],
             self.interface_cells.Td[1],
             0.0 * self.dx,
             1.0 * self.dx,
-            )
+        )
         Tip32, dTdxip32, _ = interp.upwind(
             self.interface_cells.Td[1],
             self.interface_cells.Td[2],
             1.0 * self.dx,
             2.0 * self.dx,
-            )
+        )
         Tip52, dTdxip52, _ = interp.upwind(
             self.interface_cells.Td[2],
             self.interface_cells.Td[3],
             2.0 * self.dx,
             3.0 * self.dx,
-            )
+        )
         self._T_f[
             0
         ] = (
@@ -210,7 +213,7 @@ class FaceInterpolationDiphOnlyQuick(FaceInterpolationBase):
             (0.5 - self.ad) * self.dx,
             1.0 * self.dx,
             0.5 * self.dx,
-            )
+        )
         _, dTdxip12, _ = interp.lagrange_centre_grad(
             self.interface_cells.Td[2],
             self.interface_cells.Td[1],
@@ -220,7 +223,7 @@ class FaceInterpolationDiphOnlyQuick(FaceInterpolationBase):
             1.0 * self.dx,
             (0.5 - self.ad) * self.dx,
             0.5 * self.dx,
-            )
+        )
         self._T_f[0] = np.nan
         self._T_f[1] = np.nan
         self._T_f[2] = np.nan  # self._T_dlg(0.)
@@ -269,7 +272,7 @@ class FaceInterpolationQuick(FaceInterpolationBase):
             -1.0 * self.dx,
             0.0 * self.dx,
             -0.5 * self.dx,
-            )
+        )
         Tim12, _, _ = interp.lagrange_amont(
             self.interface_cells.Tg[1],
             self.interface_cells.Tg[2],
@@ -278,7 +281,7 @@ class FaceInterpolationQuick(FaceInterpolationBase):
             -1.0 * self.dx,
             (self.ag - 0.5) * self.dx,
             -0.5 * self.dx,
-            )
+        )
         _, dTdxim12, _ = interp.lagrange_centre_grad(
             self.interface_cells.Tg[-3],
             self.interface_cells.Tg[-2],
@@ -288,7 +291,7 @@ class FaceInterpolationQuick(FaceInterpolationBase):
             -1 * self.dx,
             (self.ag - 0.5) * self.dx,
             -0.5 * self.dx,
-            )
+        )
         Tip12, _, _ = interp.lagrange_amont_grad(
             self.interface_cells.Ti,
             self.interface_cells.Td[1],
@@ -296,7 +299,7 @@ class FaceInterpolationQuick(FaceInterpolationBase):
             (0.5 - self.ad) * self.dx,
             1.0 * self.dx,
             0.5 * self.dx,
-            )
+        )
         _, dTdxip12, _ = interp.lagrange_centre_grad(
             self.interface_cells.Td[2],
             self.interface_cells.Td[1],
@@ -306,7 +309,7 @@ class FaceInterpolationQuick(FaceInterpolationBase):
             1.0 * self.dx,
             (0.5 - self.ad) * self.dx,
             0.5 * self.dx,
-            )
+        )
         Tip32, dTdxip32, _ = interp.lagrange_amont(
             self.interface_cells.Ti,
             self.interface_cells.Td[1],
@@ -315,7 +318,7 @@ class FaceInterpolationQuick(FaceInterpolationBase):
             1.0 * self.dx,
             2.0 * self.dx,
             1.5 * self.dx,
-            )
+        )
         Tip52, dTdxip52, _ = interp.lagrange_amont(
             self.interface_cells.Td[1],
             self.interface_cells.Td[2],
@@ -324,7 +327,7 @@ class FaceInterpolationQuick(FaceInterpolationBase):
             2.0 * self.dx,
             3.0 * self.dx,
             2.5 * self.dx,
-            )
+        )
         self._T_f[0] = np.nan
         self._T_f[1] = Tim32
         self._T_f[2] = Tim12
@@ -377,8 +380,7 @@ class FaceInterpolationQuickGhost(FaceInterpolationBase):
             self.interface_cells.Tg
         )
         Tip12 = (
-                self.interface_cells.Td[0]
-                + self.interface_cells.dTdxd * self.dx * 0.5
+            self.interface_cells.Td[0] + self.interface_cells.dTdxd * self.dx * 0.5
         )  # interpolation amont
         _, _, Tip32, _, _ = interpolate_from_center_to_face_quick(
             self.interface_cells.Td
@@ -437,8 +439,7 @@ class FaceInterpolationQuickGhostLdaGradTi(FaceInterpolationBase):
             self.interface_cells.Tg
         )
         Tip12 = (
-                self.interface_cells.Td[0]
-                + self.interface_cells.dTdxd * self.dx * 0.5
+            self.interface_cells.Td[0] + self.interface_cells.dTdxd * self.dx * 0.5
         )  # interpolation amont
         _, _, Tip32, _, _ = interpolate_from_center_to_face_quick(
             self.interface_cells.Td
@@ -548,7 +549,7 @@ class FaceInterpolationAmontCentre(FaceInterpolationBase):
             -1.0 * self.dx,
             0.0 * self.dx,
             -0.5 * self.dx,
-            )
+        )
         Tim12, _, _ = interp.lagrange_amont_centre(
             self.interface_cells.Tg[1],
             self.interface_cells.Tg[2],
@@ -557,13 +558,13 @@ class FaceInterpolationAmontCentre(FaceInterpolationBase):
             -1.0 * self.dx,
             (self.ag - 0.5) * self.dx,
             -0.5 * self.dx,
-            )
+        )
         Tip12, _, _ = interp.amont_decentre(
             self.interface_cells.Ti,
             self.interface_cells.dTdxd,
             (0.5 - self.ad) * self.dx,
             0.5 * self.dx,
-            )
+        )
         Tip32, _, _ = interp.lagrange_amont_centre(
             self.interface_cells.Ti,
             self.interface_cells.Td[1],
@@ -572,7 +573,7 @@ class FaceInterpolationAmontCentre(FaceInterpolationBase):
             1.0 * self.dx,
             2.0 * self.dx,
             1.5 * self.dx,
-            )
+        )
         Tip52, _, _ = interp.lagrange_amont_centre(
             self.interface_cells.Td[1],
             self.interface_cells.Td[2],
@@ -581,7 +582,7 @@ class FaceInterpolationAmontCentre(FaceInterpolationBase):
             2.0 * self.dx,
             3.0 * self.dx,
             2.5 * self.dx,
-            )
+        )
         self._T_f[0] = np.nan
         self._T_f[1] = Tim32
         self._T_f[2] = Tim12
@@ -599,7 +600,7 @@ class FaceInterpolationAmontCentre(FaceInterpolationBase):
             -1 * self.dx,
             (self.ag - 0.5) * self.dx,
             -0.5 * self.dx,
-            )
+        )
         _, dTdxip12, _ = interp.lagrange_centre_grad(
             self.interface_cells.Td[2],
             self.interface_cells.Td[1],
@@ -609,11 +610,10 @@ class FaceInterpolationAmontCentre(FaceInterpolationBase):
             1.0 * self.dx,
             (0.5 - self.ad) * self.dx,
             0.5 * self.dx,
-            )
+        )
         self._gradT_f[0] = np.nan
         self._gradT_f[1] = np.nan
         self._gradT_f[2] = dTdxim12
         self._gradT_f[3] = dTdxip12
         self._gradT_f[4] = np.nan
         self._gradT_f[5] = np.nan
-

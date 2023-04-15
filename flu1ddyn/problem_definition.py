@@ -183,7 +183,13 @@ class NumericalProperties:
 
 class Bulles:
     def __init__(
-        self, markers=None, phy_prop=None, n_bulle=None, Delta=1.0, alpha=0.06, a_i=None
+        self,
+        markers=None,
+        phy_prop=None,
+        n_bulle=None,
+        Delta=1.0,
+        alpha=0.06,
+        a_i=None,
     ):
         self.diam = 0.0
         if phy_prop is not None:

@@ -19,6 +19,7 @@ Sommaire
    doc/installation.rst
    doc/Src_doc.rst
    doc/index_nb.rst
+   doc/index_test.rst
    doc/htmlcov/index_test.rst
 
 

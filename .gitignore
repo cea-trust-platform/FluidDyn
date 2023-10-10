@@ -9,4 +9,8 @@ local
 .coverage
 widget_state.json
 sync.sh
-doc/src.*
+doc/flu1ddyn.*
+build/
+dist/
+*egg-info/
+figures/Movie/
